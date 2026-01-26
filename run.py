@@ -41,6 +41,28 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 
+    # Update projection history
+    logger.info("Updating projection history...")
+    try:
+        from src.dashboard import load_and_update_projection_history
+        import pandas as pd
+
+        # Load the ERA5 data
+        source = DATA_SOURCES["era5_global"]
+        df = load_or_fetch_data(source["url"], source["local_file"])
+
+        # Load ENSO data
+        enso_df = None
+        if enso_file.exists():
+            enso_df = pd.read_csv(enso_file)
+            enso_df['date'] = pd.to_datetime(enso_df['date'])
+
+        # Generate/update projection history
+        load_and_update_projection_history(df, enso_df)
+        logger.info("Projection history updated")
+    except Exception as e:
+        logger.error(f"Failed to update projection history: {e}")
+
     logger.info("Data update complete")
 
 
