@@ -1305,10 +1305,18 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
 
 def create_dashboard(df: pd.DataFrame) -> Dash:
     """Create the Dash application with dark mode support."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     app = Dash(__name__, external_stylesheets=[
         dbc.themes.BOOTSTRAP,
         dbc.icons.FONT_AWESOME
-    ])
+    ], suppress_callback_exceptions=True)
+
+    # Log data info for debugging
+    logger.info(f"Creating dashboard with {len(df)} rows of data")
+    logger.info(f"Data columns: {df.columns.tolist()}")
+    logger.info(f"Date range: {df['date'].min()} to {df['date'].max()}")
 
     stats = create_statistics_cards(df)
 
@@ -1494,20 +1502,46 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('dark-mode-switch', 'value')]
     )
     def update_theme(dark_mode):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"update_theme callback triggered with dark_mode={dark_mode}")
+
         # Use the dataframe from closure
         df_cb = _df
 
         theme = get_theme(dark_mode)
 
-        # Generate all figures with the current theme
-        fig_timeseries = create_time_series_plot(df_cb, dark_mode)
-        fig_daily_anomalies = create_daily_anomalies_plot(df_cb, dark_mode)
-        fig_daily_absolutes = create_daily_absolutes_plot(df_cb, dark_mode)
-        fig_monthly = create_monthly_projection_plot(df_cb, dark_mode)
-        fig_annual = create_annual_prediction_plot(df_cb, dark_mode=dark_mode)
-        fig_projection_history = create_projection_history_plot(df_cb, dark_mode)
-        fig_heatmap_anomaly = create_daily_heatmap(df_cb, 'anomaly', dark_mode)
-        fig_heatmap_temp = create_daily_heatmap(df_cb, 'temperature', dark_mode)
+        # Generate all figures with the current theme, with error handling
+        try:
+            logger.info("Creating timeseries plot...")
+            fig_timeseries = create_time_series_plot(df_cb, dark_mode)
+            logger.info("Creating daily anomalies plot...")
+            fig_daily_anomalies = create_daily_anomalies_plot(df_cb, dark_mode)
+            logger.info("Creating daily absolutes plot...")
+            fig_daily_absolutes = create_daily_absolutes_plot(df_cb, dark_mode)
+            logger.info("Creating monthly projection plot...")
+            fig_monthly = create_monthly_projection_plot(df_cb, dark_mode)
+            logger.info("Creating annual prediction plot...")
+            fig_annual = create_annual_prediction_plot(df_cb, dark_mode=dark_mode)
+            logger.info("Creating projection history plot...")
+            fig_projection_history = create_projection_history_plot(df_cb, dark_mode)
+            logger.info("Creating heatmap plots...")
+            fig_heatmap_anomaly = create_daily_heatmap(df_cb, 'anomaly', dark_mode)
+            fig_heatmap_temp = create_daily_heatmap(df_cb, 'temperature', dark_mode)
+            logger.info("All plots created successfully")
+        except Exception as e:
+            logger.error(f"Error creating plots: {e}", exc_info=True)
+            # Create empty figures as fallback
+            empty_fig = go.Figure()
+            empty_fig.update_layout(title="Error loading plot")
+            fig_timeseries = empty_fig
+            fig_daily_anomalies = empty_fig
+            fig_daily_absolutes = empty_fig
+            fig_monthly = empty_fig
+            fig_annual = empty_fig
+            fig_projection_history = empty_fig
+            fig_heatmap_anomaly = empty_fig
+            fig_heatmap_temp = empty_fig
 
         # Container style
         container_style = {
