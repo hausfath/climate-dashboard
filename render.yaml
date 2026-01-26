@@ -10,7 +10,7 @@ services:
     startCommand: gunicorn app:server --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.11"
       - key: DEBUG
         value: "false"
     # Render free tier - will spin down after inactivity
@@ -27,4 +27,4 @@ services:
     startCommand: python run.py update --force
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.11"
