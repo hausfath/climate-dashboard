@@ -1407,19 +1407,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             ], md=3),
         ], className="mb-4"),
 
-        # Debug: Simple static test graph
-        dbc.Row([
-            dbc.Col([
-                dcc.Graph(
-                    id='test-graph',
-                    figure={
-                        'data': [{'x': [1, 2, 3], 'y': [4, 1, 2], 'type': 'scatter', 'name': 'Test'}],
-                        'layout': {'title': 'Test Graph - If you see this, graphs work!', 'height': 300}
-                    }
-                )
-            ], md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
         # Main time series plot
         dbc.Row([
             dbc.Col([
