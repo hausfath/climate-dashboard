@@ -1410,56 +1410,88 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Main time series plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='timeseries-plot', style={'height': '500px'})
+                dcc.Loading(
+                    id="loading-timeseries",
+                    type="circle",
+                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px'})]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily anomalies plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='daily-anomalies-plot')
+                dcc.Loading(
+                    id="loading-daily-anomalies",
+                    type="circle",
+                    children=[dcc.Graph(id='daily-anomalies-plot')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily absolutes plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='daily-absolutes-plot')
+                dcc.Loading(
+                    id="loading-daily-absolutes",
+                    type="circle",
+                    children=[dcc.Graph(id='daily-absolutes-plot')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Monthly projection plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='monthly-projection')
+                dcc.Loading(
+                    id="loading-monthly",
+                    type="circle",
+                    children=[dcc.Graph(id='monthly-projection')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Annual prediction plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='annual-prediction')
+                dcc.Loading(
+                    id="loading-annual",
+                    type="circle",
+                    children=[dcc.Graph(id='annual-prediction')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Annual projection evolution plot
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='projection-history')
+                dcc.Loading(
+                    id="loading-projection-history",
+                    type="circle",
+                    children=[dcc.Graph(id='projection-history')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily anomaly heatmap
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='daily-anomaly-heatmap')
+                dcc.Loading(
+                    id="loading-heatmap-anomaly",
+                    type="circle",
+                    children=[dcc.Graph(id='daily-anomaly-heatmap')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily temperature heatmap
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='daily-temp-heatmap')
+                dcc.Loading(
+                    id="loading-heatmap-temp",
+                    type="circle",
+                    children=[dcc.Graph(id='daily-temp-heatmap')]
+                )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
@@ -1480,17 +1512,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     ], fluid=True, id='main-container')
 
-    # Callback to update all plots and styling based on dark mode
+    # Separate callbacks for better performance - each graph loads independently
+
+    # Callback for styling (fast - no heavy computation)
     @app.callback(
         [
-            Output('timeseries-plot', 'figure'),
-            Output('daily-anomalies-plot', 'figure'),
-            Output('daily-absolutes-plot', 'figure'),
-            Output('monthly-projection', 'figure'),
-            Output('annual-prediction', 'figure'),
-            Output('projection-history', 'figure'),
-            Output('daily-anomaly-heatmap', 'figure'),
-            Output('daily-temp-heatmap', 'figure'),
             Output('main-container', 'style'),
             Output('main-title', 'style'),
             Output('subtitle', 'style'),
@@ -1520,109 +1546,91 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ],
         [Input('dark-mode-switch', 'value')]
     )
-    def update_theme(dark_mode):
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"update_theme callback triggered with dark_mode={dark_mode}")
-
-        # Use the dataframe from closure
-        df_cb = _df
-
+    def update_styles(dark_mode):
         theme = get_theme(dark_mode)
 
-        # Generate all figures with the current theme, with error handling
-        try:
-            logger.info("Creating timeseries plot...")
-            fig_timeseries = create_time_series_plot(df_cb, dark_mode)
-            logger.info("Creating daily anomalies plot...")
-            fig_daily_anomalies = create_daily_anomalies_plot(df_cb, dark_mode)
-            logger.info("Creating daily absolutes plot...")
-            fig_daily_absolutes = create_daily_absolutes_plot(df_cb, dark_mode)
-            logger.info("Creating monthly projection plot...")
-            fig_monthly = create_monthly_projection_plot(df_cb, dark_mode)
-            logger.info("Creating annual prediction plot...")
-            fig_annual = create_annual_prediction_plot(df_cb, dark_mode=dark_mode)
-            logger.info("Creating projection history plot...")
-            fig_projection_history = create_projection_history_plot(df_cb, dark_mode)
-            logger.info("Creating heatmap plots...")
-            fig_heatmap_anomaly = create_daily_heatmap(df_cb, 'anomaly', dark_mode)
-            fig_heatmap_temp = create_daily_heatmap(df_cb, 'temperature', dark_mode)
-            logger.info("All plots created successfully")
-        except Exception as e:
-            logger.error(f"Error creating plots: {e}", exc_info=True)
-            # Create empty figures as fallback
-            empty_fig = go.Figure()
-            empty_fig.update_layout(title="Error loading plot")
-            fig_timeseries = empty_fig
-            fig_daily_anomalies = empty_fig
-            fig_daily_absolutes = empty_fig
-            fig_monthly = empty_fig
-            fig_annual = empty_fig
-            fig_projection_history = empty_fig
-            fig_heatmap_anomaly = empty_fig
-            fig_heatmap_temp = empty_fig
-
-        # Container style
         container_style = {
             'backgroundColor': theme['bg_color'],
             'minHeight': '100vh',
             'paddingBottom': '20px'
         }
-
-        # Title styles
         title_style = {'color': theme['text_color']}
         subtitle_style = {'color': theme['text_color'], 'opacity': '0.7'}
-
-        # Card color and style
         card_color = theme['card_color']
         card_style = {'backgroundColor': theme['card_color'] if dark_mode else None}
         card_title_style = {'color': theme['text_color']}
         card_value_style = {'color': theme['text_color']}
         card_sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
-
-        # Footer style
         footer_style = {'color': theme['text_color'], 'opacity': '0.7'}
-
-        # Icon styles
         sun_style = {'color': '#feca57' if not dark_mode else theme['text_color'], 'opacity': 0.5 if dark_mode else 1}
         moon_style = {'color': '#a29bfe' if dark_mode else theme['text_color'], 'opacity': 1 if dark_mode else 0.5}
 
         return (
-            fig_timeseries,
-            fig_daily_anomalies,
-            fig_daily_absolutes,
-            fig_monthly,
-            fig_annual,
-            fig_projection_history,
-            fig_heatmap_anomaly,
-            fig_heatmap_temp,
-            container_style,
-            title_style,
-            subtitle_style,
-            card_color,
-            card_color,
-            card_color,
-            card_color,
-            card_style,
-            card_style,
-            card_style,
-            card_style,
-            card_title_style,
-            card_title_style,
-            card_title_style,
-            card_title_style,
-            card_value_style,
-            card_value_style,
-            card_value_style,
-            card_value_style,
-            card_sub_style,
-            card_sub_style,
-            card_sub_style,
-            card_sub_style,
-            footer_style,
-            sun_style,
-            moon_style,
+            container_style, title_style, subtitle_style,
+            card_color, card_color, card_color, card_color,
+            card_style, card_style, card_style, card_style,
+            card_title_style, card_title_style, card_title_style, card_title_style,
+            card_value_style, card_value_style, card_value_style, card_value_style,
+            card_sub_style, card_sub_style, card_sub_style, card_sub_style,
+            footer_style, sun_style, moon_style,
         )
+
+    # Individual callbacks for each graph - load independently with spinners
+    @app.callback(
+        Output('timeseries-plot', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_timeseries(dark_mode):
+        return create_time_series_plot(_df, dark_mode)
+
+    @app.callback(
+        Output('daily-anomalies-plot', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_daily_anomalies(dark_mode):
+        return create_daily_anomalies_plot(_df, dark_mode)
+
+    @app.callback(
+        Output('daily-absolutes-plot', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_daily_absolutes(dark_mode):
+        return create_daily_absolutes_plot(_df, dark_mode)
+
+    @app.callback(
+        Output('monthly-projection', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_monthly(dark_mode):
+        return create_monthly_projection_plot(_df, dark_mode)
+
+    @app.callback(
+        Output('annual-prediction', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_annual(dark_mode):
+        return create_annual_prediction_plot(_df, dark_mode=dark_mode)
+
+    @app.callback(
+        Output('projection-history', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_projection_history(dark_mode):
+        return create_projection_history_plot(_df, dark_mode)
+
+    @app.callback(
+        Output('daily-anomaly-heatmap', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_heatmap_anomaly(dark_mode):
+        return create_daily_heatmap(_df, 'anomaly', dark_mode)
+
+    @app.callback(
+        Output('daily-temp-heatmap', 'figure'),
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_heatmap_temp(dark_mode):
+        return create_daily_heatmap(_df, 'temperature', dark_mode)
 
     return app
 
