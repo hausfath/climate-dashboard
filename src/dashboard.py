@@ -104,8 +104,8 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
 
     fig = go.Figure()
 
-    # Add anomaly line
-    fig.add_trace(go.Scatter(
+    # Add anomaly line (using Scattergl for better performance with large datasets)
+    fig.add_trace(go.Scattergl(
         x=df_adj['date'],
         y=df_adj['anomaly'],
         mode='lines',
@@ -118,7 +118,7 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
     df_rolling = df_adj.copy()
     df_rolling['rolling_365'] = df_rolling['anomaly'].rolling(window=365, center=True).mean()
 
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=df_rolling['date'],
         y=df_rolling['rolling_365'],
         mode='lines',
