@@ -1,0 +1,30 @@
+# Render Blueprint - Infrastructure as Code
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Web service for the dashboard
+  - type: web
+    name: climate-dashboard
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:server --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: DEBUG
+        value: "false"
+    # Render free tier - will spin down after inactivity
+    plan: free
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+
+  # Cron job for daily data updates
+  - type: cron
+    name: climate-data-updater
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 6 * * *"  # Run daily at 6 AM UTC
+    startCommand: python run.py update --force
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
