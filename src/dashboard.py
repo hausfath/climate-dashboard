@@ -1035,6 +1035,7 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     """
     Create a plot showing how the annual projection has evolved throughout the year.
     """
+    import os
     theme = get_theme(dark_mode)
 
     from pathlib import Path
@@ -1042,16 +1043,34 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from config import DATA_DIR
 
-    # Load ENSO data
-    enso_file = DATA_DIR / "enso_combined.csv"
-    if enso_file.exists():
-        enso_df = pd.read_csv(enso_file)
-        enso_df['date'] = pd.to_datetime(enso_df['date'])
-    else:
-        enso_df = None
+    current_year = df['year'].max()
+    history_file = DATA_DIR / f"projection_history_{current_year}.csv"
 
-    # Load and update projection history
-    history = load_and_update_projection_history(df, enso_df)
+    # In production, skip heavy computation if history file doesn't exist
+    # The cron job will generate it
+    if not history_file.exists():
+        fig = go.Figure()
+        fig.update_layout(
+            title=dict(
+                text=f'{current_year} Annual Projection Evolution (Generating...)',
+                font=dict(size=20, color=theme['text_color'])
+            ),
+            annotations=[{
+                'text': 'Projection history will be available after the daily update runs.',
+                'xref': 'paper', 'yref': 'paper',
+                'x': 0.5, 'y': 0.5, 'showarrow': False,
+                'font': {'size': 16, 'color': theme['text_color']}
+            }],
+            height=500,
+            paper_bgcolor=theme['paper_color'],
+            plot_bgcolor=theme['bg_color'],
+            font=dict(color=theme['text_color'])
+        )
+        return fig
+
+    # Load existing history (don't generate new projections in web request)
+    history = pd.read_csv(history_file)
+    history['date'] = pd.to_datetime(history['date'])
 
     if len(history) == 0:
         # Return empty figure if no data
