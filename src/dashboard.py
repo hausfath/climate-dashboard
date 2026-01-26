@@ -1512,7 +1512,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     ], fluid=True, id='main-container')
 
-    # Separate callbacks for better performance - each graph loads independently
+    # Chained callbacks - graphs load sequentially from top to bottom
 
     # Callback for styling (fast - no heavy computation)
     @app.callback(
@@ -1575,7 +1575,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             footer_style, sun_style, moon_style,
         )
 
-    # Individual callbacks for each graph - load independently with spinners
+    # Graph 1: Time series (triggered by dark mode switch)
     @app.callback(
         Output('timeseries-plot', 'figure'),
         [Input('dark-mode-switch', 'value')]
@@ -1583,53 +1583,67 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_timeseries(dark_mode):
         return create_time_series_plot(_df, dark_mode)
 
+    # Graph 2: Daily anomalies (triggered after timeseries completes)
     @app.callback(
         Output('daily-anomalies-plot', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('timeseries-plot', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_daily_anomalies(dark_mode):
+    def update_daily_anomalies(_, dark_mode):
         return create_daily_anomalies_plot(_df, dark_mode)
 
+    # Graph 3: Daily absolutes (triggered after daily anomalies completes)
     @app.callback(
         Output('daily-absolutes-plot', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('daily-anomalies-plot', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_daily_absolutes(dark_mode):
+    def update_daily_absolutes(_, dark_mode):
         return create_daily_absolutes_plot(_df, dark_mode)
 
+    # Graph 4: Monthly projection (triggered after daily absolutes completes)
     @app.callback(
         Output('monthly-projection', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('daily-absolutes-plot', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_monthly(dark_mode):
+    def update_monthly(_, dark_mode):
         return create_monthly_projection_plot(_df, dark_mode)
 
+    # Graph 5: Annual prediction (triggered after monthly completes)
     @app.callback(
         Output('annual-prediction', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('monthly-projection', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_annual(dark_mode):
+    def update_annual(_, dark_mode):
         return create_annual_prediction_plot(_df, dark_mode=dark_mode)
 
+    # Graph 6: Projection history (triggered after annual completes)
     @app.callback(
         Output('projection-history', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('annual-prediction', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_projection_history(dark_mode):
+    def update_projection_history(_, dark_mode):
         return create_projection_history_plot(_df, dark_mode)
 
+    # Graph 7: Anomaly heatmap (triggered after projection history completes)
     @app.callback(
         Output('daily-anomaly-heatmap', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('projection-history', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_heatmap_anomaly(dark_mode):
+    def update_heatmap_anomaly(_, dark_mode):
         return create_daily_heatmap(_df, 'anomaly', dark_mode)
 
+    # Graph 8: Temperature heatmap (triggered after anomaly heatmap completes)
     @app.callback(
         Output('daily-temp-heatmap', 'figure'),
-        [Input('dark-mode-switch', 'value')]
+        [Input('daily-anomaly-heatmap', 'figure')],
+        [State('dark-mode-switch', 'value')]
     )
-    def update_heatmap_temp(dark_mode):
+    def update_heatmap_temp(_, dark_mode):
         return create_daily_heatmap(_df, 'temperature', dark_mode)
 
     return app
