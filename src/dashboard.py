@@ -1349,22 +1349,24 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Header with dark mode toggle
         dbc.Row([
             dbc.Col([
-                html.H1("Global Temperature Dashboard", className="text-center my-4", id='main-title'),
-                html.P("ERA5 Daily Global Mean 2m Temperature",
-                       className="text-center text-muted", id='subtitle'),
-            ], md=10),
-            dbc.Col([
                 html.Div([
                     html.I(className="fas fa-sun me-2", id='sun-icon'),
                     dbc.Switch(
                         id='dark-mode-switch',
-                        value=False,
+                        value=True,  # Dark mode is default
                         className="d-inline-block",
                         style={'transform': 'scale(1.3)'}
                     ),
                     html.I(className="fas fa-moon ms-2", id='moon-icon'),
-                ], className="d-flex align-items-center justify-content-end mt-4")
-            ], md=2),
+                ], className="d-flex align-items-center justify-content-end")
+            ], md={'size': 2, 'offset': 10}),
+        ]),
+        dbc.Row([
+            dbc.Col([
+                html.H1("Global Temperature Dashboard", className="text-center mb-2", id='main-title'),
+                html.P("ERA5 Daily Global Mean 2m Temperature",
+                       className="text-center", id='subtitle'),
+            ], md=12),
         ]),
 
         # Statistics Cards
