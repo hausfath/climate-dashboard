@@ -587,6 +587,128 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
     return fig
 
 
+def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: bool = False) -> go.Figure:
+    """
+    Create a polar spiral plot of daily climate data (temperature or anomaly).
+
+    The spiral winds outward with each year, colored by the specified value.
+    """
+    theme = get_theme(dark_mode)
+
+    # Adjust anomalies to preindustrial if plotting anomaly
+    if value_col == 'anomaly':
+        df_plot = adjust_anomalies_to_preindustrial(df.copy())
+    else:
+        df_plot = df.copy()
+
+    # Filter to day_of_year <= 365 (drop leap day for consistency)
+    df_plot = df_plot[df_plot['day_of_year'] <= 365].copy()
+
+    # Create running day index
+    year_min = df_plot['year'].min()
+    df_plot['n_day'] = (df_plot['year'] - year_min) * 365 + df_plot['day_of_year'] - 1
+
+    year_span = df_plot['year'].nunique()
+
+    # Calculate polar coordinates
+    # theta: angle (0-2π for each year), offset by -π/2 to start at top
+    # r: radius increases with each year
+    df_plot['theta'] = 2 * np.pi * (df_plot['n_day'] % 365) / 365 - np.pi / 2
+    df_plot['r'] = df_plot['n_day'] / 365
+
+    # Convert to degrees for Plotly (which uses degrees in polar plots)
+    df_plot['theta_deg'] = np.degrees(df_plot['theta'])
+
+    # Get color scale based on value
+    vmin, vmax = df_plot[value_col].min(), df_plot[value_col].max()
+
+    # Create figure with polar projection
+    fig = go.Figure()
+
+    # Add the spiral as a scatterpolar trace
+    # We'll use markers with small size to create a continuous line effect
+    fig.add_trace(go.Scatterpolar(
+        r=df_plot['r'],
+        theta=df_plot['theta_deg'],
+        mode='markers',
+        marker=dict(
+            size=3,
+            color=df_plot[value_col],
+            colorscale='RdYlBu_r',
+            cmin=vmin,
+            cmax=vmax,
+            colorbar=dict(
+                title=dict(
+                    text='Anomaly (°C)' if value_col == 'anomaly' else 'Temperature (°C)',
+                    font=dict(color=theme['text_color'])
+                ),
+                tickfont=dict(color=theme['text_color']),
+                len=0.6,
+            ),
+            showscale=True,
+        ),
+        hovertemplate=(
+            'Year: %{customdata[0]}<br>'
+            'Day: %{customdata[1]}<br>'
+            f'{value_col.capitalize()}: %{{customdata[2]:.2f}}°C<extra></extra>'
+        ),
+        customdata=np.column_stack([
+            df_plot['year'],
+            df_plot['day_of_year'],
+            df_plot[value_col]
+        ]),
+    ))
+
+    # Create decade tick labels
+    decade_ticks = list(range(0, year_span + 1, 10))
+    decade_labels = [str(year_min + d) for d in decade_ticks]
+
+    # Month labels at outer edge
+    mid_days = np.cumsum([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]) - 15.5
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month_angles = [np.degrees(2 * np.pi * mid / 365 - np.pi / 2) for mid in mid_days]
+
+    year_min_val, year_max_val = df_plot['year'].min(), df_plot['year'].max()
+
+    fig.update_layout(
+        title=dict(
+            text=f'Global Daily {"Anomalies" if value_col == "anomaly" else "Temperatures"} ({year_min_val}–{year_max_val})',
+            font=dict(size=18, color=theme['text_color']),
+            x=0.5,
+        ),
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, year_span + 2],
+                tickvals=decade_ticks,
+                ticktext=decade_labels,
+                tickfont=dict(size=10, color=theme['text_color']),
+                gridcolor=theme['grid_color'],
+                linecolor=theme['grid_color'],
+            ),
+            angularaxis=dict(
+                visible=True,
+                tickvals=month_angles,
+                ticktext=month_names,
+                tickfont=dict(size=11, color=theme['text_color']),
+                gridcolor='rgba(0,0,0,0)',  # Hide angular grid
+                linecolor=theme['grid_color'],
+                direction='clockwise',
+                rotation=90,  # Start from top
+            ),
+            bgcolor=theme['bg_color'],
+        ),
+        paper_bgcolor=theme['paper_color'],
+        plot_bgcolor=theme['bg_color'],
+        font=dict(color=theme['text_color']),
+        height=500,
+        showlegend=False,
+    )
+
+    return fig
+
+
 def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None, dark_mode: bool = False) -> go.Figure:
     """
     Create a plot showing historical annual temperatures and 2026 prediction.
@@ -1497,6 +1619,24 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
+        # Spiral plots side by side
+        dbc.Row([
+            dbc.Col([
+                dcc.Loading(
+                    id="loading-spiral-anomaly",
+                    type="circle",
+                    children=[dcc.Graph(id='spiral-anomaly-plot')]
+                )
+            ], md=6),
+            dbc.Col([
+                dcc.Loading(
+                    id="loading-spiral-temp",
+                    type="circle",
+                    children=[dcc.Graph(id='spiral-temp-plot')]
+                )
+            ], md=6),
+        ], className="mb-4"),
+
         # Footer
         dbc.Row([
             dbc.Col([
@@ -1647,6 +1787,24 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def update_heatmap_temp(_, dark_mode):
         return create_daily_heatmap(_df, 'temperature', dark_mode)
+
+    # Graph 9: Spiral anomaly plot (triggered after temp heatmap completes)
+    @app.callback(
+        Output('spiral-anomaly-plot', 'figure'),
+        [Input('daily-temp-heatmap', 'figure')],
+        [State('dark-mode-switch', 'value')]
+    )
+    def update_spiral_anomaly(_, dark_mode):
+        return create_spiral_plot(_df, 'anomaly', dark_mode)
+
+    # Graph 10: Spiral temperature plot (triggered after spiral anomaly completes)
+    @app.callback(
+        Output('spiral-temp-plot', 'figure'),
+        [Input('spiral-anomaly-plot', 'figure')],
+        [State('dark-mode-switch', 'value')]
+    )
+    def update_spiral_temp(_, dark_mode):
+        return create_spiral_plot(_df, 'temperature', dark_mode)
 
     return app
 
