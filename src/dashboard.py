@@ -611,13 +611,10 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
     year_span = df_plot['year'].nunique()
 
     # Calculate polar coordinates
-    # theta: angle (0-2π for each year), offset by -π/2 to start at top
+    # theta: angle (0-360 for each year), layout rotation=90 positions Jan at top
     # r: radius increases with each year
-    df_plot['theta'] = 2 * np.pi * (df_plot['n_day'] % 365) / 365 - np.pi / 2
+    df_plot['theta_deg'] = 360 * (df_plot['n_day'] % 365) / 365
     df_plot['r'] = df_plot['n_day'] / 365
-
-    # Convert to degrees for Plotly (which uses degrees in polar plots)
-    df_plot['theta_deg'] = np.degrees(df_plot['theta'])
 
     # Get color scale based on value
     vmin, vmax = df_plot[value_col].min(), df_plot[value_col].max()
@@ -643,7 +640,9 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
                     font=dict(color=theme['text_color'])
                 ),
                 tickfont=dict(color=theme['text_color']),
-                len=0.6,
+                len=0.7,
+                x=1.02,
+                xpad=5,
             ),
             showscale=True,
         ),
@@ -664,10 +663,17 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
     decade_labels = [str(year_min + d) for d in decade_ticks]
 
     # Month labels at outer edge
-    mid_days = np.cumsum([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]) - 15.5
+    # Calculate mid-point day of each month
+    month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    mid_days = []
+    cumulative = 0
+    for days in month_days:
+        mid_days.append(cumulative + days / 2)
+        cumulative += days
     month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    month_angles = [np.degrees(2 * np.pi * mid / 365 - np.pi / 2) for mid in mid_days]
+    # Convert to angles (0-360), no offset since layout rotation handles positioning
+    month_angles = [360 * mid / 365 for mid in mid_days]
 
     year_min_val, year_max_val = df_plot['year'].min(), df_plot['year'].max()
 
@@ -702,7 +708,8 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
         paper_bgcolor=theme['paper_color'],
         plot_bgcolor=theme['bg_color'],
         font=dict(color=theme['text_color']),
-        height=500,
+        height=550,
+        margin=dict(l=40, r=80, t=60, b=40),
         showlegend=False,
     )
 
