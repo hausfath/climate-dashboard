@@ -623,13 +623,16 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
     fig = go.Figure()
 
     # Add the spiral as a scatterpolar trace
-    # We'll use markers with small size to create a continuous line effect
+    # Scale marker size with radius so outer rings don't have gaps
+    # Inner rings (small r) get smaller markers, outer rings (large r) get larger
+    marker_sizes = 2 + (df_plot['r'] / df_plot['r'].max()) * 4  # Range from 2 to 6
+
     fig.add_trace(go.Scatterpolar(
         r=df_plot['r'],
         theta=df_plot['theta_deg'],
         mode='markers',
         marker=dict(
-            size=3,
+            size=marker_sizes,
             color=df_plot[value_col],
             colorscale='RdYlBu_r',
             cmin=vmin,
@@ -641,8 +644,8 @@ def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: 
                 ),
                 tickfont=dict(color=theme['text_color']),
                 len=0.7,
-                x=1.02,
-                xpad=5,
+                x=1.01,
+                xpad=2,
             ),
             showscale=True,
         ),
