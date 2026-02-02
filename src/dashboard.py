@@ -736,6 +736,57 @@ def generate_ridgeline_images(df: pd.DataFrame, output_dir: Path) -> dict:
     return image_paths
 
 
+def generate_all_static_images(df: pd.DataFrame, output_dir: Path, enso_df: pd.DataFrame = None) -> None:
+    """
+    Generate static PNG images for all plots (both light and dark mode).
+    Called during data updates to pre-render plots for fast loading.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Plot configurations: (name, function, extra_args)
+    plot_configs = [
+        ('timeseries', lambda dm: create_time_series_plot(df, dm), {}),
+        ('daily_anomalies', lambda dm: create_daily_anomalies_plot(df, dm), {}),
+        ('daily_temps', lambda dm: create_daily_absolutes_plot(df, dm), {}),
+        ('monthly_projections', lambda dm: create_monthly_projection_plot(df, dm), {}),
+        ('annual_prediction', lambda dm: create_annual_prediction_plot(df, enso_df, dm), {}),
+        ('projection_history', lambda dm: create_projection_history_plot(df, dm), {}),
+        ('heatmap_anomaly', lambda dm: create_daily_heatmap(df, 'anomaly', dm), {}),
+        ('heatmap_temp', lambda dm: create_daily_heatmap(df, 'temperature', dm), {}),
+    ]
+
+    for dark_mode in [True, False]:
+        mode_suffix = 'dark' if dark_mode else 'light'
+
+        for name, create_func, _ in plot_configs:
+            filename = f"{name}_{mode_suffix}.png"
+            filepath = output_dir / filename
+
+            try:
+                logger.info(f"Generating {filename}...")
+                fig = create_func(dark_mode)
+
+                # Adjust dimensions based on plot type
+                if 'heatmap' in name:
+                    fig.write_image(str(filepath), width=1200, height=600, scale=2)
+                elif name == 'timeseries':
+                    fig.write_image(str(filepath), width=1200, height=500, scale=2)
+                else:
+                    fig.write_image(str(filepath), width=1000, height=500, scale=2)
+
+            except Exception as e:
+                logger.error(f"Failed to generate {filename}: {e}")
+
+    # Also generate ridgeline images
+    generate_ridgeline_images(df, output_dir)
+
+    logger.info("All static images generated successfully")
+
+
 def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None, dark_mode: bool = False) -> go.Figure:
     """
     Create a plot showing historical annual temperatures and 2026 prediction.
@@ -1490,9 +1541,25 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     logger.info(f"Data columns: {df.columns.tolist()}")
     logger.info(f"Date range: {df['date'].min()} to {df['date'].max()}")
 
-    # Generate static ridgeline plot images
+    # Generate static plot images (for fast loading in static mode)
     assets_dir = Path(__file__).parent.parent / 'assets' / 'images'
-    generate_ridgeline_images(df, assets_dir)
+
+    # Check if images exist and are recent (within last hour)
+    # If not, generate them
+    import os
+    ridgeline_path = assets_dir / 'ridgeline_dark.png'
+    should_generate = not ridgeline_path.exists()
+
+    if not should_generate:
+        # Check age of existing images
+        age = datetime.now().timestamp() - os.path.getmtime(ridgeline_path)
+        should_generate = age > 3600  # Regenerate if older than 1 hour
+
+    if should_generate:
+        logger.info("Generating static plot images...")
+        generate_all_static_images(df, assets_dir)
+    else:
+        logger.info("Using existing static plot images")
 
     stats = create_statistics_cards(df)
 
@@ -1503,20 +1570,34 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Store for dark mode state
         dcc.Store(id='dark-mode-store', data=False),
 
-        # Header with dark mode toggle
+        # Header with toggles
         dbc.Row([
             dbc.Col([
                 html.Div([
-                    html.I(className="fas fa-sun me-2", id='sun-icon'),
-                    dbc.Switch(
-                        id='dark-mode-switch',
-                        value=True,  # Dark mode is default
-                        className="d-inline-block",
-                        style={'transform': 'scale(1.3)'}
-                    ),
-                    html.I(className="fas fa-moon ms-2", id='moon-icon'),
-                ], className="d-flex align-items-center justify-content-end")
-            ], md={'size': 2, 'offset': 10}),
+                    # Dark mode toggle
+                    html.Div([
+                        html.I(className="fas fa-sun me-2", id='sun-icon'),
+                        dbc.Switch(
+                            id='dark-mode-switch',
+                            value=True,  # Dark mode is default
+                            className="d-inline-block",
+                            style={'transform': 'scale(1.3)'}
+                        ),
+                        html.I(className="fas fa-moon ms-2", id='moon-icon'),
+                    ], className="d-flex align-items-center justify-content-end mb-2"),
+                    # Interactive mode toggle
+                    html.Div([
+                        html.Small("Static", className="me-2", id='static-label'),
+                        dbc.Switch(
+                            id='interactive-switch',
+                            value=False,  # Static mode is default
+                            className="d-inline-block",
+                            style={'transform': 'scale(1.1)'}
+                        ),
+                        html.Small("Interactive", className="ms-2", id='interactive-label'),
+                    ], className="d-flex align-items-center justify-content-end"),
+                ])
+            ], md={'size': 3, 'offset': 9}),
         ]),
         dbc.Row([
             dbc.Col([
@@ -1569,10 +1650,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Main time series plot
         dbc.Row([
             dbc.Col([
+                # Static image (shown by default)
+                html.Img(id='timeseries-img', src='/assets/images/timeseries_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
+                # Interactive graph (hidden by default)
                 dcc.Loading(
                     id="loading-timeseries",
                     type="circle",
-                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px'})]
+                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px', 'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1580,10 +1665,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Daily anomalies plot
         dbc.Row([
             dbc.Col([
+                html.Img(id='daily-anomalies-img', src='/assets/images/daily_anomalies_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-daily-anomalies",
                     type="circle",
-                    children=[dcc.Graph(id='daily-anomalies-plot')]
+                    children=[dcc.Graph(id='daily-anomalies-plot', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1591,10 +1678,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Daily absolutes plot
         dbc.Row([
             dbc.Col([
+                html.Img(id='daily-temps-img', src='/assets/images/daily_temps_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-daily-absolutes",
                     type="circle",
-                    children=[dcc.Graph(id='daily-absolutes-plot')]
+                    children=[dcc.Graph(id='daily-absolutes-plot', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1602,10 +1691,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Monthly projection plot
         dbc.Row([
             dbc.Col([
+                html.Img(id='monthly-projections-img', src='/assets/images/monthly_projections_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-monthly",
                     type="circle",
-                    children=[dcc.Graph(id='monthly-projection')]
+                    children=[dcc.Graph(id='monthly-projection', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1613,10 +1704,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Annual prediction plot
         dbc.Row([
             dbc.Col([
+                html.Img(id='annual-prediction-img', src='/assets/images/annual_prediction_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-annual",
                     type="circle",
-                    children=[dcc.Graph(id='annual-prediction')]
+                    children=[dcc.Graph(id='annual-prediction', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1624,10 +1717,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Annual projection evolution plot
         dbc.Row([
             dbc.Col([
+                html.Img(id='projection-history-img', src='/assets/images/projection_history_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-projection-history",
                     type="circle",
-                    children=[dcc.Graph(id='projection-history')]
+                    children=[dcc.Graph(id='projection-history', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1635,10 +1730,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Daily anomaly heatmap
         dbc.Row([
             dbc.Col([
+                html.Img(id='heatmap-anomaly-img', src='/assets/images/heatmap_anomaly_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-heatmap-anomaly",
                     type="circle",
-                    children=[dcc.Graph(id='daily-anomaly-heatmap')]
+                    children=[dcc.Graph(id='daily-anomaly-heatmap', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1646,15 +1743,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Daily temperature heatmap
         dbc.Row([
             dbc.Col([
+                html.Img(id='heatmap-temp-img', src='/assets/images/heatmap_temp_dark.png',
+                         style={'width': '100%', 'height': 'auto'}),
                 dcc.Loading(
                     id="loading-heatmap-temp",
                     type="circle",
-                    children=[dcc.Graph(id='daily-temp-heatmap')]
+                    children=[dcc.Graph(id='daily-temp-heatmap', style={'display': 'none'})]
                 )
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
-        # Ridgeline plot (static image for performance)
+        # Ridgeline plot (always static image)
         dbc.Row([
             dbc.Col([
                 html.Img(
@@ -1745,85 +1844,185 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             footer_style, sun_style, moon_style,
         )
 
-    # Graph 1: Time series (triggered by dark mode switch)
+    # Callback to toggle between static images and interactive graphs
     @app.callback(
-        Output('timeseries-plot', 'figure'),
+        [
+            # Image visibility
+            Output('timeseries-img', 'style'),
+            Output('daily-anomalies-img', 'style'),
+            Output('daily-temps-img', 'style'),
+            Output('monthly-projections-img', 'style'),
+            Output('annual-prediction-img', 'style'),
+            Output('projection-history-img', 'style'),
+            Output('heatmap-anomaly-img', 'style'),
+            Output('heatmap-temp-img', 'style'),
+            # Graph visibility
+            Output('timeseries-plot', 'style'),
+            Output('daily-anomalies-plot', 'style'),
+            Output('daily-absolutes-plot', 'style'),
+            Output('monthly-projection', 'style'),
+            Output('annual-prediction', 'style'),
+            Output('projection-history', 'style'),
+            Output('daily-anomaly-heatmap', 'style'),
+            Output('daily-temp-heatmap', 'style'),
+            # Toggle labels
+            Output('static-label', 'style'),
+            Output('interactive-label', 'style'),
+        ],
+        [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
+    )
+    def toggle_interactive_mode(interactive, dark_mode):
+        theme = get_theme(dark_mode)
+        img_style_show = {'width': '100%', 'height': 'auto', 'display': 'block'}
+        img_style_hide = {'display': 'none'}
+        graph_style_show = {'height': '500px', 'display': 'block'}
+        graph_style_hide = {'display': 'none'}
+
+        label_active = {'color': theme['text_color'], 'fontWeight': 'bold'}
+        label_inactive = {'color': theme['text_color'], 'opacity': '0.5'}
+
+        if interactive:
+            return (
+                # Hide images
+                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
+                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
+                # Show graphs
+                graph_style_show, graph_style_show, graph_style_show, graph_style_show,
+                graph_style_show, graph_style_show, graph_style_show, graph_style_show,
+                # Labels
+                label_inactive, label_active,
+            )
+        else:
+            return (
+                # Show images
+                img_style_show, img_style_show, img_style_show, img_style_show,
+                img_style_show, img_style_show, img_style_show, img_style_show,
+                # Hide graphs
+                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
+                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
+                # Labels
+                label_active, label_inactive,
+            )
+
+    # Update all static image sources based on dark mode
+    @app.callback(
+        [
+            Output('timeseries-img', 'src'),
+            Output('daily-anomalies-img', 'src'),
+            Output('daily-temps-img', 'src'),
+            Output('monthly-projections-img', 'src'),
+            Output('annual-prediction-img', 'src'),
+            Output('projection-history-img', 'src'),
+            Output('heatmap-anomaly-img', 'src'),
+            Output('heatmap-temp-img', 'src'),
+            Output('ridgeline-img', 'src'),
+        ],
         [Input('dark-mode-switch', 'value')]
     )
-    def update_timeseries(dark_mode):
+    def update_image_sources(dark_mode):
+        mode = 'dark' if dark_mode else 'light'
+        return (
+            f'/assets/images/timeseries_{mode}.png',
+            f'/assets/images/daily_anomalies_{mode}.png',
+            f'/assets/images/daily_temps_{mode}.png',
+            f'/assets/images/monthly_projections_{mode}.png',
+            f'/assets/images/annual_prediction_{mode}.png',
+            f'/assets/images/projection_history_{mode}.png',
+            f'/assets/images/heatmap_anomaly_{mode}.png',
+            f'/assets/images/heatmap_temp_{mode}.png',
+            f'/assets/images/ridgeline_{mode}.png',
+        )
+
+    # Interactive graph callbacks (only run when needed)
+    from dash.exceptions import PreventUpdate
+
+    # Graph 1: Time series
+    @app.callback(
+        Output('timeseries-plot', 'figure'),
+        [Input('interactive-switch', 'value')],
+        [State('dark-mode-switch', 'value')]
+    )
+    def update_timeseries(interactive, dark_mode):
+        if not interactive:
+            raise PreventUpdate
         return create_time_series_plot(_df, dark_mode)
 
-    # Graph 2: Daily anomalies (triggered after timeseries completes)
+    # Graph 2: Daily anomalies (chained)
     @app.callback(
         Output('daily-anomalies-plot', 'figure'),
         [Input('timeseries-plot', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_daily_anomalies(_, dark_mode):
+    def update_daily_anomalies(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_daily_anomalies_plot(_df, dark_mode)
 
-    # Graph 3: Daily absolutes (triggered after daily anomalies completes)
+    # Graph 3: Daily absolutes (chained)
     @app.callback(
         Output('daily-absolutes-plot', 'figure'),
         [Input('daily-anomalies-plot', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_daily_absolutes(_, dark_mode):
+    def update_daily_absolutes(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_daily_absolutes_plot(_df, dark_mode)
 
-    # Graph 4: Monthly projection (triggered after daily absolutes completes)
+    # Graph 4: Monthly projection (chained)
     @app.callback(
         Output('monthly-projection', 'figure'),
         [Input('daily-absolutes-plot', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_monthly(_, dark_mode):
+    def update_monthly(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_monthly_projection_plot(_df, dark_mode)
 
-    # Graph 5: Annual prediction (triggered after monthly completes)
+    # Graph 5: Annual prediction (chained)
     @app.callback(
         Output('annual-prediction', 'figure'),
         [Input('monthly-projection', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_annual(_, dark_mode):
+    def update_annual(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_annual_prediction_plot(_df, dark_mode=dark_mode)
 
-    # Graph 6: Projection history (triggered after annual completes)
+    # Graph 6: Projection history (chained)
     @app.callback(
         Output('projection-history', 'figure'),
         [Input('annual-prediction', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_projection_history(_, dark_mode):
+    def update_projection_history(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_projection_history_plot(_df, dark_mode)
 
-    # Graph 7: Anomaly heatmap (triggered after projection history completes)
+    # Graph 7: Anomaly heatmap (chained)
     @app.callback(
         Output('daily-anomaly-heatmap', 'figure'),
         [Input('projection-history', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_heatmap_anomaly(_, dark_mode):
+    def update_heatmap_anomaly(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_daily_heatmap(_df, 'anomaly', dark_mode)
 
-    # Graph 8: Temperature heatmap (triggered after anomaly heatmap completes)
+    # Graph 8: Temperature heatmap (chained)
     @app.callback(
         Output('daily-temp-heatmap', 'figure'),
         [Input('daily-anomaly-heatmap', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
     )
-    def update_heatmap_temp(_, dark_mode):
+    def update_heatmap_temp(_, dark_mode, interactive):
+        if not interactive:
+            raise PreventUpdate
         return create_daily_heatmap(_df, 'temperature', dark_mode)
-
-    # Ridgeline image: switch source based on dark mode
-    @app.callback(
-        Output('ridgeline-img', 'src'),
-        [Input('dark-mode-switch', 'value')]
-    )
-    def update_ridgeline_image(dark_mode):
-        mode = 'dark' if dark_mode else 'light'
-        return f'/assets/images/ridgeline_{mode}.png'
 
     return app
 

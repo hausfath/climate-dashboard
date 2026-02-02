@@ -63,6 +63,30 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to update projection history: {e}")
 
+    # Regenerate static plot images
+    logger.info("Regenerating static plot images...")
+    try:
+        from src.dashboard import generate_all_static_images
+        import pandas as pd
+
+        # Load the ERA5 data
+        source = DATA_SOURCES["era5_global"]
+        df = load_or_fetch_data(source["url"], source["local_file"])
+
+        # Load ENSO data
+        enso_df = None
+        enso_file = DATA_DIR / "enso_combined.csv"
+        if enso_file.exists():
+            enso_df = pd.read_csv(enso_file)
+            enso_df['date'] = pd.to_datetime(enso_df['date'])
+
+        # Generate all static images
+        assets_dir = Path(__file__).parent / 'assets' / 'images'
+        generate_all_static_images(df, assets_dir, enso_df)
+        logger.info("Static images regenerated")
+    except Exception as e:
+        logger.error(f"Failed to regenerate static images: {e}")
+
     logger.info("Data update complete")
 
 
