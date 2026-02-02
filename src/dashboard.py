@@ -260,7 +260,7 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         ),
         hovermode='x',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        legend=dict(yanchor="bottom", y=0.01, xanchor="left", x=0.01),
         height=500,
         paper_bgcolor=theme['paper_color'],
         plot_bgcolor=theme['bg_color'],
