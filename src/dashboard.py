@@ -8,6 +8,7 @@ from plotly.subplots import make_subplots
 from dash import Dash, html, dcc, callback, Output, Input, State
 import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
+from pathlib import Path
 from sklearn.linear_model import LinearRegression
 
 
@@ -587,136 +588,152 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
     return fig
 
 
-def create_spiral_plot(df: pd.DataFrame, value_col: str = 'anomaly', dark_mode: bool = False) -> go.Figure:
+def generate_ridgeline_plot(df: pd.DataFrame, output_dir: Path, dark_mode: bool = False) -> str:
     """
-    Create a polar spiral plot of daily climate data (temperature or anomaly).
+    Generate a ridgeline plot showing temperature anomaly distributions by year.
 
-    The spiral winds outward with each year, colored by the specified value.
+    Returns path to generated image.
     """
-    theme = get_theme(dark_mode)
+    import matplotlib.pyplot as plt
+    from scipy.stats import gaussian_kde
+    from matplotlib.patches import Polygon
+    import matplotlib.ticker as ticker
+    import logging
 
-    # Adjust anomalies to preindustrial if plotting anomaly
-    if value_col == 'anomaly':
-        df_plot = adjust_anomalies_to_preindustrial(df.copy())
+    logger = logging.getLogger(__name__)
+
+    # Adjust anomalies to preindustrial baseline
+    df_plot = adjust_anomalies_to_preindustrial(df.copy())
+
+    years = sorted(df_plot['year'].unique())
+    year_min, year_max = min(years), max(years)
+
+    # Data limits
+    data_min = df_plot['anomaly'].min()
+    data_max = df_plot['anomaly'].max()
+
+    # Grid for KDE evaluation
+    x_grid = np.linspace(data_min - 0.5, data_max + 0.5, 300)
+
+    # Theme colors
+    if dark_mode:
+        bg_color = '#1a1a2e'
+        text_color = 'white'
+        line_color = 'white'
     else:
-        df_plot = df.copy()
+        bg_color = 'white'
+        text_color = 'black'
+        line_color = 'white'
 
-    # Filter to day_of_year <= 365 (drop leap day for consistency)
-    df_plot = df_plot[df_plot['day_of_year'] <= 365].copy()
+    # Setup figure
+    fig = plt.figure(figsize=(12, 16))
+    fig.patch.set_facecolor(bg_color)
 
-    # Create running day index
-    year_min = df_plot['year'].min()
-    df_plot['n_day'] = (df_plot['year'] - year_min) * 365 + df_plot['day_of_year'] - 1
+    gs = fig.add_gridspec(2, 1, height_ratios=[40, 1], hspace=0.03)
+    ax_main = fig.add_subplot(gs[0])
+    ax_cbar = fig.add_subplot(gs[1])
 
-    year_span = df_plot['year'].nunique()
+    ax_main.set_facecolor(bg_color)
+    ax_cbar.set_facecolor(bg_color)
 
-    # Calculate polar coordinates
-    # theta: angle (0-360 for each year), layout rotation=90 positions Jan at top
-    # r: radius increases with each year
-    df_plot['theta_deg'] = 360 * (df_plot['n_day'] % 365) / 365
-    df_plot['r'] = df_plot['n_day'] / 365
+    # Parameters
+    step = 0.4
+    cmap = plt.get_cmap('coolwarm')
+    norm = plt.Normalize(data_min, data_max)
 
-    # Get color scale based on value
-    vmin, vmax = df_plot[value_col].min(), df_plot[value_col].max()
+    def plot_gradient_fill(ax, x, y, offset, year_idx, is_incomplete):
+        verts = [(x[0], offset), *zip(x, y + offset), (x[-1], offset)]
+        poly = Polygon(verts, facecolor='none', edgecolor='none')
+        ax.add_patch(poly)
 
-    # Create figure with polar projection
-    fig = go.Figure()
+        img_data = np.atleast_2d(x)
+        im = ax.imshow(img_data, extent=[x[0], x[-1], offset, offset + y.max() + 0.1],
+                       aspect='auto', cmap=cmap, norm=norm, zorder=year_idx)
+        im.set_clip_path(poly)
 
-    # Add the spiral as a scatterpolar trace
-    # Scale marker size with radius so outer rings don't have gaps
-    # Inner rings (small r) get smaller markers, outer rings (large r) get larger
-    marker_sizes = 2 + (df_plot['r'] / df_plot['r'].max()) * 4  # Range from 2 to 6
+        linestyle = '--' if is_incomplete else '-'
+        linewidth = 1.0 if is_incomplete else 0.5
+        ax.plot(x, y + offset, color=line_color, linewidth=linewidth,
+                linestyle=linestyle, zorder=year_idx + 0.1)
 
-    fig.add_trace(go.Scatterpolar(
-        r=df_plot['r'],
-        theta=df_plot['theta_deg'],
-        mode='markers',
-        marker=dict(
-            size=marker_sizes,
-            color=df_plot[value_col],
-            colorscale='RdYlBu_r',
-            cmin=vmin,
-            cmax=vmax,
-            colorbar=dict(
-                title=dict(
-                    text='Anomaly (°C)' if value_col == 'anomaly' else 'Temperature (°C)',
-                    font=dict(color=theme['text_color'])
-                ),
-                tickfont=dict(color=theme['text_color']),
-                len=0.7,
-                x=1.01,
-                xpad=2,
-            ),
-            showscale=True,
-        ),
-        hovertemplate=(
-            'Year: %{customdata[0]}<br>'
-            'Day: %{customdata[1]}<br>'
-            f'{value_col.capitalize()}: %{{customdata[2]:.2f}}°C<extra></extra>'
-        ),
-        customdata=np.column_stack([
-            df_plot['year'],
-            df_plot['day_of_year'],
-            df_plot[value_col]
-        ]),
-    ))
+    # Main plotting loop
+    for i, year in enumerate(years):
+        data = df_plot[df_plot['year'] == year]['anomaly']
 
-    # Create decade tick labels
-    decade_ticks = list(range(0, year_span + 1, 10))
-    decade_labels = [str(year_min + d) for d in decade_ticks]
+        if len(data) < 10:
+            continue
 
-    # Month labels at outer edge
-    # Calculate mid-point day of each month
-    month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    mid_days = []
-    cumulative = 0
-    for days in month_days:
-        mid_days.append(cumulative + days / 2)
-        cumulative += days
-    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    # Convert to angles (0-360), no offset since layout rotation handles positioning
-    month_angles = [360 * mid / 365 for mid in mid_days]
+        kde = gaussian_kde(data)
+        y_vals = kde(x_grid)
 
-    year_min_val, year_max_val = df_plot['year'].min(), df_plot['year'].max()
+        offset = (len(years) - 1 - i) * step
+        is_incomplete = (year == year_max)
 
-    fig.update_layout(
-        title=dict(
-            text=f'Global Daily {"Anomalies" if value_col == "anomaly" else "Temperatures"} ({year_min_val}–{year_max_val})',
-            font=dict(size=18, color=theme['text_color']),
-            x=0.5,
-        ),
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, year_span + 2],
-                tickvals=decade_ticks,
-                ticktext=decade_labels,
-                tickfont=dict(size=10, color=theme['text_color']),
-                gridcolor=theme['grid_color'],
-                linecolor=theme['grid_color'],
-            ),
-            angularaxis=dict(
-                visible=True,
-                tickvals=month_angles,
-                ticktext=month_names,
-                tickfont=dict(size=11, color=theme['text_color']),
-                gridcolor='rgba(0,0,0,0)',  # Hide angular grid
-                linecolor=theme['grid_color'],
-                direction='clockwise',
-                rotation=90,  # Start from top
-            ),
-            bgcolor=theme['bg_color'],
-        ),
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color']),
-        height=550,
-        margin=dict(l=40, r=80, t=60, b=40),
-        showlegend=False,
-    )
+        plot_gradient_fill(ax_main, x_grid, y_vals, offset, i, is_incomplete)
 
-    return fig
+        # Year labels
+        if year % 5 == 0 or year == year_max or year == year_min:
+            ax_main.text(data_min + 0.05, offset + 0.1, str(year),
+                         verticalalignment='center', horizontalalignment='left',
+                         fontsize=9, color=text_color, zorder=1000, fontweight='bold')
+
+    # Style main plot
+    ax_main.set_title(f'Global Temperature Anomaly Distribution ({year_min}-{year_max})',
+                      fontsize=16, pad=20, color=text_color)
+    ax_main.set_frame_on(False)
+    ax_main.set_xticks([])
+    ax_main.set_yticks([])
+    ax_main.set_xlim(data_min, data_max)
+
+    # Color bar
+    gradient = np.atleast_2d(np.linspace(data_min, data_max, 500))
+    ax_cbar.imshow(gradient, extent=[data_min, data_max, 0, 1],
+                   aspect='auto', cmap=cmap, norm=norm)
+
+    ax_cbar.set_yticks([])
+    ax_cbar.set_xlim(data_min, data_max)
+    ax_cbar.set_xlabel('Temperature Anomaly (°C)', fontsize=12, color=text_color)
+    ax_cbar.tick_params(colors=text_color)
+
+    ax_cbar.spines['top'].set_visible(False)
+    ax_cbar.spines['left'].set_visible(False)
+    ax_cbar.spines['right'].set_visible(False)
+    ax_cbar.spines['bottom'].set_visible(True)
+    ax_cbar.spines['bottom'].set_color(text_color)
+
+    ax_cbar.xaxis.set_major_locator(ticker.MultipleLocator(0.5))
+
+    # Save
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    mode_suffix = 'dark' if dark_mode else 'light'
+    filename = f"ridgeline_{mode_suffix}.png"
+    filepath = output_dir / filename
+
+    logger.info(f"Generating {filename}...")
+    plt.savefig(filepath, dpi=150, facecolor=bg_color, bbox_inches='tight')
+    plt.close(fig)
+
+    return f"/assets/images/{filename}"
+
+
+def generate_ridgeline_images(df: pd.DataFrame, output_dir: Path) -> dict:
+    """
+    Generate ridgeline plot images for both light and dark mode.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    image_paths = {}
+
+    for dark_mode in [True, False]:
+        mode_suffix = 'dark' if dark_mode else 'light'
+        path = generate_ridgeline_plot(df, output_dir, dark_mode)
+        image_paths[mode_suffix] = path
+
+    logger.info("Ridgeline images generated successfully")
+    return image_paths
 
 
 def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None, dark_mode: bool = False) -> go.Figure:
@@ -1459,15 +1476,23 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     import logging
     logger = logging.getLogger(__name__)
 
+    # Assets folder is at project root, not in src/
+    assets_path = Path(__file__).parent.parent / 'assets'
+
     app = Dash(__name__, external_stylesheets=[
         dbc.themes.BOOTSTRAP,
         dbc.icons.FONT_AWESOME
-    ], suppress_callback_exceptions=True)
+    ], suppress_callback_exceptions=True,
+       assets_folder=str(assets_path))
 
     # Log data info for debugging
     logger.info(f"Creating dashboard with {len(df)} rows of data")
     logger.info(f"Data columns: {df.columns.tolist()}")
     logger.info(f"Date range: {df['date'].min()} to {df['date'].max()}")
+
+    # Generate static ridgeline plot images
+    assets_dir = Path(__file__).parent.parent / 'assets' / 'images'
+    generate_ridgeline_images(df, assets_dir)
 
     stats = create_statistics_cards(df)
 
@@ -1629,22 +1654,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
-        # Spiral plots side by side
+        # Ridgeline plot (static image for performance)
         dbc.Row([
             dbc.Col([
-                dcc.Loading(
-                    id="loading-spiral-anomaly",
-                    type="circle",
-                    children=[dcc.Graph(id='spiral-anomaly-plot')]
+                html.Img(
+                    id='ridgeline-img',
+                    src='/assets/images/ridgeline_dark.png',
+                    style={'width': '100%', 'height': 'auto', 'maxWidth': '900px', 'margin': '0 auto', 'display': 'block'}
                 )
-            ], md=6),
-            dbc.Col([
-                dcc.Loading(
-                    id="loading-spiral-temp",
-                    type="circle",
-                    children=[dcc.Graph(id='spiral-temp-plot')]
-                )
-            ], md=6),
+            ], md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Footer
@@ -1798,23 +1816,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_heatmap_temp(_, dark_mode):
         return create_daily_heatmap(_df, 'temperature', dark_mode)
 
-    # Graph 9: Spiral anomaly plot (triggered after temp heatmap completes)
+    # Ridgeline image: switch source based on dark mode
     @app.callback(
-        Output('spiral-anomaly-plot', 'figure'),
-        [Input('daily-temp-heatmap', 'figure')],
-        [State('dark-mode-switch', 'value')]
+        Output('ridgeline-img', 'src'),
+        [Input('dark-mode-switch', 'value')]
     )
-    def update_spiral_anomaly(_, dark_mode):
-        return create_spiral_plot(_df, 'anomaly', dark_mode)
-
-    # Graph 10: Spiral temperature plot (triggered after spiral anomaly completes)
-    @app.callback(
-        Output('spiral-temp-plot', 'figure'),
-        [Input('spiral-anomaly-plot', 'figure')],
-        [State('dark-mode-switch', 'value')]
-    )
-    def update_spiral_temp(_, dark_mode):
-        return create_spiral_plot(_df, 'temperature', dark_mode)
+    def update_ridgeline_image(dark_mode):
+        mode = 'dark' if dark_mode else 'light'
+        return f'/assets/images/ridgeline_{mode}.png'
 
     return app
 
