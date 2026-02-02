@@ -33,6 +33,8 @@ Thumbs.db
 
 # Generated images
 *.png
+# But keep static plot images for deployment
+!assets/images/*.png
 
 # Claude Code
 .claude/
