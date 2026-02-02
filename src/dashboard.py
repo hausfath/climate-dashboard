@@ -1577,30 +1577,36 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     # Theme toggle row
                     html.Div([
                         html.I(className="fas fa-sun", id='sun-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
                         dbc.Switch(
                             id='dark-mode-switch',
                             value=True,  # Dark mode is default
                             className="mx-2",
                         ),
                         html.I(className="fas fa-moon", id='moon-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
                     ], className="d-flex align-items-center justify-content-end mb-2"),
                     # Plot mode toggle row
                     html.Div([
                         html.I(className="fas fa-image", id='static-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
                         dbc.Switch(
                             id='interactive-switch',
                             value=False,  # Static mode is default
                             className="mx-2",
                         ),
                         html.I(className="fas fa-chart-line", id='interactive-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
                     ], className="d-flex align-items-center justify-content-end"),
                 ])
             ], md={'size': 2, 'offset': 10}),
         ]),
+
+        # Tooltips for toggle icons
+        dbc.Tooltip("Light mode", target="sun-icon", placement="bottom"),
+        dbc.Tooltip("Dark mode", target="moon-icon", placement="bottom"),
+        dbc.Tooltip("Static images (fast loading)", target="static-icon", placement="bottom"),
+        dbc.Tooltip("Interactive plots (zoom, pan, hover)", target="interactive-icon", placement="bottom"),
         dbc.Row([
             dbc.Col([
                 html.H1("Global Temperature Dashboard", className="text-center mb-2", id='main-title'),
@@ -1836,12 +1842,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         sun_style = {
             'color': '#feca57' if not dark_mode else theme['text_color'],
             'opacity': 1 if not dark_mode else 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
         moon_style = {
             'color': '#a29bfe' if dark_mode else theme['text_color'],
             'opacity': 1 if dark_mode else 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
 
         return (
@@ -1892,12 +1898,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         icon_active = {
             'color': '#54a0ff' if not interactive else '#10ac84',
             'opacity': 1,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
         icon_inactive = {
             'color': theme['text_color'],
             'opacity': 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
 
         if interactive:
