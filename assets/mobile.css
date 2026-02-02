@@ -1,0 +1,58 @@
+/* Mobile-specific styles for Climate Dashboard */
+
+/* Ensure plots are scrollable on mobile if needed */
+.js-plotly-plot {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Improve touch targets for toggles */
+.form-switch .form-check-input {
+    width: 3em;
+    height: 1.5em;
+}
+
+/* Better spacing on mobile */
+@media (max-width: 767.98px) {
+    /* Reduce container padding on mobile */
+    .container-fluid {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    /* Stack toggles better on very small screens */
+    .form-switch {
+        margin: 0.25rem 0;
+    }
+
+    /* Ensure images don't overflow */
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Smaller footer text */
+    #footer-text {
+        font-size: 0.85rem;
+    }
+
+    /* Reduce card body padding */
+    .card-body {
+        padding: 0.75rem;
+    }
+
+    /* Smaller card titles */
+    .card-title {
+        font-size: 0.9rem !important;
+    }
+}
+
+/* Smooth scrolling for better mobile experience */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Prevent horizontal scroll */
+body {
+    overflow-x: hidden;
+}

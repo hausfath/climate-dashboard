@@ -1567,8 +1567,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _df = df.copy()
 
     app.layout = dbc.Container([
-        # Store for dark mode state
-        dcc.Store(id='dark-mode-store', data=False),
+        # Store for mobile detection
+        dcc.Store(id='is-mobile-store', data=False),
+        dcc.Store(id='initial-load', data=True),
 
         # Header with toggles
         dbc.Row([
@@ -1577,29 +1578,29 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     # Theme toggle row
                     html.Div([
                         html.I(className="fas fa-sun", id='sun-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
+                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
                         dbc.Switch(
                             id='dark-mode-switch',
                             value=True,  # Dark mode is default
                             className="mx-2",
                         ),
                         html.I(className="fas fa-moon", id='moon-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                    ], className="d-flex align-items-center justify-content-end mb-2"),
+                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
+                    ], className="d-flex align-items-center justify-content-center justify-content-md-end mb-2"),
                     # Plot mode toggle row
                     html.Div([
                         html.I(className="fas fa-image", id='static-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
+                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
                         dbc.Switch(
                             id='interactive-switch',
-                            value=False,  # Static mode is default
+                            value=True,  # Interactive is default (will be overridden for mobile)
                             className="mx-2",
                         ),
                         html.I(className="fas fa-chart-line", id='interactive-icon',
-                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                    ], className="d-flex align-items-center justify-content-end"),
+                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
+                    ], className="d-flex align-items-center justify-content-center justify-content-md-end"),
                 ])
-            ], md={'size': 2, 'offset': 10}),
+            ], xs=12, md={'size': 2, 'offset': 10}, className="mb-3 mb-md-0"),
         ]),
 
         # Tooltips for toggle icons
@@ -1609,51 +1610,53 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         dbc.Tooltip("Interactive plots (zoom, pan, hover)", target="interactive-icon", placement="bottom"),
         dbc.Row([
             dbc.Col([
-                html.H1("Global Temperature Dashboard", className="text-center mb-2", id='main-title'),
+                html.H1("Global Temperature Dashboard", className="text-center mb-2", id='main-title',
+                        style={'fontSize': 'clamp(1.5rem, 5vw, 2.5rem)'}),
                 html.P("ERA5 Daily Global Mean 2m Temperature",
-                       className="text-center", id='subtitle'),
-            ], md=12),
+                       className="text-center", id='subtitle',
+                       style={'fontSize': 'clamp(0.9rem, 2.5vw, 1.1rem)'}),
+            ], xs=12),
         ]),
 
-        # Statistics Cards
+        # Statistics Cards (2 per row on mobile, 4 per row on desktop)
         dbc.Row([
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        html.H4("Latest Data", className="card-title", id='card-1-title'),
-                        html.P(stats['latest_date'], className="card-text fs-5", id='card-1-value'),
+                        html.H4("Latest Data", className="card-title", id='card-1-title', style={'fontSize': '1rem'}),
+                        html.P(stats['latest_date'], className="card-text", id='card-1-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"Status: {stats['data_status']}", id='card-1-sub')
-                    ], id='card-1-body')
-                ], id='card-1')
-            ], md=3),
+                    ], id='card-1-body', className="p-2 p-md-3")
+                ], id='card-1', className="mb-2 mb-md-0")
+            ], xs=6, md=3),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        html.H4("Latest Anomaly", className="card-title", id='card-2-title'),
-                        html.P(stats['latest_anomaly'], className="card-text fs-5", id='card-2-value'),
+                        html.H4("Latest Anomaly", className="card-title", id='card-2-title', style={'fontSize': '1rem'}),
+                        html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"Absolute: {stats['latest_temp']}", id='card-2-sub')
-                    ], id='card-2-body')
-                ], id='card-2')
-            ], md=3),
+                    ], id='card-2-body', className="p-2 p-md-3")
+                ], id='card-2', className="mb-2 mb-md-0")
+            ], xs=6, md=3),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        html.H4(f"{stats['month_name']} Projection", className="card-title", id='card-3-title'),
-                        html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text fs-5", id='card-3-value'),
+                        html.H4(f"{stats['month_name']} Proj.", className="card-title", id='card-3-title', style={'fontSize': '1rem'}),
+                        html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text", id='card-3-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"{stats['month_days']} days of data", id='card-3-sub')
-                    ], id='card-3-body')
-                ], id='card-3')
-            ], md=3),
+                    ], id='card-3-body', className="p-2 p-md-3")
+                ], id='card-3', className="mb-2 mb-md-0")
+            ], xs=6, md=3),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        html.H4(f"{stats['current_year']} Projection", className="card-title", id='card-4-title'),
-                        html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text fs-5", id='card-4-value'),
+                        html.H4(f"{stats['current_year']} Proj.", className="card-title", id='card-4-title', style={'fontSize': '1rem'}),
+                        html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text", id='card-4-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"YTD: {stats['ytd_anomaly']}", id='card-4-sub')
-                    ], id='card-4-body')
-                ], id='card-4')
-            ], md=3),
-        ], className="mb-4"),
+                    ], id='card-4-body', className="p-2 p-md-3")
+                ], id='card-4', className="mb-2 mb-md-0")
+            ], xs=6, md=3),
+        ], className="mb-4 g-2"),
 
         # Main time series plot
         dbc.Row([
@@ -1667,7 +1670,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='timeseries-plot', style={'height': '500px', 'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily anomalies plot
@@ -1680,7 +1683,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='daily-anomalies-plot', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily absolutes plot
@@ -1693,7 +1696,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='daily-absolutes-plot', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Monthly projection plot
@@ -1706,7 +1709,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='monthly-projection', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Annual prediction plot
@@ -1719,7 +1722,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='annual-prediction', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Annual projection evolution plot
@@ -1732,7 +1735,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='projection-history', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily anomaly heatmap
@@ -1745,7 +1748,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='daily-anomaly-heatmap', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Daily temperature heatmap
@@ -1758,7 +1761,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     type="circle",
                     children=[dcc.Graph(id='daily-temp-heatmap', style={'display': 'none'})]
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Ridgeline plot (always static image)
@@ -1769,7 +1772,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     src='/assets/images/ridgeline_dark.png',
                     style={'width': '100%', 'height': 'auto', 'maxWidth': '900px', 'margin': '0 auto', 'display': 'block'}
                 )
-            ], md={'size': 10, 'offset': 1})
+            ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
         # Footer
@@ -1788,6 +1791,27 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ])
 
     ], fluid=True, id='main-container')
+
+    # Clientside callback for mobile detection - sets interactive switch based on device
+    app.clientside_callback(
+        """
+        function(initialLoad) {
+            if (!initialLoad) {
+                return window.dash_clientside.no_update;
+            }
+            // Detect mobile based on screen width or user agent
+            const isMobile = window.innerWidth < 768 ||
+                /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            // Return: [is_mobile_store, interactive_switch_value, initial_load_false]
+            // Mobile = static (false), Desktop = interactive (true)
+            return [isMobile, !isMobile, false];
+        }
+        """,
+        [Output('is-mobile-store', 'data'),
+         Output('interactive-switch', 'value'),
+         Output('initial-load', 'data')],
+        [Input('initial-load', 'data')]
+    )
 
     # Chained callbacks - graphs load sequentially from top to bottom
 
