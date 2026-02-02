@@ -1574,30 +1574,32 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         dbc.Row([
             dbc.Col([
                 html.Div([
-                    # Dark mode toggle
+                    # Theme toggle row
                     html.Div([
-                        html.I(className="fas fa-sun me-2", id='sun-icon'),
+                        html.I(className="fas fa-sun", id='sun-icon',
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
                         dbc.Switch(
                             id='dark-mode-switch',
                             value=True,  # Dark mode is default
-                            className="d-inline-block",
-                            style={'transform': 'scale(1.3)'}
+                            className="mx-2",
                         ),
-                        html.I(className="fas fa-moon ms-2", id='moon-icon'),
+                        html.I(className="fas fa-moon", id='moon-icon',
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
                     ], className="d-flex align-items-center justify-content-end mb-2"),
-                    # Interactive mode toggle
+                    # Plot mode toggle row
                     html.Div([
-                        html.Small("Static", className="me-2", id='static-label'),
+                        html.I(className="fas fa-image", id='static-icon',
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
                         dbc.Switch(
                             id='interactive-switch',
                             value=False,  # Static mode is default
-                            className="d-inline-block",
-                            style={'transform': 'scale(1.1)'}
+                            className="mx-2",
                         ),
-                        html.Small("Interactive", className="ms-2", id='interactive-label'),
+                        html.I(className="fas fa-chart-line", id='interactive-icon',
+                               style={'fontSize': '14px', 'width': '20px', 'textAlign': 'center'}),
                     ], className="d-flex align-items-center justify-content-end"),
                 ])
-            ], md={'size': 3, 'offset': 9}),
+            ], md={'size': 2, 'offset': 10}),
         ]),
         dbc.Row([
             dbc.Col([
@@ -1831,8 +1833,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         card_value_style = {'color': theme['text_color']}
         card_sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
         footer_style = {'color': theme['text_color'], 'opacity': '0.7'}
-        sun_style = {'color': '#feca57' if not dark_mode else theme['text_color'], 'opacity': 0.5 if dark_mode else 1}
-        moon_style = {'color': '#a29bfe' if dark_mode else theme['text_color'], 'opacity': 1 if dark_mode else 0.5}
+        sun_style = {
+            'color': '#feca57' if not dark_mode else theme['text_color'],
+            'opacity': 1 if not dark_mode else 0.4,
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+        }
+        moon_style = {
+            'color': '#a29bfe' if dark_mode else theme['text_color'],
+            'opacity': 1 if dark_mode else 0.4,
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+        }
 
         return (
             container_style, title_style, subtitle_style,
@@ -1865,9 +1875,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('projection-history', 'style'),
             Output('daily-anomaly-heatmap', 'style'),
             Output('daily-temp-heatmap', 'style'),
-            # Toggle labels
-            Output('static-label', 'style'),
-            Output('interactive-label', 'style'),
+            # Toggle icons
+            Output('static-icon', 'style'),
+            Output('interactive-icon', 'style'),
         ],
         [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
     )
@@ -1878,8 +1888,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         graph_style_show = {'height': '500px', 'display': 'block'}
         graph_style_hide = {'display': 'none'}
 
-        label_active = {'color': theme['text_color'], 'fontWeight': 'bold'}
-        label_inactive = {'color': theme['text_color'], 'opacity': '0.5'}
+        # Icon styles (similar to sun/moon)
+        icon_active = {
+            'color': '#54a0ff' if not interactive else '#10ac84',
+            'opacity': 1,
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+        }
+        icon_inactive = {
+            'color': theme['text_color'],
+            'opacity': 0.4,
+            'fontSize': '14px', 'width': '20px', 'textAlign': 'center'
+        }
 
         if interactive:
             return (
@@ -1889,8 +1908,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 # Show graphs
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
-                # Labels
-                label_inactive, label_active,
+                # Icons (static inactive, interactive active)
+                icon_inactive, icon_active,
             )
         else:
             return (
@@ -1900,8 +1919,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 # Hide graphs
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
-                # Labels
-                label_active, label_inactive,
+                # Icons (static active, interactive inactive)
+                icon_active, icon_inactive,
             )
 
     # Update all static image sources based on dark mode
