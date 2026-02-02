@@ -467,7 +467,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             x=[target_year],
             y=[predicted_value],
             mode='markers',
-            name=f'{target_year} Projection',
+            name=f'{month_name} {target_year} Prediction',
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
@@ -477,7 +477,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
                 thickness=2,
                 width=8
             ),
-            hovertemplate=f'{target_year} Projection<br>Predicted: {predicted_value:.2f}°C<br>±{error:.2f}°C (2σ)<extra></extra>'
+            hovertemplate=f'{month_name} {target_year} Prediction<br>{predicted_value:.2f}°C ±{error:.2f}°C (2σ)<extra></extra>'
         ))
 
         # Add month-to-date marker
