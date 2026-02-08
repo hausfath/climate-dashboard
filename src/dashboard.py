@@ -1988,8 +1988,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     # Graph 1: Time series
     @app.callback(
         Output('timeseries-plot', 'figure'),
-        [Input('interactive-switch', 'value')],
-        [State('dark-mode-switch', 'value')]
+        [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
     )
     def update_timeseries(interactive, dark_mode):
         if not interactive:
