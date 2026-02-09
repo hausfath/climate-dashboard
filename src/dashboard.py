@@ -1782,7 +1782,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 html.P([
                     "Data source: ",
                     html.A("ECMWF ERA5 Climate Pulse",
-                           href="https://climate.copernicus.eu/climate-pulse",
+                           href="https://pulse.climate.copernicus.eu/",
                            target="_blank",
                            id='footer-link'),
                     f" | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
