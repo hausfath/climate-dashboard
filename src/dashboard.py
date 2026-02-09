@@ -1660,7 +1660,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-timeseries",
                     type="circle",
-                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px', 'display': 'none'})]
+                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px', 'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1673,7 +1674,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-daily-anomalies",
                     type="circle",
-                    children=[dcc.Graph(id='daily-anomalies-plot', style={'display': 'none'})]
+                    children=[dcc.Graph(id='daily-anomalies-plot', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1686,7 +1688,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-daily-absolutes",
                     type="circle",
-                    children=[dcc.Graph(id='daily-absolutes-plot', style={'display': 'none'})]
+                    children=[dcc.Graph(id='daily-absolutes-plot', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1699,7 +1702,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-monthly",
                     type="circle",
-                    children=[dcc.Graph(id='monthly-projection', style={'display': 'none'})]
+                    children=[dcc.Graph(id='monthly-projection', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1712,7 +1716,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-annual",
                     type="circle",
-                    children=[dcc.Graph(id='annual-prediction', style={'display': 'none'})]
+                    children=[dcc.Graph(id='annual-prediction', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1725,7 +1730,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-projection-history",
                     type="circle",
-                    children=[dcc.Graph(id='projection-history', style={'display': 'none'})]
+                    children=[dcc.Graph(id='projection-history', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1738,7 +1744,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-heatmap-anomaly",
                     type="circle",
-                    children=[dcc.Graph(id='daily-anomaly-heatmap', style={'display': 'none'})]
+                    children=[dcc.Graph(id='daily-anomaly-heatmap', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
@@ -1751,7 +1758,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dcc.Loading(
                     id="loading-heatmap-temp",
                     type="circle",
-                    children=[dcc.Graph(id='daily-temp-heatmap', style={'display': 'none'})]
+                    children=[dcc.Graph(id='daily-temp-heatmap', style={'display': 'none'},
+                                       config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
