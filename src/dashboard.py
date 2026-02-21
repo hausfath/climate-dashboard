@@ -36,6 +36,7 @@ THEME_CONFIG = {
         'card_color': 'light',
         'vrect_color': 'lightblue',
         'background_years_color': 'lightgrey',
+        'enso_update_color': '#00b4d8',
     },
     'dark': {
         'template': 'plotly_dark',
@@ -59,6 +60,7 @@ THEME_CONFIG = {
         'card_color': 'dark',
         'vrect_color': 'rgba(78, 205, 196, 0.2)',
         'background_years_color': 'rgba(255, 255, 255, 0.15)',
+        'enso_update_color': '#48cae4',
     }
 }
 
@@ -1308,6 +1310,39 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
         line=dict(color=theme['ytd_color'], width=2, dash='dot'),
         hovertemplate='%{x|%b %d}<br>YTD: %{y:.2f}°C<extra></extra>'
     ))
+
+    # Add ENSO forecast update markers
+    enso_updates_file = DATA_DIR / "enso_forecast_updates.csv"
+    if enso_updates_file.exists():
+        updates_df = pd.read_csv(enso_updates_file)
+        updates_df['date'] = pd.to_datetime(updates_df['date'])
+        history_start = history['date'].min()
+        history_end = history['date'].max()
+        relevant = updates_df[
+            (updates_df['date'] >= history_start) &
+            (updates_df['date'] <= history_end)
+        ]
+        if len(relevant) > 0:
+            marker_x, marker_y = [], []
+            for upd_date in relevant['date']:
+                match = history[history['date'].dt.date == upd_date.date()]
+                if len(match) > 0:
+                    marker_x.append(upd_date)
+                    marker_y.append(match['prediction'].values[0])
+            if marker_x:
+                fig.add_trace(go.Scatter(
+                    x=marker_x,
+                    y=marker_y,
+                    mode='markers',
+                    name='ENSO Forecast Update',
+                    marker=dict(
+                        symbol='star',
+                        size=14,
+                        color=theme['enso_update_color'],
+                        line=dict(width=1, color=theme['text_color'])
+                    ),
+                    hovertemplate='%{x|%b %d}<br>ENSO Forecast Updated<br>Projection: %{y:.2f}°C<extra></extra>'
+                ))
 
     # Add 1.5°C reference line
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,

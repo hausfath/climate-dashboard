@@ -11,8 +11,9 @@ __pycache__/
 
 # Data files (fetched at runtime)
 data/*.csv
-# But keep projection history (needed for deployment)
+# But keep projection history and ENSO update log (needed for deployment)
 !data/projection_history_*.csv
+!data/enso_forecast_updates.csv
 
 # IDE
 .idea/

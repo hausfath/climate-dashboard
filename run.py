@@ -4,6 +4,7 @@
 import argparse
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add src to path
@@ -36,8 +37,42 @@ def update_data(force: bool = False) -> None:
     # Update ENSO data
     logger.info("Updating ENSO data...")
     try:
+        import pandas as pd
         enso_file = DATA_DIR / "enso_combined.csv"
+
+        # Snapshot existing IRI_Dynamical rows before update
+        old_iri_rows = None
+        if enso_file.exists():
+            old_enso = pd.read_csv(enso_file)
+            mask = old_enso['source'] == 'IRI_Dynamical'
+            old_iri_rows = old_enso[mask][['year', 'month', 'oni']].copy()
+            old_iri_rows['oni'] = old_iri_rows['oni'].round(2)
+            old_iri_rows = old_iri_rows.sort_values(['year', 'month']).reset_index(drop=True)
+
         create_combined_enso_dataset(enso_file)
+
+        # Detect if IRI forecast changed
+        new_enso = pd.read_csv(enso_file)
+        mask = new_enso['source'] == 'IRI_Dynamical'
+        new_iri_rows = new_enso[mask][['year', 'month', 'oni']].copy()
+        new_iri_rows['oni'] = new_iri_rows['oni'].round(2)
+        new_iri_rows = new_iri_rows.sort_values(['year', 'month']).reset_index(drop=True)
+
+        iri_changed = (old_iri_rows is None) or not old_iri_rows.equals(new_iri_rows)
+
+        if iri_changed:
+            updates_file = DATA_DIR / "enso_forecast_updates.csv"
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            if updates_file.exists():
+                updates_df = pd.read_csv(updates_file)
+                if today_str not in updates_df['date'].values:
+                    new_row = pd.DataFrame({'date': [today_str]})
+                    updates_df = pd.concat([updates_df, new_row], ignore_index=True)
+                    updates_df.to_csv(updates_file, index=False)
+                    logger.info(f"ENSO forecast changed — recorded update on {today_str}")
+            else:
+                pd.DataFrame({'date': [today_str]}).to_csv(updates_file, index=False)
+                logger.info(f"ENSO forecast changed — recorded update on {today_str}")
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 
