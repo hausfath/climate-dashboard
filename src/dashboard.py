@@ -1699,8 +1699,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         html.P(stats['latest_date'], className="card-text", id='card-1-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"Status: {stats['data_status']}", id='card-1-sub')
                     ], id='card-1-body', className="p-2 p-md-3")
-                ], id='card-1', className="mb-2 mb-md-0")
-            ], xs=6, md=3),
+                ], id='card-1', className="h-100")
+            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -1708,8 +1708,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                         html.Small(f"Absolute: {stats['latest_temp']}", id='card-2-sub')
                     ], id='card-2-body', className="p-2 p-md-3")
-                ], id='card-2', className="mb-2 mb-md-0")
-            ], xs=6, md=3),
+                ], id='card-2', className="h-100")
+            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -1720,8 +1720,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             *([html.Br(), html.Small(f"Est. rank: {stats['month_rank']} ({stats['month_rank_range']})")] if stats.get('month_rank') else []),
                         ], id='card-3-sub')
                     ], id='card-3-body', className="p-2 p-md-3")
-                ], id='card-3', className="mb-2 mb-md-0")
-            ], xs=6, md=3),
+                ], id='card-3', className="h-100")
+            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -1732,8 +1732,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             *([html.Br(), html.Small(f"Est. rank: {stats['annual_rank']} ({stats['annual_rank_range']})")] if stats.get('annual_rank') else []),
                         ], id='card-4-sub')
                     ], id='card-4-body', className="p-2 p-md-3")
-                ], id='card-4', className="mb-2 mb-md-0")
-            ], xs=6, md=3),
+                ], id='card-4', className="h-100")
+            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
         ], className="mb-4 g-2"),
 
         # Main time series plot
