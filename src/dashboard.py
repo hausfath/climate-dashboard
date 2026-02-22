@@ -136,7 +136,7 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
 
     fig.update_layout(
         title=dict(
-            text='Global Mean Temperature Anomaly vs Preindustrial',
+            text='Global Mean Temperature Anomaly vs Preindustrial (1850-1900)',
             font=dict(size=20, color=theme['text_color'])
         ),
         xaxis_title='',
@@ -236,7 +236,7 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
 
     fig.update_layout(
         title=dict(
-            text='Daily Temperature Anomalies vs Preindustrial',
+            text='Daily Temperature Anomalies vs Preindustrial (1850-1900)',
             font=dict(size=20, color=theme['text_color'])
         ),
         xaxis=dict(
@@ -490,7 +490,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
 
     fig.update_layout(
         title=dict(
-            text=f'{month_name} Temperature Anomaly vs Preindustrial',
+            text=f'{month_name} Temperature Anomaly vs Preindustrial (1850-1900)',
             font=dict(size=20, color=theme['text_color'])
         ),
         xaxis_title='Year',
@@ -526,7 +526,7 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
         data = adjust_anomalies_to_preindustrial(df)
         column_to_use = 'anomaly'
         cbar_label = 'Temperature Anomaly (°C)'
-        title = 'Daily Temperature Anomaly vs Preindustrial'
+        title = 'Daily Temperature Anomaly vs Preindustrial (1850-1900)'
         hover_template = 'Year: %{x}<br>Day: %{y}<br>Anomaly: %{z:.2f}°C<extra></extra>'
         zmid = 1.0  # Center around ~1°C warming
     else:
@@ -998,7 +998,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     # Layout
     fig.update_layout(
         title=dict(
-            text='Annual Global Temperature Anomaly vs Preindustrial',
+            text='Annual Global Temperature Anomaly vs Preindustrial (1850-1900)',
             font=dict(size=20, color=theme['text_color'])
         ),
         xaxis=dict(
@@ -1410,6 +1410,12 @@ def create_records_table(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def ordinal(n: int) -> str:
+    """Return ordinal string for integer n (1st, 2nd, 3rd, ...)."""
+    suffix = 'th' if 11 <= (n % 100) <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
+    return f"{n}{suffix}"
+
+
 def create_statistics_cards(df: pd.DataFrame) -> dict:
     """Calculate key statistics for display with preindustrial baseline."""
     # Adjust anomalies to preindustrial baseline
@@ -1532,6 +1538,41 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
     except Exception as e:
         pass  # Use default if prediction fails
 
+    # Monthly ranking vs historical years
+    month_rank_str = None
+    month_rank_range_str = None
+    if pred is not None and err is not None:
+        try:
+            hist_monthly = df_adj[
+                (df_adj['date'].dt.month == target_month) &
+                (df_adj['year'] < current_year)
+            ]
+            hist_month_means = hist_monthly.groupby('year')['anomaly'].mean()
+            month_rank = int((hist_month_means > pred).sum()) + 1
+            rank_best = int((hist_month_means > pred + err).sum()) + 1   # warmest plausible
+            rank_worst = int((hist_month_means > pred - err).sum()) + 1  # coolest plausible
+            month_rank_str = ordinal(month_rank)
+            month_rank_range_str = (ordinal(rank_best) if rank_best == rank_worst
+                                    else f"{ordinal(rank_best)}–{ordinal(rank_worst)}")
+        except Exception:
+            pass
+
+    # Annual ranking vs historical years
+    annual_rank_str = None
+    annual_rank_range_str = None
+    if annual_pred is not None:
+        try:
+            hist_annual_means = df_adj[df_adj['year'] < current_year].groupby('year')['anomaly'].mean()
+            ci = 2 * annual_err
+            annual_rank = int((hist_annual_means > annual_pred).sum()) + 1
+            rank_best = int((hist_annual_means > annual_pred + ci).sum()) + 1
+            rank_worst = int((hist_annual_means > annual_pred - ci).sum()) + 1
+            annual_rank_str = ordinal(annual_rank)
+            annual_rank_range_str = (ordinal(rank_best) if rank_best == rank_worst
+                                     else f"{ordinal(rank_best)}–{ordinal(rank_worst)}")
+        except Exception:
+            pass
+
     return {
         'latest_date': latest_date.strftime('%Y-%m-%d'),
         'latest_temp': f"{latest_row['temperature']:.2f}°C",
@@ -1542,9 +1583,13 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         'month_prediction': f"{pred:+.2f}°C" if pred is not None else "N/A",
         'month_error': f"±{err:.2f}°C" if err is not None else "",
         'month_days': days,
+        'month_rank': month_rank_str,
+        'month_rank_range': month_rank_range_str,
         'current_year': current_year,
         'annual_prediction': f"{annual_pred:+.2f}°C" if annual_pred is not None else "N/A",
         'annual_error': f"±{2*annual_err:.2f}°C",
+        'annual_rank': annual_rank_str,
+        'annual_rank_range': annual_rank_range_str,
         'data_status': latest_row['status']
     }
 
@@ -1670,7 +1715,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     dbc.CardBody([
                         html.H4(f"{stats['month_name']} Proj.", className="card-title", id='card-3-title', style={'fontSize': '1rem'}),
                         html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text", id='card-3-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Small(f"{stats['month_days']} days of data", id='card-3-sub')
+                        html.Div([
+                            html.Small(f"{stats['month_days']} days of data"),
+                            *([html.Br(), html.Small(f"Est. rank: {stats['month_rank']} ({stats['month_rank_range']})")] if stats.get('month_rank') else []),
+                        ], id='card-3-sub')
                     ], id='card-3-body', className="p-2 p-md-3")
                 ], id='card-3', className="mb-2 mb-md-0")
             ], xs=6, md=3),
@@ -1679,7 +1727,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     dbc.CardBody([
                         html.H4(f"{stats['current_year']} Proj.", className="card-title", id='card-4-title', style={'fontSize': '1rem'}),
                         html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text", id='card-4-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Small(f"YTD: {stats['ytd_anomaly']}", id='card-4-sub')
+                        html.Div([
+                            html.Small(f"YTD: {stats['ytd_anomaly']}"),
+                            *([html.Br(), html.Small(f"Est. rank: {stats['annual_rank']} ({stats['annual_rank_range']})")] if stats.get('annual_rank') else []),
+                        ], id='card-4-sub')
                     ], id='card-4-body', className="p-2 p-md-3")
                 ], id='card-4', className="mb-2 mb-md-0")
             ], xs=6, md=3),
