@@ -1693,48 +1693,52 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         # Statistics Cards (2 per row on mobile, 4 per row on desktop)
         dbc.Row([
             dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4("Latest Data", className="card-title", id='card-1-title', style={'fontSize': '1rem'}),
-                        html.P(stats['latest_date'], className="card-text", id='card-1-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Small(f"Status: {stats['data_status']}", id='card-1-sub')
-                    ], id='card-1-body', className="p-2 p-md-3")
-                ], id='card-1', className="h-100")
-            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4("Latest Anomaly", className="card-title", id='card-2-title', style={'fontSize': '1rem'}),
-                        html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Small(f"Absolute: {stats['latest_temp']}", id='card-2-sub')
-                    ], id='card-2-body', className="p-2 p-md-3")
-                ], id='card-2', className="h-100")
-            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4(f"{stats['month_name']} Proj.", className="card-title", id='card-3-title', style={'fontSize': '1rem'}),
-                        html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text", id='card-3-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Div([
-                            html.Small(f"{stats['month_days']} days of data"),
-                            *([html.Br(), html.Small(f"Est. rank: {stats['month_rank']} ({stats['month_rank_range']})")] if stats.get('month_rank') else []),
-                        ], id='card-3-sub')
-                    ], id='card-3-body', className="p-2 p-md-3")
-                ], id='card-3', className="h-100")
-            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H4(f"{stats['current_year']} Proj.", className="card-title", id='card-4-title', style={'fontSize': '1rem'}),
-                        html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text", id='card-4-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                        html.Div([
-                            html.Small(f"YTD: {stats['ytd_anomaly']}"),
-                            *([html.Br(), html.Small(f"Est. rank: {stats['annual_rank']} ({stats['annual_rank_range']})")] if stats.get('annual_rank') else []),
-                        ], id='card-4-sub')
-                    ], id='card-4-body', className="p-2 p-md-3")
-                ], id='card-4', className="h-100")
-            ], xs=6, md=3, className="mb-2 mb-md-0 d-flex"),
-        ], className="mb-4 g-2"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H4("Latest Data", className="card-title", id='card-1-title', style={'fontSize': '1rem'}),
+                                html.P(stats['latest_date'], className="card-text", id='card-1-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                html.Small(f"Status: {stats['data_status']}", id='card-1-sub')
+                            ], id='card-1-body', className="p-2 p-md-3")
+                        ], id='card-1', className="h-100")
+                    ], xs=6, md=3),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H4("Latest Anomaly", className="card-title", id='card-2-title', style={'fontSize': '1rem'}),
+                                html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                html.Small(f"Absolute: {stats['latest_temp']}", id='card-2-sub')
+                            ], id='card-2-body', className="p-2 p-md-3")
+                        ], id='card-2', className="h-100")
+                    ], xs=6, md=3),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H4(f"{stats['month_name']} Proj.", className="card-title", id='card-3-title', style={'fontSize': '1rem'}),
+                                html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text", id='card-3-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                html.Div([
+                                    html.Small(f"{stats['month_days']} days of data"),
+                                    *([html.Br(), html.Small(f"Est. rank: {stats['month_rank']} ({stats['month_rank_range']})")] if stats.get('month_rank') else []),
+                                ], id='card-3-sub')
+                            ], id='card-3-body', className="p-2 p-md-3")
+                        ], id='card-3', className="h-100")
+                    ], xs=6, md=3),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H4(f"{stats['current_year']} Proj.", className="card-title", id='card-4-title', style={'fontSize': '1rem'}),
+                                html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text", id='card-4-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                html.Div([
+                                    html.Small(f"YTD: {stats['ytd_anomaly']}"),
+                                    *([html.Br(), html.Small(f"Est. rank: {stats['annual_rank']} ({stats['annual_rank_range']})")] if stats.get('annual_rank') else []),
+                                ], id='card-4-sub')
+                            ], id='card-4-body', className="p-2 p-md-3")
+                        ], id='card-4', className="h-100")
+                    ], xs=6, md=3),
+                ], className="g-2"),
+            ], xs=12, md={'size': 10, 'offset': 1}),
+        ], className="mb-4"),
 
         # Main time series plot
         dbc.Row([
