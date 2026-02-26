@@ -56,3 +56,13 @@ html {
 body {
     overflow-x: hidden;
 }
+
+/* Tab nav — override Bootstrap pill active background so inline styles take precedence */
+#main-nav.nav-pills .nav-link.active {
+    background-color: transparent !important;
+    color: inherit !important;
+}
+#main-nav.nav-pills .nav-link {
+    padding: 5px 12px;
+    transition: opacity 0.15s;
+}

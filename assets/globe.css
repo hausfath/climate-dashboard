@@ -1,0 +1,194 @@
+/* ERA5 3D Globe - Dropdown + Scrollbar Styles (dark-dropdown class only) */
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ========================================
+   DROPDOWN DARK THEME - SCOPED TO .dark-dropdown
+   ======================================== */
+
+/* Target all Dash dropdown containers inside .dark-dropdown */
+.dark-dropdown,
+.dark-dropdown .Select,
+.dark-dropdown .Select-control,
+.dark-dropdown .Select--single,
+.dark-dropdown .Select--multi {
+    background-color: #161b22 !important;
+}
+
+/* The main dropdown control box */
+.dark-dropdown .Select-control {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
+    border-radius: 6px !important;
+}
+
+/* Selected value text */
+.dark-dropdown .Select-value,
+.dark-dropdown .Select-value-label,
+.dark-dropdown .Select--single > .Select-control .Select-value,
+.dark-dropdown .Select--single > .Select-control .Select-value .Select-value-label,
+.dark-dropdown .Select-placeholder,
+.dark-dropdown .Select-input > input {
+    color: #e6edf3 !important;
+}
+
+/* Make placeholder slightly dimmer */
+.dark-dropdown .Select-placeholder {
+    color: #8b949e !important;
+}
+
+/* Dropdown menu (when open) */
+.dark-dropdown .Select-menu-outer,
+.dark-dropdown .Select-menu {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
+}
+
+/* Individual options in dropdown */
+.dark-dropdown .Select-option,
+.dark-dropdown .VirtualizedSelectOption {
+    background-color: #161b22 !important;
+    color: #e6edf3 !important;
+}
+
+/* Hovered/focused option */
+.dark-dropdown .Select-option:hover,
+.dark-dropdown .Select-option.is-focused,
+.dark-dropdown .VirtualizedSelectFocusedOption {
+    background-color: #21262d !important;
+    color: #e6edf3 !important;
+}
+
+/* Selected option in list */
+.dark-dropdown .Select-option.is-selected {
+    background-color: #238636 !important;
+    color: #ffffff !important;
+}
+
+/* Disabled options (greyed out months) */
+.dark-dropdown .Select-option.is-disabled,
+.dark-dropdown .VirtualizedSelectOption[aria-disabled="true"] {
+    color: #484f58 !important;
+    background-color: #161b22 !important;
+    cursor: not-allowed;
+}
+
+/* Dropdown arrow */
+.dark-dropdown .Select-arrow-zone,
+.dark-dropdown .Select-arrow {
+    color: #8b949e !important;
+}
+
+/* Clear button (X) */
+.dark-dropdown .Select-clear-zone {
+    color: #8b949e !important;
+}
+
+/* Multi-select tags */
+.dark-dropdown .Select-value {
+    background-color: #21262d !important;
+    border-color: #30363d !important;
+    color: #e6edf3 !important;
+}
+
+/* Input field inside dropdown */
+.dark-dropdown .Select-input input {
+    color: #e6edf3 !important;
+    background: transparent !important;
+}
+
+/* No results / loading */
+.dark-dropdown .Select-noresults,
+.dark-dropdown .Select-loading {
+    background-color: #161b22 !important;
+    color: #8b949e !important;
+}
+
+/* ========================================
+   DARK DROPDOWN CLASS - HOVER/FOCUS STATES
+   ======================================== */
+
+.dark-dropdown .Select-control:hover {
+    border-color: #58a6ff !important;
+}
+
+.dark-dropdown.is-focused .Select-control,
+.dark-dropdown .Select-control:focus {
+    border-color: #58a6ff !important;
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3) !important;
+}
+
+/* Make dropdown arrow more visible */
+.dark-dropdown .Select-arrow {
+    border-color: #8b949e transparent transparent !important;
+}
+
+.dark-dropdown:hover .Select-arrow {
+    border-color: #e6edf3 transparent transparent !important;
+}
+
+.dark-dropdown .Select-value-label {
+    color: #e6edf3 !important;
+}
+
+.dark-dropdown .Select-menu-outer {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
+}
+
+.dark-dropdown .Select-option {
+    background-color: #161b22 !important;
+    color: #e6edf3 !important;
+}
+
+.dark-dropdown .Select-option.is-disabled {
+    color: #484f58 !important;
+}
+
+.dark-dropdown .Select-option.is-focused {
+    background-color: #21262d !important;
+}
+
+/* Radio button styling (scoped to dark containers only) */
+.dark-dropdown .form-check-input:checked {
+    background-color: #58a6ff !important;
+    border-color: #58a6ff !important;
+}
+
+/* Loading spinner */
+.dash-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #161b22;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+/* Link styling */
+a {
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}

@@ -5,11 +5,39 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from dash import Dash, html, dcc, callback, Output, Input, State
+from dash import Dash, html, dcc, dash_table, callback, Output, Input, State, callback_context
 import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.linear_model import LinearRegression
+import base64
+
+try:
+    from src.gridded_map import (
+        get_available_dates,
+        load_monthly_data,
+        get_precomputed_map_path,
+        lookup_precomputed_stats,
+        create_3d_globe,
+    )
+    _SPATIAL_AVAILABLE = True
+except ImportError:
+    try:
+        from gridded_map import (
+            get_available_dates,
+            load_monthly_data,
+            get_precomputed_map_path,
+            lookup_precomputed_stats,
+            create_3d_globe,
+        )
+        _SPATIAL_AVAILABLE = True
+    except ImportError:
+        _SPATIAL_AVAILABLE = False
+        def get_available_dates(): return []
+        def get_precomputed_map_path(*a, **kw): return None
+        def lookup_precomputed_stats(*a, **kw): return None
+        def load_monthly_data(*a, **kw): return None, None, None
+        def create_3d_globe(*a, **kw): return go.Figure()
 
 
 # Theme configurations for light and dark modes
@@ -1386,6 +1414,123 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     return fig
 
 
+SPATIAL_MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+]
+
+_ERA5_DATA_DIR = Path(__file__).parent.parent / 'data' / 'era5'
+
+
+def get_spatial_dates_extended() -> list:
+    """Get available year-month pairs, including the current month if partial data exists."""
+    dates = list(get_available_dates())
+    now = datetime.now()
+    cur_year, cur_month = now.year, now.month
+    if not any(y == cur_year and m == cur_month for y, m in dates):
+        candidates = list(_ERA5_DATA_DIR.glob(f'era5_*{cur_year}*{cur_month:02d}*.nc'))
+        # Exclude the main consolidated file and climatology files
+        candidates = [p for p in candidates if 'monthly_1940' not in p.name
+                      and 'clim' not in p.name and 'monthly_chunk' not in p.name]
+        if candidates:
+            dates.append((cur_year, cur_month))
+    return dates
+
+
+def load_partial_month_spatial_data(year: int, month: int):
+    """
+    Load gridded temperature data for an incomplete month from available daily/partial files.
+
+    Returns (temp_celsius, lats, lons, n_days) where n_days is the day-of-month of the
+    last valid_time in the file (proxy for how many days of the month are covered).
+    Returns (None, None, None, None) on failure.
+    """
+    try:
+        import xarray as xr
+    except ImportError:
+        return None, None, None, None
+
+    candidates = sorted(_ERA5_DATA_DIR.glob(f'era5_*{year}*{month:02d}*.nc'))
+    candidates = [p for p in candidates if 'monthly_1940' not in p.name
+                  and 'clim' not in p.name and 'monthly_chunk' not in p.name]
+    if not candidates:
+        return None, None, None, None
+
+    try:
+        ds = xr.open_dataset(candidates[0])
+        t2m = ds['t2m'].values
+        lats = ds['latitude'].values
+        lons = ds['longitude'].values
+        # Determine days covered: use day-of-month of last valid_time entry
+        n_days = None
+        for time_coord in ('valid_time', 'time'):
+            if time_coord in ds.coords:
+                last_time = np.datetime64(ds[time_coord].values.flat[-1], 'D')
+                n_days = int(str(last_time)[8:10])  # day-of-month
+                break
+        ds.close()
+        if t2m.ndim == 3:
+            t2m = t2m[0]
+        temp_c = t2m - 273.15
+        return temp_c, lats, lons, n_days
+    except Exception:
+        return None, None, None, None
+
+
+def _build_stats_div(stats: dict, theme: dict):
+    """Render pre-computed spatial stats as a dbc.Table."""
+    rows = []
+
+    # Global row
+    g = stats.get('global', {})
+    anom = g.get('anomaly')
+    rows.append(html.Tr([
+        html.Th("Global", style={'color': theme['text_color']}),
+        html.Td(f"{g.get('mean', 0):.1f}°C", style={'color': theme['text_color']}),
+        html.Td(f"{anom:+.2f}°C" if anom is not None else 'N/A',
+                style={'color': theme['text_color']}),
+        html.Td(f"{g.get('min', 0):.1f} / {g.get('max', 0):.1f}°C",
+                style={'color': theme['text_color']}),
+    ]))
+
+    # Continent rows
+    for name, data in stats.get('continents', {}).items():
+        anom = data.get('anomaly')
+        rows.append(html.Tr([
+            html.Td(name, style={'color': theme['text_color']}),
+            html.Td(f"{data.get('mean', 0):.1f}°C", style={'color': theme['text_color']}),
+            html.Td(f"{anom:+.2f}°C" if anom is not None else 'N/A',
+                    style={'color': theme['text_color']}),
+            html.Td(f"{data.get('min', 0):.1f} / {data.get('max', 0):.1f}°C",
+                    style={'color': theme['text_color']}),
+        ]))
+
+    # Country rows
+    for name, data in stats.get('countries', {}).items():
+        anom = data.get('anomaly')
+        rows.append(html.Tr([
+            html.Td(name, style={'color': theme['text_color']}),
+            html.Td(f"{data.get('mean', 0):.1f}°C", style={'color': theme['text_color']}),
+            html.Td(f"{anom:+.2f}°C" if anom is not None else 'N/A',
+                    style={'color': theme['text_color']}),
+            html.Td(f"{data.get('min', 0):.1f} / {data.get('max', 0):.1f}°C",
+                    style={'color': theme['text_color']}),
+        ]))
+
+    header = html.Thead(html.Tr([
+        html.Th("Region", style={'color': theme['text_color']}),
+        html.Th("Mean Temp", style={'color': theme['text_color']}),
+        html.Th("Anomaly vs 1991–2020", style={'color': theme['text_color']}),
+        html.Th("Min / Max", style={'color': theme['text_color']}),
+    ]))
+
+    return dbc.Table(
+        [header, html.Tbody(rows)],
+        bordered=True, hover=True, size='sm', responsive=True,
+        style={'color': theme['text_color']}
+    )
+
+
 def create_records_table(df: pd.DataFrame) -> pd.DataFrame:
     """Create a table of temperature records."""
     # Find record high anomalies by day of year
@@ -1638,13 +1783,33 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     # Store dataframe reference for callbacks (using closure)
     _df = df.copy()
 
+    # Spatial tab: compute available dates for defaults (includes current partial month)
+    _spatial_dates = get_spatial_dates_extended()
+    _default_year = _spatial_dates[-1][0] if _spatial_dates else 2024
+    _default_month = _spatial_dates[-1][1] if _spatial_dates else 1
+    _year_options = [{'label': str(y), 'value': y} for y in sorted(set(y for y, m in _spatial_dates), reverse=True)]
+    _month_options = [{'label': SPATIAL_MONTH_NAMES[m - 1], 'value': m} for m in range(1, 13)]
+
     app.layout = dbc.Container([
         # Store for mobile detection
         dcc.Store(id='is-mobile-store', data=False),
         dcc.Store(id='initial-load', data=True),
+        dcc.Store(id='active-tab-store', storage_type='session', data='global'),
 
-        # Header with toggles
+        # Header with tab nav and toggles
         dbc.Row([
+            dbc.Col([
+                dbc.Nav([
+                    dbc.NavItem(dbc.NavLink(
+                        "Global Temperature", id='nav-global', href='#', n_clicks=0,
+                        style={'cursor': 'pointer'},
+                    )),
+                    dbc.NavItem(dbc.NavLink(
+                        "Spatial Analysis", id='nav-spatial', href='#', n_clicks=0,
+                        style={'cursor': 'pointer'},
+                    )),
+                ], id='main-nav', pills=True, className='gap-2'),
+            ], xs=12, md=9, className='d-flex align-items-center'),
             dbc.Col([
                 html.Div([
                     # Theme toggle row
@@ -1672,8 +1837,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
                     ], className="d-flex align-items-center justify-content-center justify-content-md-end"),
                 ])
-            ], xs=12, md={'size': 2, 'offset': 10}, className="mb-3 mb-md-0"),
-        ]),
+            ], xs=12, md=3, className="mb-3 mb-md-0"),
+        ], className='align-items-center mb-2'),
 
         # Tooltips for toggle icons
         dbc.Tooltip("Light mode", target="sun-icon", placement="bottom"),
@@ -1689,6 +1854,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                        style={'fontSize': 'clamp(0.9rem, 2.5vw, 1.1rem)'}),
             ], xs=12),
         ]),
+
+        html.Div([  # tabs wrapper
+        html.Div(id='tab-content-global', children=[
 
         # Statistics Cards (2 per row on mobile, 4 per row on desktop)
         dbc.Row([
@@ -1865,7 +2033,218 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             ], xs=12, md={'size': 10, 'offset': 1})
         ], className="mb-4"),
 
-        # Footer
+        ]),  # end tab-content-global
+
+        html.Div(id='tab-content-spatial', style={'display': 'none'}, children=[
+            dbc.Container([
+
+                # Controls card
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dbc.Row([
+                                    dbc.Col([
+                                        html.Label("Year", id='spatial-label-year', className="mb-1",
+                                                   style={'fontWeight': '500', 'fontSize': '0.9rem'}),
+                                        dcc.Dropdown(
+                                            id='spatial-year',
+                                            options=_year_options,
+                                            value=_default_year,
+                                            clearable=False,
+                                            className='dark-dropdown',
+                                        ),
+                                    ], md=2, sm=6, className="mb-2"),
+                                    dbc.Col([
+                                        html.Label("Month", id='spatial-label-month', className="mb-1",
+                                                   style={'fontWeight': '500', 'fontSize': '0.9rem'}),
+                                        dcc.Dropdown(
+                                            id='spatial-month',
+                                            options=_month_options,
+                                            value=_default_month,
+                                            clearable=False,
+                                            className='dark-dropdown',
+                                        ),
+                                    ], md=2, sm=6, className="mb-2"),
+                                    dbc.Col([
+                                        html.Label("View Type", id='spatial-label-view-type', className="mb-1",
+                                                   style={'fontWeight': '500', 'fontSize': '0.9rem'}),
+                                        dbc.RadioItems(
+                                            id='spatial-view-type',
+                                            options=[
+                                                {'label': 'Absolute', 'value': 'absolute'},
+                                                {'label': 'Anomaly', 'value': 'anomaly'},
+                                            ],
+                                            value='absolute',
+                                            inline=True,
+                                        ),
+                                    ], md=3, sm=6, className="mb-2"),
+                                    dbc.Col([
+                                        html.Label("Units", id='spatial-label-units', className="mb-1",
+                                                   style={'fontWeight': '500', 'fontSize': '0.9rem'}),
+                                        dbc.RadioItems(
+                                            id='spatial-units',
+                                            options=[
+                                                {'label': '°C', 'value': 'C'},
+                                                {'label': '°F', 'value': 'F'},
+                                            ],
+                                            value='C',
+                                            inline=True,
+                                        ),
+                                    ], md=2, sm=6, className="mb-2"),
+                                ], className="g-2"),
+                            ]),
+                        ], id='spatial-controls-card', className="mb-3 mt-3"),
+                    ]),
+                ]),
+
+                # Globe (lg=8) + Global Stats sidebar (lg=4)
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                dcc.Loading(
+                                    type='circle',
+                                    children=[
+                                        dcc.Graph(
+                                            id='spatial-globe',
+                                            style={'display': 'none'},
+                                            config={
+                                                'scrollZoom': True,
+                                                'displayModeBar': True,
+                                                'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                                                'displaylogo': False,
+                                            },
+                                        )
+                                    ],
+                                ),
+                            ], className="p-2"),
+                        ], id='spatial-globe-card', className="mb-3"),
+                    ], lg=8, md=12),
+
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Global Statistics", className="mb-3",
+                                        id='spatial-stats-heading',
+                                        style={'fontWeight': '600'}),
+                                html.Div(id='spatial-global-stats'),
+                            ]),
+                        ], id='spatial-stats-card', className="mb-3"),
+
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("Globe Controls", className="mb-2",
+                                        id='spatial-instr-heading',
+                                        style={'fontWeight': '600'}),
+                                html.Ul([
+                                    html.Li("Drag to rotate the globe",
+                                            id='spatial-instr-1',
+                                            style={'fontSize': '0.9rem'}),
+                                    html.Li("Scroll to zoom in/out",
+                                            id='spatial-instr-2',
+                                            style={'fontSize': '0.9rem'}),
+                                    html.Li("Right-drag to pan",
+                                            id='spatial-instr-3',
+                                            style={'fontSize': '0.9rem'}),
+                                    html.Li("Switch to Interactive mode to enable the globe",
+                                            id='spatial-instr-4',
+                                            style={'fontSize': '0.9rem', 'fontStyle': 'italic'}),
+                                ], className="mb-0 ps-3"),
+                            ]),
+                        ], id='spatial-instructions-card'),
+                    ], lg=4, md=12),
+                ], className="mb-4"),
+
+                # Static 2D maps
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("Absolute Temperature", className="text-center mb-2",
+                                        id='spatial-abs-title'),
+                                html.Div(
+                                    html.Img(
+                                        id='spatial-abs-img',
+                                        style={'width': '100%', 'height': 'auto',
+                                               'borderRadius': '8px', 'cursor': 'pointer'},
+                                        title='Click to enlarge',
+                                    ),
+                                    id='spatial-abs-container',
+                                    n_clicks=0,
+                                    style={'cursor': 'pointer'},
+                                ),
+                                html.P("Click to enlarge", className="text-center mt-1 mb-0 text-muted",
+                                       style={'fontSize': '0.75rem'}),
+                            ]),
+                        ], id='spatial-abs-card', className="mb-3"),
+                    ], lg=6, md=12),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H6("Temperature Anomaly (vs 1991\u20132020)",
+                                        className="text-center mb-2",
+                                        id='spatial-anom-title'),
+                                html.Div(
+                                    html.Img(
+                                        id='spatial-anom-img',
+                                        style={'width': '100%', 'height': 'auto',
+                                               'borderRadius': '8px', 'cursor': 'pointer'},
+                                        title='Click to enlarge',
+                                    ),
+                                    id='spatial-anom-container',
+                                    n_clicks=0,
+                                    style={'cursor': 'pointer'},
+                                ),
+                                html.P("Click to enlarge", className="text-center mt-1 mb-0 text-muted",
+                                       style={'fontSize': '0.75rem'}),
+                            ]),
+                        ], id='spatial-anom-card', className="mb-3"),
+                    ], lg=6, md=12),
+                ], className="mb-4"),
+
+                # Modal for enlarged maps
+                dbc.Modal([
+                    dbc.ModalHeader(
+                        dbc.ModalTitle(id='spatial-modal-title'),
+                        close_button=True,
+                    ),
+                    dbc.ModalBody(
+                        html.Img(id='spatial-modal-image',
+                                 style={'width': '100%', 'height': 'auto', 'borderRadius': '8px'}),
+                    ),
+                ], id='spatial-map-modal', size='xl', centered=True),
+
+                # Continental + Country stats side by side
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Continental Statistics", className="mb-3",
+                                        id='spatial-continent-heading',
+                                        style={'fontWeight': '600'}),
+                                html.Div(id='spatial-continent-stats'),
+                            ]),
+                        ], id='spatial-continent-card', className="mb-3"),
+                    ], lg=6, md=12),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Country Statistics", className="mb-3",
+                                        id='spatial-country-heading',
+                                        style={'fontWeight': '600'}),
+                                html.Div(id='spatial-country-stats'),
+                            ]),
+                        ], id='spatial-country-card', className="mb-3"),
+                    ], lg=6, md=12),
+                ]),
+
+            ], fluid=True),
+        ]),  # end tab-content-spatial
+
+        ]),  # end tabs wrapper
+
+        # Footer (outside tabs)
         dbc.Row([
             dbc.Col([
                 html.Hr(id='footer-hr'),
@@ -1934,6 +2313,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('footer-text', 'style'),
             Output('sun-icon', 'style'),
             Output('moon-icon', 'style'),
+            Output('spatial-year', 'style'),
+            Output('spatial-month', 'style'),
+            Output('spatial-year', 'className'),
+            Output('spatial-month', 'className'),
         ],
         [Input('dark-mode-switch', 'value')]
     )
@@ -1963,7 +2346,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             'opacity': 1 if dark_mode else 0.4,
             'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
-
+        dropdown_style = {
+            'backgroundColor': theme['bg_color'],
+            'color': theme['text_color'],
+        }
         return (
             container_style, title_style, subtitle_style,
             card_color, card_color, card_color, card_color,
@@ -1972,6 +2358,53 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             card_value_style, card_value_style, card_value_style, card_value_style,
             card_sub_style, card_sub_style, card_sub_style, card_sub_style,
             footer_style, sun_style, moon_style,
+            dropdown_style, dropdown_style,
+            'dark-dropdown' if dark_mode else '',
+            'dark-dropdown' if dark_mode else '',
+        )
+
+    # Callback to switch between tab content divs
+    @app.callback(
+        [Output('tab-content-global', 'style'),
+         Output('tab-content-spatial', 'style'),
+         Output('active-tab-store', 'data')],
+        [Input('nav-global', 'n_clicks'),
+         Input('nav-spatial', 'n_clicks'),
+         Input('active-tab-store', 'modified_timestamp')],
+        [State('active-tab-store', 'data')],
+    )
+    def switch_tab(n_global, n_spatial, _ts, current_tab):
+        triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
+        if triggered == 'nav-global':
+            tab = 'global'
+        elif triggered == 'nav-spatial':
+            tab = 'spatial'
+        else:
+            tab = current_tab or 'global'
+        return (
+            {} if tab == 'global' else {'display': 'none'},
+            {} if tab == 'spatial' else {'display': 'none'},
+            tab,
+        )
+
+    # Callback to style active/inactive nav links
+    @app.callback(
+        [Output('nav-global', 'style'),
+         Output('nav-spatial', 'style')],
+        [Input('dark-mode-switch', 'value'),
+         Input('active-tab-store', 'data')],
+    )
+    def update_nav_styles(dark_mode, active_tab):
+        theme = get_theme(dark_mode)
+        active_tab = active_tab or 'global'
+        base = {'cursor': 'pointer', 'color': theme['text_color'], 'fontSize': '0.95rem'}
+        active = {**base, 'opacity': '1', 'fontWeight': '600',
+                  'borderBottom': f"2px solid {theme['highlight_colors'][2026]}",
+                  'borderRadius': '0', 'paddingBottom': '4px'}
+        inactive = {**base, 'opacity': '0.6', 'fontWeight': 'normal'}
+        return (
+            active if active_tab == 'global' else inactive,
+            active if active_tab == 'spatial' else inactive,
         )
 
     # Callback to toggle between static images and interactive graphs
@@ -1998,6 +2431,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             # Toggle icons
             Output('static-icon', 'style'),
             Output('interactive-icon', 'style'),
+            # Spatial globe visibility
+            Output('spatial-globe', 'style'),
         ],
         [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
     )
@@ -2020,6 +2455,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
 
+        globe_style_show = {'display': 'block', 'height': '600px'}
+        globe_style_hide = {'display': 'none'}
+
         if interactive:
             return (
                 # Hide images
@@ -2030,6 +2468,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
                 # Icons (static inactive, interactive active)
                 icon_inactive, icon_active,
+                # Globe
+                globe_style_show,
             )
         else:
             return (
@@ -2041,6 +2481,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 # Icons (static active, interactive inactive)
                 icon_active, icon_inactive,
+                # Globe
+                globe_style_hide,
             )
 
     # Update all static image sources based on dark mode
@@ -2161,6 +2603,370 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         if not interactive:
             raise PreventUpdate
         return create_daily_heatmap(_df, 'temperature', dark_mode)
+
+    # Spatial tab callbacks
+
+    @app.callback(
+        [Output('spatial-month', 'options'),
+         Output('spatial-month', 'value')],
+        [Input('spatial-year', 'value')],
+        [State('spatial-month', 'value')],
+    )
+    def update_spatial_month_options(year, current_month):
+        available = {m for y, m in get_spatial_dates_extended() if y == year}
+        options = [{'label': SPATIAL_MONTH_NAMES[m - 1], 'value': m,
+                    'disabled': m not in available} for m in range(1, 13)]
+        value = current_month if current_month in available else (max(available) if available else 1)
+        return options, value
+
+    @app.callback(
+        [Output('spatial-abs-img', 'src'),
+         Output('spatial-anom-img', 'src'),
+         Output('spatial-globe', 'figure'),
+         Output('spatial-global-stats', 'children'),
+         Output('spatial-continent-stats', 'children'),
+         Output('spatial-country-stats', 'children')],
+        [Input('spatial-year', 'value'),
+         Input('spatial-month', 'value'),
+         Input('dark-mode-switch', 'value'),
+         Input('interactive-switch', 'value'),
+         Input('spatial-view-type', 'value'),
+         Input('spatial-units', 'value')],
+    )
+    def update_spatial_tab(year, month, dark_mode, interactive, view_type, temp_unit):
+        theme = get_theme(dark_mode)
+        show_anomaly = view_type == 'anomaly'
+        unit_symbol = '°F' if temp_unit == 'F' else '°C'
+
+        def c_to_f(c):
+            return c * 9 / 5 + 32
+
+        # Card and text colours derived from the current theme
+        card_bg = theme['paper_color']
+        border_col = theme['grid_color']
+        text_col = theme['text_color']
+        muted_col = '#8b949e' if dark_mode else '#6c757d'
+        accent_col = theme['highlight_colors'][2026]
+
+        stat_box_style = {
+            'backgroundColor': card_bg,
+            'borderRadius': '8px',
+            'padding': '0.75rem',
+            'textAlign': 'center',
+            'border': f'1px solid {border_col}',
+        }
+
+        no_data = html.P("No data available.", style={'color': muted_col})
+
+        # --- Static maps (always rendered) ---
+        abs_src = anom_src = ''
+        for is_anom, key in [(False, 'abs'), (True, 'anom')]:
+            path = get_precomputed_map_path(year, month, is_anom)
+            if path and path.exists():
+                b64 = base64.b64encode(path.read_bytes()).decode()
+                src = f'data:image/png;base64,{b64}'
+            else:
+                src = ''
+            if key == 'abs':
+                abs_src = src
+            else:
+                anom_src = src
+
+        # --- Interactive globe (only when interactive mode is on) ---
+        globe_fig = go.Figure()
+        globe_fig.update_layout(
+            paper_bgcolor=card_bg,
+            plot_bgcolor=card_bg,
+            font=dict(color=text_col),
+            scene=dict(bgcolor=card_bg),
+        )
+        if interactive:
+            try:
+                standard_dates = {(y, m) for y, m in get_available_dates()}
+                n_days = None
+                if (year, month) in standard_dates:
+                    temp_data, lats, lons = load_monthly_data(year, month)
+                else:
+                    temp_data, lats, lons, n_days = load_partial_month_spatial_data(year, month)
+                if temp_data is not None:
+                    globe_fig = create_3d_globe(
+                        temp_data, lats, lons, year, month,
+                        show_anomaly=show_anomaly, temp_unit=temp_unit,
+                    )
+                    globe_fig.update_layout(paper_bgcolor=card_bg, font=dict(color=text_col))
+                    if n_days is not None:
+                        month_name = SPATIAL_MONTH_NAMES[month - 1]
+                        date_str = f"{month_name} {year} to-date ({n_days} days)"
+                        if show_anomaly:
+                            title_text = f"ERA5 Temperature Anomaly (vs 1991-2020) | {date_str}"
+                        else:
+                            title_text = f"ERA5 Monthly Mean 2m Temperature | {date_str}"
+                        globe_fig.update_layout(title=dict(
+                            text=title_text,
+                            font=dict(color=text_col, size=16),
+                            x=0.5,
+                        ))
+            except Exception:
+                pass
+
+        # --- Stats ---
+        precomputed = lookup_precomputed_stats(year, month)
+        if precomputed is None:
+            # For partial months, show a note instead of "No data"
+            standard_dates = {(y, m) for y, m in get_available_dates()}
+            if (year, month) not in standard_dates:
+                partial_note = html.P(
+                    f"Regional statistics not available for {SPATIAL_MONTH_NAMES[month-1]} {year} "
+                    "(partial month — only the interactive globe above shows this month's data).",
+                    style={'color': muted_col, 'fontStyle': 'italic'}
+                )
+                return abs_src, anom_src, globe_fig, partial_note, no_data, no_data
+            return abs_src, anom_src, globe_fig, no_data, no_data, no_data
+
+        g = precomputed['global']
+        global_mean = g['mean']
+        min_temp = g['min']
+        max_temp = g['max']
+        anomaly_mean = g.get('anomaly') or 0.0
+
+        if temp_unit == 'F':
+            mean_disp = c_to_f(global_mean)
+            min_disp = c_to_f(min_temp)
+            max_disp = c_to_f(max_temp)
+            anom_disp = anomaly_mean * 1.8
+        else:
+            mean_disp = global_mean
+            min_disp = min_temp
+            max_disp = max_temp
+            anom_disp = anomaly_mean
+
+        # Primary global stat (anomaly or absolute mean)
+        if show_anomaly and anomaly_mean:
+            primary = html.Div([
+                html.Div(f"{anom_disp:+.2f}{unit_symbol}",
+                         style={'fontSize': '1.8rem', 'fontWeight': '600',
+                                'color': theme['prediction_color'] if anom_disp > 0 else theme['historical_color']}),
+                html.Div("Global Mean Anomaly", style={'fontSize': '0.85rem', 'color': muted_col}),
+            ], style={**stat_box_style, 'marginBottom': '0.75rem'})
+        else:
+            primary = html.Div([
+                html.Div(f"{mean_disp:.1f}{unit_symbol}",
+                         style={'fontSize': '1.8rem', 'fontWeight': '600',
+                                'color': accent_col}),
+                html.Div("Global Mean", style={'fontSize': '0.85rem', 'color': muted_col}),
+            ], style={**stat_box_style, 'marginBottom': '0.75rem'})
+
+        warm_col = theme['prediction_color']
+        cool_col = theme['historical_color']
+
+        if show_anomaly:
+            # Derive most above/below normal from continent anomalies
+            cont_anoms = {
+                name: (s.get('anomaly') or 0.0) * (1.8 if temp_unit == 'F' else 1.0)
+                for name, s in precomputed['continents'].items()
+                if s.get('anomaly') is not None
+            }
+            if cont_anoms:
+                hottest_cont = max(cont_anoms, key=cont_anoms.get)
+                coldest_cont = min(cont_anoms, key=cont_anoms.get)
+                hot_val = cont_anoms[hottest_cont]
+                cold_val = cont_anoms[coldest_cont]
+                secondary_row = dbc.Row([
+                    dbc.Col(html.Div([
+                        html.Div(f"{cold_val:+.1f}{unit_symbol}",
+                                 style={'fontSize': '1.3rem', 'fontWeight': '600', 'color': cool_col}),
+                        html.Div("Most below normal", style={'fontSize': '0.8rem', 'color': muted_col}),
+                        html.Div(coldest_cont, style={'fontSize': '0.75rem', 'color': muted_col, 'opacity': '0.8'}),
+                    ], style=stat_box_style), width=6),
+                    dbc.Col(html.Div([
+                        html.Div(f"{hot_val:+.1f}{unit_symbol}",
+                                 style={'fontSize': '1.3rem', 'fontWeight': '600', 'color': warm_col}),
+                        html.Div("Most above normal", style={'fontSize': '0.8rem', 'color': muted_col}),
+                        html.Div(hottest_cont, style={'fontSize': '0.75rem', 'color': muted_col, 'opacity': '0.8'}),
+                    ], style=stat_box_style), width=6),
+                ], className="g-2")
+            else:
+                secondary_row = html.Div()
+        else:
+            secondary_row = dbc.Row([
+                dbc.Col(html.Div([
+                    html.Div(f"{min_disp:.0f}{unit_symbol}",
+                             style={'fontSize': '1.3rem', 'fontWeight': '600', 'color': cool_col}),
+                    html.Div("Coldest", style={'fontSize': '0.8rem', 'color': muted_col}),
+                ], style=stat_box_style), width=6),
+                dbc.Col(html.Div([
+                    html.Div(f"{max_disp:.0f}{unit_symbol}",
+                             style={'fontSize': '1.3rem', 'fontWeight': '600', 'color': warm_col}),
+                    html.Div("Warmest", style={'fontSize': '0.8rem', 'color': muted_col}),
+                ], style=stat_box_style), width=6),
+            ], className="g-2")
+
+        global_stats_div = html.Div([
+            primary,
+            secondary_row,
+        ])
+
+        # Continent DataTable
+        continent_rows = []
+        for name, s in precomputed['continents'].items():
+            mv = s['mean']
+            if mv is None or (hasattr(mv, '__float__') and mv != mv):
+                continue  # skip NaN
+            av = s.get('anomaly') or 0.0
+            if temp_unit == 'F':
+                mv = c_to_f(mv)
+                mnv = c_to_f(s['min'])
+                mxv = c_to_f(s['max'])
+                av = av * 1.8
+            else:
+                mnv, mxv = s['min'], s['max']
+            astr = f"{av:+.1f}" if av else "N/A"
+            continent_rows.append({
+                'Region': name,
+                'Mean': f"{mv:.1f}",
+                'Anomaly': astr,
+                'Min/Max': f"{mnv:.0f} / {mxv:.0f}",
+            })
+
+        tbl_style = {
+            'backgroundColor': card_bg,
+            'color': text_col,
+            'border': f'1px solid {border_col}',
+            'textAlign': 'center',
+            'padding': '8px',
+            'fontSize': '0.85rem',
+        }
+        tbl_hdr = {'backgroundColor': theme['bg_color'], 'fontWeight': '600', 'color': text_col}
+        cond_styles = [
+            {'if': {'column_id': 'Anomaly', 'filter_query': '{Anomaly} contains "+"'},
+             'color': theme['prediction_color']},
+            {'if': {'column_id': 'Anomaly', 'filter_query': '{Anomaly} contains "-"'},
+             'color': theme['historical_color']},
+        ]
+
+        continent_tbl = dash_table.DataTable(
+            data=continent_rows,
+            columns=[
+                {'name': 'Region', 'id': 'Region'},
+                {'name': f'Mean ({unit_symbol})', 'id': 'Mean'},
+                {'name': f'Anomaly ({unit_symbol})', 'id': 'Anomaly'},
+                {'name': f'Min/Max ({unit_symbol})', 'id': 'Min/Max'},
+            ],
+            style_table={'overflowX': 'auto'},
+            style_cell=tbl_style,
+            style_header=tbl_hdr,
+            style_data_conditional=cond_styles,
+        ) if continent_rows else html.P("No data.", style={'color': muted_col})
+
+        # Country DataTable
+        country_rows = []
+        for name, s in precomputed['countries'].items():
+            mv = s['mean']
+            if mv is None or (hasattr(mv, '__float__') and mv != mv):
+                continue
+            av = s.get('anomaly') or 0.0
+            if temp_unit == 'F':
+                mv = c_to_f(mv)
+                mnv = c_to_f(s['min'])
+                mxv = c_to_f(s['max'])
+                av = av * 1.8
+            else:
+                mnv, mxv = s['min'], s['max']
+            astr = f"{av:+.1f}" if av else "N/A"
+            country_rows.append({
+                'Country': name,
+                'Mean': f"{mv:.1f}",
+                'Anomaly': astr,
+                'Min/Max': f"{mnv:.0f} / {mxv:.0f}",
+            })
+
+        country_tbl = dash_table.DataTable(
+            data=country_rows,
+            columns=[
+                {'name': 'Country', 'id': 'Country'},
+                {'name': f'Mean ({unit_symbol})', 'id': 'Mean'},
+                {'name': f'Anomaly ({unit_symbol})', 'id': 'Anomaly'},
+                {'name': f'Min/Max ({unit_symbol})', 'id': 'Min/Max'},
+            ],
+            style_table={'overflowX': 'auto'},
+            style_cell=tbl_style,
+            style_header=tbl_hdr,
+            style_data_conditional=cond_styles,
+        ) if country_rows else html.P("No data.", style={'color': muted_col})
+
+        return abs_src, anom_src, globe_fig, global_stats_div, continent_tbl, country_tbl
+
+    # Modal: click map to enlarge
+    @app.callback(
+        [Output('spatial-map-modal', 'is_open'),
+         Output('spatial-modal-image', 'src'),
+         Output('spatial-modal-title', 'children')],
+        [Input('spatial-abs-container', 'n_clicks'),
+         Input('spatial-anom-container', 'n_clicks')],
+        [State('spatial-abs-img', 'src'),
+         State('spatial-anom-img', 'src'),
+         State('spatial-year', 'value'),
+         State('spatial-month', 'value'),
+         State('spatial-map-modal', 'is_open')],
+        prevent_initial_call=True,
+    )
+    def toggle_map_modal(abs_clicks, anom_clicks, abs_src, anom_src, year, month, is_open):
+        from dash import ctx
+        if not ctx.triggered_id:
+            return False, '', ''
+        month_name = SPATIAL_MONTH_NAMES[month - 1] if month else ''
+        if ctx.triggered_id == 'spatial-abs-container':
+            return True, abs_src or '', f"Absolute Temperature — {month_name} {year}"
+        else:
+            return True, anom_src or '', f"Anomaly (vs 1991–2020) — {month_name} {year}"
+
+    # Card color + text style updates for spatial tab
+    @app.callback(
+        [Output('spatial-controls-card', 'color'),
+         Output('spatial-globe-card', 'color'),
+         Output('spatial-stats-card', 'color'),
+         Output('spatial-instructions-card', 'color'),
+         Output('spatial-continent-card', 'color'),
+         Output('spatial-country-card', 'color'),
+         Output('spatial-abs-card', 'color'),
+         Output('spatial-anom-card', 'color'),
+         Output('spatial-stats-heading', 'style'),
+         Output('spatial-instr-heading', 'style'),
+         Output('spatial-continent-heading', 'style'),
+         Output('spatial-country-heading', 'style'),
+         Output('spatial-instr-1', 'style'),
+         Output('spatial-instr-2', 'style'),
+         Output('spatial-instr-3', 'style'),
+         Output('spatial-instr-4', 'style'),
+         Output('spatial-abs-title', 'style'),
+         Output('spatial-anom-title', 'style'),
+         Output('spatial-view-type', 'labelStyle'),
+         Output('spatial-units', 'labelStyle'),
+         Output('spatial-label-year', 'style'),
+         Output('spatial-label-month', 'style'),
+         Output('spatial-label-view-type', 'style'),
+         Output('spatial-label-units', 'style')],
+        [Input('dark-mode-switch', 'value')]
+    )
+    def update_spatial_card_styles(dark_mode):
+        theme = get_theme(dark_mode)
+        card_color = theme['card_color']
+        heading_style = {'fontWeight': '600', 'color': theme['text_color']}
+        instr_style = {'fontSize': '0.9rem', 'color': theme['text_color']}
+        instr_italic = {'fontSize': '0.9rem', 'fontStyle': 'italic',
+                        'color': theme['text_color'], 'opacity': '0.7'}
+        map_title_style = {'color': theme['text_color']}
+        label_style = {'color': theme['text_color']}
+        ctrl_label_style = {'fontWeight': '500', 'fontSize': '0.9rem', 'color': theme['text_color']}
+        return (
+            card_color, card_color, card_color, card_color, card_color, card_color,
+            card_color, card_color,
+            heading_style, heading_style, heading_style, heading_style,
+            instr_style, instr_style, instr_style, instr_italic,
+            map_title_style, map_title_style,
+            label_style, label_style,
+            ctrl_label_style, ctrl_label_style, ctrl_label_style, ctrl_label_style,
+        )
 
     return app
 

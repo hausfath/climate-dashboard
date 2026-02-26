@@ -30,6 +30,23 @@ jobs:
         run: |
           python run.py update --force
 
+      - name: Configure CDS API credentials
+        run: |
+          mkdir -p ~/.config/cdsapi
+          cat > ~/.cdsapirc << EOF
+          url: ${{ secrets.CDS_URL }}
+          key: ${{ secrets.CDS_KEY }}
+          EOF
+
+      - name: Update ERA5 spatial data (current month)
+        run: |
+          python -c "
+          from src.precompute_monthly_stats import download_current_month_mtd, precompute_current_month
+          download_current_month_mtd(force=True)
+          precompute_current_month()
+          "
+        continue-on-error: true   # Don't fail the whole workflow if CDS is slow/unavailable
+
       - name: Check for changes
         id: git-check
         run: |

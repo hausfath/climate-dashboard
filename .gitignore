@@ -38,6 +38,17 @@ Thumbs.db
 # But keep static plot images for deployment
 !assets/images/*.png
 
+# ERA5 large binary data (re-downloadable via era5_api.py / CDS API)
+data/era5/*.nc
+# ERA5 GeoJSON boundaries (auto-downloaded at runtime by gridded_map.py)
+data/era5/*.geojson
+# Pre-computed geometry cache (regenerate: python src/precompute_monthly_stats.py --geometry-only)
+data/era5/precomputed/geometry_cache.npz
+# Pre-rendered map PNGs (too large for git; stored on Render Disk)
+data/era5/precomputed/maps/
+# Stale CSS artifact superseded by assets/globe.css
+src/assets/
+
 # Claude Code
 .claude/
 
