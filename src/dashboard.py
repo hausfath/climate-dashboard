@@ -2049,8 +2049,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                                    style={'fontWeight': '500', 'fontSize': '0.9rem'}),
                                         dcc.Dropdown(
                                             id='spatial-year',
-                                            options=_year_options,
-                                            value=_default_year,
+                                            options=[],
+                                            value=None,
                                             clearable=False,
                                             className='dark-dropdown',
                                         ),
@@ -2605,6 +2605,19 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         return create_daily_heatmap(_df, 'temperature', dark_mode)
 
     # Spatial tab callbacks
+
+    @app.callback(
+        [Output('spatial-year', 'options'),
+         Output('spatial-year', 'value')],
+        [Input('initial-load', 'data')],
+    )
+    def populate_spatial_year_options(_):
+        """Populate year dropdown at runtime so disk contents are always reflected."""
+        dates = get_spatial_dates_extended()
+        options = [{'label': str(y), 'value': y}
+                   for y in sorted(set(y for y, m in dates), reverse=True)]
+        value = dates[-1][0] if dates else None
+        return options, value
 
     @app.callback(
         [Output('spatial-month', 'options'),
