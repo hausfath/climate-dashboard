@@ -383,6 +383,30 @@ def create_anomaly_colorscale(discrete: bool = True):
 # Cache for monthly data file handle
 _monthly_dataset = None
 
+# Cache for climatology data (avoid reopening file on every anomaly render)
+_climatology_cache: dict = {}
+
+
+def _merge_lines_to_trace(line_list: list) -> tuple:
+    """
+    Merge a list of (x, y, z) line segments into single NaN-separated arrays.
+
+    Instead of creating one Scatter3d trace per segment (potentially 1000+),
+    this returns three flat arrays that can be used in a single trace.
+    NaN values create visual breaks between segments.
+    """
+    if not line_list:
+        return np.array([]), np.array([]), np.array([])
+    nan = np.array([np.nan])
+    all_x, all_y, all_z = [], [], []
+    for x, y, z in line_list:
+        all_x.extend([x, nan])
+        all_y.extend([y, nan])
+        all_z.extend([z, nan])
+    return (np.concatenate(all_x),
+            np.concatenate(all_y),
+            np.concatenate(all_z))
+
 
 def get_monthly_dataset():
     """Get or open the monthly data file."""
@@ -437,7 +461,10 @@ def load_monthly_data(year: int, month: int) -> tuple:
 
 
 def load_climatology(month: int) -> np.ndarray:
-    """Load ERA5 1991-2020 monthly climatology for the given month."""
+    """Load ERA5 1991-2020 monthly climatology for the given month (cached in memory)."""
+    if month in _climatology_cache:
+        return _climatology_cache[month]
+
     if not CLIM_FILE.exists():
         return None
 
@@ -445,6 +472,8 @@ def load_climatology(month: int) -> np.ndarray:
     clim_k = ds['t2m'].sel(month=month).values
     clim_c = clim_k - 273.15
     ds.close()
+
+    _climatology_cache[month] = clim_c
     return clim_c
 
 
@@ -568,19 +597,24 @@ def create_3d_globe(
         return c * 9/5 + 32
 
     unit_symbol = '°F' if temp_unit == 'F' else '°C'
-    nlat, nlon = temp_data.shape
+
+    # ── 2× downsample for memory efficiency ──────────────────────────────────
+    # ERA5 is 721×1440 (0.25°); every-other-point gives 361×720 (0.5°)
+    # which is imperceptible at typical screen sizes and cuts surface data 4×.
+    step = 2
+    lats_d = lats[::step]
+    lons_d = lons[::step]
+    temp_data_d = temp_data[::step, ::step]
 
     # Wrap longitude to close the seam
-    lons_wrapped = np.append(lons, 360.0)
-    temp_data_wrapped = np.column_stack([temp_data, temp_data[:, 0]])
+    lons_wrapped = np.append(lons_d, 360.0)
+    temp_data_wrapped = np.column_stack([temp_data_d, temp_data_d[:, 0]])
 
-    lon_grid, lat_grid = np.meshgrid(lons_wrapped, lats)
-    lon_display = np.where(lon_grid > 180, lon_grid - 360, lon_grid)
+    lon_grid, lat_grid = np.meshgrid(lons_wrapped, lats_d)
 
     lat_rad = np.deg2rad(lat_grid)
     lon_rad = np.deg2rad(lon_grid)
 
-    nlon = len(lons_wrapped)
     r = 1.0
 
     x = r * np.cos(lat_rad) * np.cos(lon_rad)
@@ -592,12 +626,13 @@ def create_3d_globe(
     if show_anomaly:
         clim = load_climatology(month)
         if clim is not None:
-            clim_wrapped = np.column_stack([clim, clim[:, 0]])
+            clim_d = clim[::step, ::step]
+            clim_wrapped = np.column_stack([clim_d, clim_d[:, 0]])
             color_data = temp_data_wrapped - clim_wrapped
             title_text = f'ERA5 Temperature Anomaly (vs 1991-2020) | {month_name} {year}'
         else:
-            weights = np.cos(np.deg2rad(lats))
-            global_mean = np.average(np.nanmean(temp_data, axis=1), weights=weights)
+            weights = np.cos(np.deg2rad(lats_d))
+            global_mean = np.average(np.nanmean(temp_data_d, axis=1), weights=weights)
             color_data = temp_data_wrapped - global_mean
             title_text = f'ERA5 Temperature Anomaly | {month_name} {year}'
 
@@ -649,10 +684,10 @@ def create_3d_globe(
             tickvals=tickvals,
             ticktext=ticktext,
         ),
-        text=np.array([[
-            f"{(color_data[i,j] * 1.8 + 32 if temp_unit == 'F' and not show_anomaly else color_data[i,j] * 1.8 if temp_unit == 'F' else color_data[i,j]):.1f}{unit_symbol} | Lat: {lat_grid[i,j]:.1f}° | Lon: {lon_display[i,j]:.1f}°"
-            for j in range(nlon)] for i in range(nlat)]),
-        hoverinfo='text',
+        hovertemplate=(
+            f'%{{surfacecolor:.1f}}{unit_symbol}'
+            '<extra></extra>'
+        ),
         lighting=dict(
             ambient=1.0,
             diffuse=0.0,
@@ -664,83 +699,64 @@ def create_3d_globe(
 
     fig = go.Figure(data=[globe])
 
-    # Add coastlines
+    # ── Coastlines, borders, graticules — each as ONE NaN-separated trace ─────
+    # Replaces 1400+ individual Scatter3d traces, cutting figure size ~10×.
     coastline_color = 'rgba(0, 0, 0, 0.9)'
+    border_color    = 'rgba(0, 0, 0, 0.7)'
+    graticule_color = 'rgba(80, 80, 80, 0.4)'
+
     coastlines = load_coastlines_3d(radius=1.003)
-    for x_line, y_line, z_line in coastlines:
+    if coastlines:
+        cx, cy, cz = _merge_lines_to_trace(coastlines)
         fig.add_trace(go.Scatter3d(
-            x=x_line, y=y_line, z=z_line,
+            x=cx, y=cy, z=cz,
             mode='lines',
             line=dict(color=coastline_color, width=1.5),
-            hoverinfo='skip',
-            showlegend=False,
+            hoverinfo='skip', showlegend=False,
         ))
 
-    # Add country borders
-    border_color = 'rgba(0, 0, 0, 0.7)'
     borders = load_borders_3d(radius=1.003)
-    for x_line, y_line, z_line in borders:
+    if borders:
+        bx, by, bz = _merge_lines_to_trace(borders)
         fig.add_trace(go.Scatter3d(
-            x=x_line, y=y_line, z=z_line,
+            x=bx, y=by, z=bz,
             mode='lines',
             line=dict(color=border_color, width=1),
-            hoverinfo='skip',
-            showlegend=False,
+            hoverinfo='skip', showlegend=False,
         ))
 
-    # Add graticule lines (use cache if available)
-    graticule_color = 'rgba(80, 80, 80, 0.4)'
     cache = get_geometry_cache()
-
     if cache is not None and 'graticule_lat' in cache:
-        # Use pre-computed graticules
-        for x_line, y_line, z_line in cache['graticule_lat']:
-            fig.add_trace(go.Scatter3d(
-                x=x_line, y=y_line, z=z_line,
-                mode='lines',
-                line=dict(color=graticule_color, width=1),
-                hoverinfo='skip',
-                showlegend=False,
-            ))
-        for x_line, y_line, z_line in cache['graticule_lon']:
-            fig.add_trace(go.Scatter3d(
-                x=x_line, y=y_line, z=z_line,
-                mode='lines',
-                line=dict(color=graticule_color, width=1),
-                hoverinfo='skip',
-                showlegend=False,
-            ))
+        grat_lines = list(cache['graticule_lat']) + list(cache['graticule_lon'])
     else:
-        # Fall back to computing graticules
-        for lat in range(-60, 90, 30):
-            lat_r = np.deg2rad(lat)
-            lons_line = np.linspace(0, 360, 180)
-            lons_r = np.deg2rad(lons_line)
-            x_line = r * 1.002 * np.cos(lat_r) * np.cos(lons_r)
-            y_line = r * 1.002 * np.cos(lat_r) * np.sin(lons_r)
-            z_line = r * 1.002 * np.sin(lat_r) * np.ones_like(lons_r)
-            fig.add_trace(go.Scatter3d(
-                x=x_line, y=y_line, z=z_line,
-                mode='lines',
-                line=dict(color=graticule_color, width=1),
-                hoverinfo='skip',
-                showlegend=False,
+        # Fallback: compute graticule lines on-the-fly
+        grat_lines = []
+        r_g = 1.002
+        for lat_deg in range(-60, 91, 30):
+            lat_r = np.deg2rad(lat_deg)
+            lons_r = np.deg2rad(np.linspace(0, 360, 181))
+            grat_lines.append((
+                r_g * np.cos(lat_r) * np.cos(lons_r),
+                r_g * np.cos(lat_r) * np.sin(lons_r),
+                r_g * np.sin(lat_r) * np.ones_like(lons_r),
+            ))
+        for lon_deg in range(0, 360, 30):
+            lon_r = np.deg2rad(lon_deg)
+            lats_r = np.deg2rad(np.linspace(-90, 90, 181))
+            grat_lines.append((
+                r_g * np.cos(lats_r) * np.cos(lon_r),
+                r_g * np.cos(lats_r) * np.sin(lon_r),
+                r_g * np.sin(lats_r),
             ))
 
-        for lon in range(0, 360, 30):
-            lon_r = np.deg2rad(lon)
-            lats_line = np.linspace(-90, 90, 180)
-            lats_r = np.deg2rad(lats_line)
-            x_line = r * 1.002 * np.cos(lats_r) * np.cos(lon_r)
-            y_line = r * 1.002 * np.cos(lats_r) * np.sin(lon_r)
-            z_line = r * 1.002 * np.sin(lats_r)
-            fig.add_trace(go.Scatter3d(
-                x=x_line, y=y_line, z=z_line,
-                mode='lines',
-                line=dict(color=graticule_color, width=1),
-                hoverinfo='skip',
-                showlegend=False,
-            ))
+    if grat_lines:
+        gx, gy, gz = _merge_lines_to_trace(grat_lines)
+        fig.add_trace(go.Scatter3d(
+            x=gx, y=gy, z=gz,
+            mode='lines',
+            line=dict(color=graticule_color, width=1),
+            hoverinfo='skip', showlegend=False,
+        ))
 
     fig.update_layout(
         title=dict(

@@ -603,7 +603,6 @@ def _base_layout(theme: dict, title: str, height: int = 500) -> dict:
 def create_models_vs_obs_timeseries(
     cmip_df: pd.DataFrame,
     obs_df: pd.DataFrame,
-    era5_daily: pd.DataFrame = None,
     rolling: bool = False,
     dark_mode: bool = False,
     gen_label: str = 'CMIP6',
@@ -675,38 +674,11 @@ def create_models_vs_obs_timeseries(
             hovertemplate='%{y:.2f}°C<extra>' + obs_labels[col] + '</extra>',
         ))
 
-    # ERA5 daily extension (monthly aggregated)
-    if era5_daily is not None and not era5_daily.empty:
-        daily_ext = bridge_with_daily_era5(obs_df, era5_daily)
-        if not daily_ext.empty:
-            fig.add_trace(go.Scatter(
-                x=daily_ext.index, y=daily_ext.values,
-                mode='lines', line=dict(color=oc['era5_daily'], width=1.5, dash='dot'),
-                name='ERA5 (daily MTD)',
-                hovertemplate='%{y:.2f}°C<extra>ERA5 daily</extra>',
-            ))
-
     # 1.5°C reference line
     fig.add_hline(y=1.5, line_dash='dash',
                   line_color=theme.get('threshold_color', 'orange'),
                   annotation_text='1.5°C', annotation_position='top left',
                   annotation_font_color=theme['text_color'])
-
-    # Key event annotations
-    annotations = [
-        dict(x='1991-06-15', y=0.35, text='Pinatubo', showarrow=True,
-             arrowhead=2, arrowsize=0.8, ax=0, ay=-30,
-             font=dict(size=10, color=theme['text_color']),
-             arrowcolor=theme['grid_color']),
-        dict(x='1998-01-01', y=1.1, text='El Niño', showarrow=True,
-             arrowhead=2, arrowsize=0.8, ax=0, ay=-30,
-             font=dict(size=10, color=theme['text_color']),
-             arrowcolor=theme['grid_color']),
-        dict(x='2023-09-01', y=1.7, text='Record warmth', showarrow=True,
-             arrowhead=2, arrowsize=0.8, ax=0, ay=-30,
-             font=dict(size=10, color=theme['text_color']),
-             arrowcolor=theme['grid_color']),
-    ]
 
     layout = _base_layout(theme, f'Climate Models vs. Observations ({gen_label})', height=520)
     layout.update(
@@ -716,7 +688,6 @@ def create_models_vs_obs_timeseries(
             rangeslider=dict(visible=True, thickness=0.05),
             range=['1900-01-01', '2040-12-31'],
         ),
-        annotations=annotations,
     )
     fig.update_layout(layout)
     return fig
@@ -784,16 +755,6 @@ def create_trend_explorer(
             hovertemplate='%{y:.3f}°C/dec<extra>' + label + '</extra>',
         ))
 
-    # Mark 1998 (cherry-picked start year) — add annotation separately to avoid plotly date bug
-    fig.add_vline(x=1998, line_dash='dot', line_color=theme['grid_color'], line_width=1)
-    fig.add_annotation(
-        x=1998, y=1.0, yref='paper',
-        text='1998 El Niño<br>(common cherry-pick)',
-        showarrow=False, xanchor='left',
-        font=dict(size=9, color=theme['text_color']),
-        bgcolor='rgba(0,0,0,0)',
-    )
-
     layout = _base_layout(theme, 'Warming Trend by Start Year (to present)', height=500)
     layout.update(
         xaxis_title='Start Year of Trend',
@@ -806,15 +767,14 @@ def create_trend_explorer(
 
 
 def create_trend_histogram_grid(
-    cmip3_df: pd.DataFrame,
-    cmip5_df: pd.DataFrame,
-    cmip6_df: pd.DataFrame,
+    cmip_df: pd.DataFrame,
     obs_df: pd.DataFrame,
     dark_mode: bool = False,
+    gen_label: str = 'CMIP6',
 ) -> go.Figure:
     """
-    Visualization 3: 3×3 grid of trend histograms.
-    Rows = time periods, Columns = CMIP generations.
+    Visualization 3: 1×3 grid of trend histograms.
+    Columns = three time periods for the selected CMIP generation.
     """
     from src.dashboard import get_theme
     theme = get_theme(dark_mode)
@@ -827,11 +787,6 @@ def create_trend_histogram_grid(
         ('2001-01-01', last_obs, '2001–present'),
         ('2011-01-01', last_obs, '2011–present'),
     ]
-    models = [
-        ('CMIP3', cmip3_df),
-        ('CMIP5', cmip5_df),
-        ('CMIP6', cmip6_df),
-    ]
     obs_labels = {
         'hadcrut5':   'HadCRUT5',
         'gistemp':    'GISTEMP',
@@ -840,71 +795,61 @@ def create_trend_histogram_grid(
         'copernicus': 'Copernicus',
     }
 
-    subplot_titles = [
-        f'{m} · {p[2]}' for p in periods for m, _ in models
-    ]
+    subplot_titles = [p[2] for p in periods]
     fig = make_subplots(
-        rows=3, cols=3,
+        rows=1, cols=3,
         subplot_titles=subplot_titles,
-        vertical_spacing=0.09,
-        horizontal_spacing=0.06,
+        horizontal_spacing=0.08,
     )
 
-    for row_i, (start, end, period_label) in enumerate(periods):
+    for col_i, (start, end, period_label) in enumerate(periods):
+        c = col_i + 1
         obs_tr = calculate_obs_trends(obs_df, start, end)
+        member_trends = calculate_member_trends(cmip_df, start, end)
 
-        for col_i, (gen_name, gen_df) in enumerate(models):
-            r, c = row_i + 1, col_i + 1
-            member_trends = calculate_member_trends(gen_df, start, end)
+        if len(member_trends) > 0:
+            fig.add_trace(go.Histogram(
+                x=member_trends, nbinsx=15,
+                marker_color=hist_color,
+                marker_line_color=theme['text_color'],
+                marker_line_width=0.5,
+                showlegend=False,
+                hovertemplate='Trend: %{x:.3f}°C/dec<br>Count: %{y}<extra></extra>',
+            ), row=1, col=c)
 
-            if len(member_trends) > 0:
-                fig.add_trace(go.Histogram(
-                    x=member_trends, nbinsx=15,
-                    marker_color=hist_color,
-                    marker_line_color=theme['text_color'],
-                    marker_line_width=0.5,
-                    showlegend=False,
-                    hovertemplate='Trend: %{x:.3f}°C/dec<br>Count: %{y}<extra></extra>',
-                ), row=r, col=c)
-
-            # Observed trend lines
-            for obs_col, label in obs_labels.items():
-                val = obs_tr.get(obs_col)
-                if val is None:
-                    continue
-                fig.add_vline(
-                    x=val, row=r, col=c,
-                    line_dash='dash', line_color=oc[obs_col], line_width=2,
-                    annotation_text=label if row_i == 0 and col_i == 2 else None,
-                    annotation_font=dict(size=8, color=oc[obs_col]),
-                )
+        # Observed trend lines
+        for obs_col, label in obs_labels.items():
+            val = obs_tr.get(obs_col)
+            if val is None:
+                continue
+            fig.add_vline(
+                x=val, row=1, col=c,
+                line_dash='dash', line_color=oc[obs_col], line_width=2,
+            )
 
     fig.update_layout(
-        height=600,
+        height=380,
         template=theme['template'],
         paper_bgcolor=theme['paper_color'],
         plot_bgcolor=theme['bg_color'],
         font=dict(color=theme['text_color'], size=11),
         showlegend=False,
-        margin=dict(l=50, r=30, t=80, b=60),
+        margin=dict(l=50, r=30, t=60, b=60),
         title=dict(
-            text='Distribution of Warming Trends: Models vs. Observations',
+            text=f'{gen_label} Warming Trends vs. Observations',
             font=dict(size=14, color=theme['text_color']),
         ),
     )
-    fig.update_annotations(font_size=11)
-    # Shared x-axis label
-    for i in range(1, 10):
+    fig.update_annotations(font_size=12)
+    for c in range(1, 4):
         fig.update_xaxes(
-            title_text='°C/decade' if i > 6 else '',
+            title_text='°C/decade',
             gridcolor=theme['grid_color'],
-            row=(i - 1) // 3 + 1,
-            col=(i - 1) % 3 + 1,
+            row=1, col=c,
         )
         fig.update_yaxes(
             gridcolor=theme['grid_color'],
-            row=(i - 1) // 3 + 1,
-            col=(i - 1) % 3 + 1,
+            row=1, col=c,
         )
     return fig
 
@@ -1011,20 +956,16 @@ def generate_models_static_images(
     cmip5: pd.DataFrame,
     cmip6: pd.DataFrame,
     assets_dir: Path,
-    era5_daily: pd.DataFrame = None,
 ) -> None:
     """Pre-render all Models vs. Obs static images for dark and light modes."""
     import plotly.io as pio
-
-    cmip6_stats = compute_ensemble_stats(cmip6)
 
     for dark_mode in [True, False]:
         mode = 'dark' if dark_mode else 'light'
         logger.info(f"Generating models static images ({mode})...")
 
         try:
-            fig1 = create_models_vs_obs_timeseries(cmip6, obs_df, era5_daily,
-                                                    rolling=False, dark_mode=dark_mode)
+            fig1 = create_models_vs_obs_timeseries(cmip6, obs_df, rolling=False, dark_mode=dark_mode)
             pio.write_image(fig1, assets_dir / f'models_timeseries_{mode}.png',
                             width=1200, height=520, scale=1.5)
         except Exception as e:
@@ -1038,19 +979,10 @@ def generate_models_static_images(
             logger.error(f"Failed to generate models_trend_explorer_{mode}: {e}")
 
         try:
-            fig3 = create_trend_histogram_grid(cmip3, cmip5, cmip6, obs_df, dark_mode=dark_mode)
+            fig3 = create_trend_histogram_grid(cmip6, obs_df, dark_mode=dark_mode, gen_label='CMIP6')
             pio.write_image(fig3, assets_dir / f'models_histograms_{mode}.png',
-                            width=1200, height=600, scale=1.5)
+                            width=1200, height=380, scale=1.5)
         except Exception as e:
             logger.error(f"Failed to generate models_histograms_{mode}: {e}")
-
-        try:
-            final_year = obs_df['date'].dt.year.max()
-            fig4 = create_animated_scorecard(cmip6_stats, obs_df,
-                                             end_year=final_year, dark_mode=dark_mode)
-            pio.write_image(fig4, assets_dir / f'models_animation_{mode}.png',
-                            width=1200, height=480, scale=1.5)
-        except Exception as e:
-            logger.error(f"Failed to generate models_animation_{mode}: {e}")
 
     logger.info("Models static images generation complete")

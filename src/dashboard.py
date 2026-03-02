@@ -1789,7 +1789,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _cmip5 = pd.DataFrame()
     _cmip6 = pd.DataFrame()
     _obs_models = pd.DataFrame()
-    _cmip6_stats = pd.DataFrame()
     _models_cards = {}
     try:
         from src.models_vs_obs import (
@@ -1798,19 +1797,31 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             create_models_vs_obs_timeseries as _create_models_timeseries,
             create_trend_explorer as _create_trend_explorer,
             create_trend_histogram_grid as _create_hist_grid,
-            create_animated_scorecard as _create_scorecard,
-            compute_running_scorecard,
         )
-        _cmip3 = load_cmip_ensemble('cmip3')
-        _cmip5 = load_cmip_ensemble('cmip5')
+        # Only CMIP6 (the default) is loaded at startup; CMIP3/5 load on first use.
         _cmip6 = load_cmip_ensemble('cmip6')
         _obs_models = load_obs_data()
-        _cmip6_stats = compute_ensemble_stats(_cmip6)
         _models_cards = compute_model_obs_cards(_cmip6, _obs_models)
         _MODELS_AVAILABLE = True
         logger.info("CMIP model data loaded successfully")
     except Exception as e:
         logger.warning(f"Could not pre-load CMIP data: {e}")
+
+    # Lazy-load registry for CMIP3/5 — populated on first use
+    _cmip_lazy: dict = {}
+
+    def _get_cmip(gen: str) -> pd.DataFrame:
+        """Return CMIP DataFrame for gen, lazy-loading CMIP3/5 on first access."""
+        if gen == 'cmip6':
+            return _cmip6
+        if gen not in _cmip_lazy:
+            try:
+                _cmip_lazy[gen] = load_cmip_ensemble(gen)
+                logger.info(f"Lazy-loaded {gen}")
+            except Exception as exc:
+                logger.warning(f"Failed to lazy-load {gen}: {exc}")
+                _cmip_lazy[gen] = pd.DataFrame()
+        return _cmip_lazy[gen]
 
     # Spatial tab: compute available dates for defaults (includes current partial month)
     _spatial_dates = get_spatial_dates_extended()
@@ -2276,8 +2287,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ]),  # end tab-content-spatial
 
         html.Div(id='tab-content-models', style={'display': 'none'}, children=[
-            # Hidden interval component for animation auto-play
-            dcc.Interval(id='models-animation-interval', interval=800, disabled=True),
 
             # Statistics Cards
             dbc.Row([
@@ -2376,7 +2385,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                             {'label': 'Monthly', 'value': 'monthly'},
                                             {'label': '12-month average', 'value': 'rolling'},
                                         ],
-                                        value='monthly',
+                                        value='rolling',
                                         inline=True,
                                     ),
                                 ], md=4, sm=6, className="mb-2"),
@@ -2430,83 +2439,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     ),
                 ], xs=12, md={'size': 10, 'offset': 1}),
             ], className="mb-4"),
-
-            # Viz 4: Animated scorecard
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='models-animation-img',
-                             src='/assets/images/models_animation_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-models-animation", type="circle",
-                        children=[dcc.Graph(id='models-animation-plot',
-                                            style={'height': '480px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-3"),
-
-            # Animation controls row
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            dbc.Row([
-                                dbc.Col([
-                                    html.Button('▶ Play', id='models-play-btn',
-                                                className='btn btn-sm btn-outline-secondary',
-                                                n_clicks=0,
-                                                style={'width': '80px'}),
-                                ], md=1, sm=2,
-                                   className="d-flex align-items-center justify-content-center mb-2"),
-                                dbc.Col([
-                                    dcc.Slider(
-                                        id='models-animation-slider',
-                                        min=1970, max=2025, step=1, value=2025,
-                                        marks={y: str(y) for y in range(1970, 2026, 5)},
-                                        tooltip={"placement": "bottom", "always_visible": False},
-                                        updatemode='drag',
-                                    ),
-                                ], md=7, sm=10, className="mb-2"),
-                                dbc.Col([
-                                    dbc.Row([
-                                        dbc.Col([
-                                            dbc.Card([
-                                                dbc.CardBody([
-                                                    html.Small("% in Model Range",
-                                                               id='models-pct-label',
-                                                               className="d-block text-center",
-                                                               style={'fontSize': '0.75rem',
-                                                                      'fontWeight': '600'}),
-                                                    html.P("—", id='models-pct-in-range',
-                                                           className="text-center mb-0",
-                                                           style={'fontSize': '1rem',
-                                                                  'fontWeight': 'bold'}),
-                                                ], className="p-2"),
-                                            ], id='models-pct-card'),
-                                        ], width=6),
-                                        dbc.Col([
-                                            dbc.Card([
-                                                dbc.CardBody([
-                                                    html.Small("Obs–Model Trend",
-                                                               id='models-trend-diff-label',
-                                                               className="d-block text-center",
-                                                               style={'fontSize': '0.75rem',
-                                                                      'fontWeight': '600'}),
-                                                    html.P("—", id='models-trend-diff',
-                                                           className="text-center mb-0",
-                                                           style={'fontSize': '1rem',
-                                                                  'fontWeight': 'bold'}),
-                                                ], className="p-2"),
-                                            ], id='models-trend-diff-card'),
-                                        ], width=6),
-                                    ], className="g-1"),
-                                ], md=4, sm=12, className="mb-2"),
-                            ], className="g-2 align-items-center"),
-                        ]),
-                    ], id='models-animation-controls-card', className="mb-4"),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ]),
 
         ]),  # end tab-content-models
 
@@ -2708,16 +2640,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('interactive-icon', 'style'),
             # Spatial globe visibility
             Output('spatial-globe', 'style'),
-            # Image visibility — Models tab (4)
+            # Image visibility — Models tab (3)
             Output('models-timeseries-img', 'style'),
             Output('models-trend-explorer-img', 'style'),
             Output('models-histograms-img', 'style'),
-            Output('models-animation-img', 'style'),
-            # Graph visibility — Models tab (4)
+            # Graph visibility — Models tab (3)
             Output('models-timeseries-plot', 'style'),
             Output('models-trend-explorer-plot', 'style'),
             Output('models-histograms-plot', 'style'),
-            Output('models-animation-plot', 'style'),
         ],
         [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
     )
@@ -2755,13 +2685,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 icon_inactive, icon_active,
                 # Globe
                 globe_style_show,
-                # Hide images — Models (4)
-                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
-                # Show graphs — Models (4), with per-plot heights
+                # Hide images — Models (3)
+                img_style_hide, img_style_hide, img_style_hide,
+                # Show graphs — Models (3), with per-plot heights
                 {'height': '520px', 'display': 'block'},
                 {'height': '500px', 'display': 'block'},
-                {'height': '600px', 'display': 'block'},
-                {'height': '480px', 'display': 'block'},
+                {'height': '380px', 'display': 'block'},
             )
         else:
             return (
@@ -2775,10 +2704,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 icon_active, icon_inactive,
                 # Globe
                 globe_style_hide,
-                # Show images — Models (4)
-                img_style_show, img_style_show, img_style_show, img_style_show,
-                # Hide graphs — Models (4)
-                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
+                # Show images — Models (3)
+                img_style_show, img_style_show, img_style_show,
+                # Hide graphs — Models (3)
+                graph_style_hide, graph_style_hide, graph_style_hide,
             )
 
     # Update all static image sources based on dark mode
@@ -2797,7 +2726,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('models-timeseries-img', 'src'),
             Output('models-trend-explorer-img', 'src'),
             Output('models-histograms-img', 'src'),
-            Output('models-animation-img', 'src'),
         ],
         [Input('dark-mode-switch', 'value')]
     )
@@ -2816,7 +2744,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/models_timeseries_{mode}.png',
             f'/assets/images/models_trend_explorer_{mode}.png',
             f'/assets/images/models_histograms_{mode}.png',
-            f'/assets/images/models_animation_{mode}.png',
         )
 
     # Interactive graph callbacks (only run when needed)
@@ -3306,10 +3233,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             gen = cmip_gen or 'cmip6'
-            cmip_df = {'cmip3': _cmip3, 'cmip5': _cmip5, 'cmip6': _cmip6}.get(gen, _cmip6)
+            cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             rolling = (smoothing == 'rolling')
-            return _create_models_timeseries(cmip_df, _obs_models, _df, rolling, dark_mode, gen_label)
+            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode, gen_label)
         except Exception as e:
             logger.error(f"Models timeseries error: {e}")
             return go.Figure()
@@ -3330,101 +3257,35 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             gen = cmip_gen or 'cmip6'
-            cmip_df = {'cmip3': _cmip3, 'cmip5': _cmip5, 'cmip6': _cmip6}.get(gen, _cmip6)
+            cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             return _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label)
         except Exception as e:
             logger.error(f"Models trend explorer error: {e}")
             return go.Figure()
 
-    # Graph 3: Histogram grid (chained from trend explorer, always uses all 3 gens)
+    # Graph 3: Histogram grid (chained from trend explorer, uses selected gen)
     @app.callback(
         Output('models-histograms-plot', 'figure'),
         [Input('models-trend-explorer-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
-         State('interactive-switch', 'value')],
+         State('interactive-switch', 'value'),
+         State('models-cmip-gen', 'value')],
     )
-    def update_models_histograms(_, dark_mode, interactive):
+    def update_models_histograms(_, dark_mode, interactive, cmip_gen):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
         if not _MODELS_AVAILABLE or _cmip6.empty:
             return go.Figure()
         try:
-            return _create_hist_grid(_cmip3, _cmip5, _cmip6, _obs_models, dark_mode)
+            gen = cmip_gen or 'cmip6'
+            cmip_df = _get_cmip(gen)
+            gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
+            return _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label)
         except Exception as e:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
-
-    # Graph 4: Animated scorecard (chained from histograms on first load; also driven by slider)
-    @app.callback(
-        [Output('models-animation-plot', 'figure'),
-         Output('models-pct-in-range', 'children'),
-         Output('models-trend-diff', 'children'),
-         Output('models-animation-slider', 'max'),
-         Output('models-animation-slider', 'value')],
-        [Input('models-histograms-plot', 'figure'),
-         Input('models-animation-slider', 'value')],
-        [State('dark-mode-switch', 'value'),
-         State('interactive-switch', 'value')],
-    )
-    def update_models_animation(_, slider_year, dark_mode, interactive):
-        from dash.exceptions import PreventUpdate
-        if not interactive:
-            raise PreventUpdate
-        if not _MODELS_AVAILABLE or _cmip6_stats.empty:
-            return go.Figure(), '—', '—', _no_update, _no_update
-        try:
-            triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
-            max_year = int(_obs_models['date'].dt.year.max())
-
-            if triggered == 'models-histograms-plot':
-                end_year = max_year
-                new_slider = max_year
-                new_max = max_year
-            else:
-                end_year = int(slider_year) if slider_year is not None else max_year
-                end_year = min(end_year, max_year)
-                new_slider = _no_update
-                new_max = _no_update
-
-            fig = _create_scorecard(_cmip6_stats, _obs_models, end_year, dark_mode)
-            sc = compute_running_scorecard(_cmip6_stats, _obs_models, end_year)
-            return fig, sc['pct_in_range'], sc['trend_diff'], new_max, new_slider
-        except Exception as e:
-            logger.error(f"Models animation error: {e}")
-            return go.Figure(), '—', '—', _no_update, _no_update
-
-    # Play/pause toggle for animation
-    @app.callback(
-        [Output('models-animation-interval', 'disabled'),
-         Output('models-play-btn', 'children')],
-        [Input('models-play-btn', 'n_clicks')],
-        [State('models-animation-interval', 'disabled')],
-        prevent_initial_call=True,
-    )
-    def toggle_models_play(n_clicks, is_disabled):
-        if is_disabled:
-            return False, '⏸ Pause'
-        return True, '▶ Play'
-
-    # Auto-advance slider on interval tick
-    @app.callback(
-        Output('models-animation-slider', 'value', allow_duplicate=True),
-        [Input('models-animation-interval', 'n_intervals')],
-        [State('models-animation-slider', 'value'),
-         State('models-animation-slider', 'max'),
-         State('models-animation-interval', 'disabled')],
-        prevent_initial_call=True,
-    )
-    def advance_animation_slider(n_intervals, current_value, max_value, is_disabled):
-        from dash.exceptions import PreventUpdate
-        if is_disabled or n_intervals == 0 or current_value is None or max_value is None:
-            raise PreventUpdate
-        next_val = int(current_value) + 1
-        if next_val > int(max_value):
-            next_val = 1970  # loop back
-        return next_val
 
     # Card + text styling for models tab (dark/light)
     @app.callback(
@@ -3449,16 +3310,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('models-card-3-sub', 'style'),
          Output('models-card-4-sub', 'style'),
          Output('models-controls-card', 'color'),
-         Output('models-animation-controls-card', 'color'),
-         Output('models-pct-card', 'color'),
-         Output('models-trend-diff-card', 'color'),
          Output('models-label-gen', 'style'),
          Output('models-label-smoothing', 'style'),
-         Output('models-smoothing', 'labelStyle'),
-         Output('models-pct-label', 'style'),
-         Output('models-trend-diff-label', 'style'),
-         Output('models-pct-in-range', 'style'),
-         Output('models-trend-diff', 'style')],
+         Output('models-smoothing', 'labelStyle')],
         [Input('dark-mode-switch', 'value')],
     )
     def update_models_card_styles(dark_mode):
@@ -3469,22 +3323,48 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
         sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
         label_style = {'fontWeight': '500', 'fontSize': '0.9rem', 'color': theme['text_color']}
-        scorecard_text = {'fontSize': '1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
-        scorecard_label = {
-            'fontSize': '0.75rem', 'fontWeight': '600',
-            'color': theme['text_color'], 'opacity': '0.7',
-        }
         return (
             card_color, card_color, card_color, card_color,
             card_style, card_style, card_style, card_style,
             title_style, title_style, title_style, title_style,
             value_style, value_style, value_style, value_style,
             sub_style, sub_style, sub_style, sub_style,
-            card_color, card_color, card_color, card_color,
+            card_color,
             label_style, label_style, {'color': theme['text_color']},
-            scorecard_label, scorecard_label,
-            scorecard_text, scorecard_text,
         )
+
+    # Update cards when CMIP generation changes
+    @app.callback(
+        [Output('models-card-1-value', 'children'),
+         Output('models-card-1-sub', 'children'),
+         Output('models-card-2-value', 'children'),
+         Output('models-card-2-sub', 'children'),
+         Output('models-card-3-value', 'children'),
+         Output('models-card-3-sub', 'children'),
+         Output('models-card-4-value', 'children')],
+        [Input('models-cmip-gen', 'value')],
+        prevent_initial_call=True,
+    )
+    def update_models_cards_from_gen(cmip_gen):
+        from dash.exceptions import PreventUpdate
+        if not _MODELS_AVAILABLE:
+            raise PreventUpdate
+        try:
+            gen = cmip_gen or 'cmip6'
+            cmip_df = _get_cmip(gen)
+            cards = compute_model_obs_cards(cmip_df, _obs_models)
+            return (
+                cards.get('model_obs_diff', 'N/A'),
+                f"Models: {cards.get('model_recent_mean', 'N/A')} | Obs: {cards.get('obs_recent_mean', 'N/A')}",
+                cards.get('obs_trend_1970', 'N/A'),
+                f"Models: {cards.get('model_trend_1970', 'N/A')}",
+                cards.get('obs_recent_trend', 'N/A'),
+                f"Model range: {cards.get('model_p05_2011', 'N/A')}–{cards.get('model_p95_2011', 'N/A')}°C/dec",
+                cards.get('percentile_rank', 'N/A'),
+            )
+        except Exception as e:
+            logger.error(f"Models cards update error: {e}")
+            raise PreventUpdate
 
     return app
 
