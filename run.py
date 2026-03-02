@@ -131,10 +131,26 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to regenerate static images: {e}")
 
+    # Update observational temperature records (for Models vs. Obs tab)
+    update_obs_data(force=force)
+
     # Update ERA5 spatial data (current month)
     update_spatial(force=force)
 
     logger.info("Data update complete")
+
+
+def update_obs_data(force: bool = False) -> None:
+    """Fetch and cache the 5 observational temperature datasets."""
+    logger.info("Updating observational temperature records...")
+    try:
+        from src.models_vs_obs import fetch_obs_data
+        from pathlib import Path
+        cache_path = DATA_DIR / 'cmip' / 'combined_obs_1981_2010.csv'
+        fetch_obs_data(cache_path=cache_path, force=force)
+        logger.info("Observational data updated")
+    except Exception as e:
+        logger.error(f"Failed to update observational data: {e}")
 
 
 def update_spatial(force: bool = False) -> None:
