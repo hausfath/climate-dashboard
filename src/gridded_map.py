@@ -658,11 +658,18 @@ def create_3d_globe(
             ticktext = ['<-28', '-20', '-10', '0', '10', '20', '30', '>40']
         tickvals = tickvals_c
 
+    # Build customdata with display-unit values for hover tooltip
+    if temp_unit == 'F':
+        hover_data = color_data * 1.8 if show_anomaly else color_data * 9 / 5 + 32
+    else:
+        hover_data = color_data
+
     globe = go.Surface(
         x=x,
         y=y,
         z=z,
         surfacecolor=color_data,
+        customdata=hover_data,
         colorscale=colorscale,
         cmin=zmin,
         cmax=zmax,
@@ -685,7 +692,7 @@ def create_3d_globe(
             ticktext=ticktext,
         ),
         hovertemplate=(
-            f'%{{surfacecolor:.1f}}{unit_symbol}'
+            f'%{{customdata:.1f}}{unit_symbol}'
             '<extra></extra>'
         ),
         lighting=dict(
