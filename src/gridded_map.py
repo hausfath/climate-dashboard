@@ -658,18 +658,30 @@ def create_3d_globe(
             ticktext = ['<-28', '-20', '-10', '0', '10', '20', '30', '>40']
         tickvals = tickvals_c
 
-    # Build customdata with display-unit values for hover tooltip
+    # Build pre-formatted text array for hover tooltip (go.Surface doesn't
+    # support customdata/surfacecolor substitution in hovertemplate).
+    # Convert to Python list of lists to avoid numpy object-array serialization
+    # quirks that can transpose indices when Plotly converts to JSON.
     if temp_unit == 'F':
         hover_data = color_data * 1.8 if show_anomaly else color_data * 9 / 5 + 32
     else:
         hover_data = color_data
+    prefix = '+' if show_anomaly else ''
+    lon_display = np.where(lon_grid > 180, lon_grid - 360, lon_grid)
+
+    def _fmt(v, lat, lon):
+        lat_str = f'{abs(lat):.1f}°{"N" if lat >= 0 else "S"}'
+        lon_str = f'{abs(lon):.1f}°{"E" if lon >= 0 else "W"}'
+        return f'{v:{prefix}.1f}{unit_symbol}<br>{lat_str}, {lon_str}'
+
+    hover_text = np.vectorize(_fmt, otypes=[str])(hover_data, lat_grid, lon_display)
 
     globe = go.Surface(
         x=x,
         y=y,
         z=z,
         surfacecolor=color_data,
-        customdata=hover_data,
+        text=hover_text,
         colorscale=colorscale,
         cmin=zmin,
         cmax=zmax,
@@ -691,10 +703,7 @@ def create_3d_globe(
             tickvals=tickvals,
             ticktext=ticktext,
         ),
-        hovertemplate=(
-            f'%{{customdata:.1f}}{unit_symbol}'
-            '<extra></extra>'
-        ),
+        hoverinfo='text',
         lighting=dict(
             ambient=1.0,
             diffuse=0.0,
