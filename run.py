@@ -62,7 +62,18 @@ def update_data(force: bool = False) -> None:
             new_iri.to_csv(snapshot_file, index=False)
             logger.info("IRI snapshot initialised (first run)")
         else:
-            iri_changed = not old_snapshot.equals(new_iri)
+            # Compare by month order only, not by (year, month).
+            # The IRI always publishes the same 9 seasons (center months 2–10).
+            # When current_month rolls over (e.g. Feb→Mar), the year assigned to
+            # JFM shifts from the current year to next year, making old_snapshot
+            # and new_iri differ even when the forecast values haven't changed.
+            if len(old_snapshot) == len(new_iri) and len(new_iri) > 0:
+                old_vals = old_snapshot.sort_values('month')['oni'].reset_index(drop=True)
+                new_vals = new_iri.sort_values('month')['oni'].reset_index(drop=True)
+                iri_changed = not old_vals.equals(new_vals)
+            else:
+                # Different row count → structural change in the IRI page
+                iri_changed = True
             if iri_changed:
                 # Update snapshot and log the update date
                 new_iri.to_csv(snapshot_file, index=False)
