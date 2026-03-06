@@ -864,17 +864,21 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     days_available = len(ytd_data)
     lookback_days = min(30, days_available)
     current_trailing_30d = ytd_data.tail(lookback_days)['anomaly'].mean() if days_available > 0 else None
+    current_ytd_anomaly = ytd_data['anomaly'].mean() if days_available > 0 else None
 
-    # For each historical year, calculate trailing anomaly at same day-of-year
+    # For each historical year, calculate trailing anomaly and YTD mean at same day-of-year
     trailing_by_year = {}
+    ytd_by_year = {}
     for year in annual['year'].unique():
         year_data = df_adj[df_adj['year'] == year].sort_values('date')
         year_data_to_doy = year_data[year_data['day_of_year'] <= day_of_year]
         if len(year_data_to_doy) > 0:
             lookback = min(30, len(year_data_to_doy))
             trailing_by_year[year] = year_data_to_doy.tail(lookback)['anomaly'].mean()
+            ytd_by_year[year] = year_data_to_doy['anomaly'].mean()
 
     annual['trailing_anomaly'] = annual['year'].map(trailing_by_year)
+    annual['ytd_anomaly'] = annual['year'].map(ytd_by_year)
 
     # Build prediction model with trailing anomaly as a feature
     # Exclude volcanic years
@@ -885,6 +889,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         (~annual['year'].isin(volcanic_years)) &
         (annual['prior_year_anomaly'].notna()) &
         (annual['trailing_anomaly'].notna()) &
+        (annual['ytd_anomaly'].notna()) &
         (annual['annual_enso'].notna())
     ].copy()
 
@@ -896,7 +901,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     if len(train_df) > 10:
         from sklearn.preprocessing import StandardScaler
 
-        feature_cols = ['year', 'prior_year_anomaly', 'annual_enso', 'trailing_anomaly']
+        feature_cols = ['year', 'prior_year_anomaly', 'annual_enso', 'trailing_anomaly', 'ytd_anomaly']
         X = train_df[feature_cols].values
         y = train_df['annual_anomaly'].values
 
@@ -909,12 +914,12 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         # Calculate uncertainty from residuals
         y_pred = model.predict(X_scaled)
         residuals = y - y_pred
-        uncertainty = np.std(residuals)
+        uncertainty = max(np.std(residuals), 0.02)
 
         # Generate predictions for historical years (for plotting trend line)
         for _, row in train_df.iterrows():
             year = row['year']
-            X_pred = np.array([[year, row['prior_year_anomaly'], row['annual_enso'], row['trailing_anomaly']]])
+            X_pred = np.array([[year, row['prior_year_anomaly'], row['annual_enso'], row['trailing_anomaly'], row['ytd_anomaly']]])
             X_pred_scaled = scaler.transform(X_pred)
             pred = model.predict(X_pred_scaled)[0]
 
@@ -947,26 +952,21 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             if len(prior_year_row) > 0:
                 prior_year_anomaly = prior_year_row['annual_anomaly'].values[0]
 
-                X_pred = np.array([[current_year, prior_year_anomaly, enso_val, current_trailing_30d]])
+                X_pred = np.array([[current_year, prior_year_anomaly, enso_val, current_trailing_30d, current_ytd_anomaly]])
                 X_pred_scaled = scaler.transform(X_pred)
                 pred = model.predict(X_pred_scaled)[0]
-
-                # Uncertainty decreases as we have more actual data
-                days_in_year = 366 if (current_year % 4 == 0 and (current_year % 100 != 0 or current_year % 400 == 0)) else 365
-                ytd_fraction = days_available / days_in_year
-                adjusted_uncertainty = uncertainty * (1 - ytd_fraction * 0.5)
 
                 predictions.append({
                     'year': current_year,
                     'predicted': pred,
-                    'lb': pred - 2 * adjusted_uncertainty,
-                    'ub': pred + 2 * adjusted_uncertainty
+                    'lb': pred - 2 * uncertainty,
+                    'ub': pred + 2 * uncertainty
                 })
 
                 prediction_2026 = {
                     'predicted': pred,
-                    'lb': pred - 2 * adjusted_uncertainty,
-                    'ub': pred + 2 * adjusted_uncertainty
+                    'lb': pred - 2 * uncertainty,
+                    'ub': pred + 2 * uncertainty
                 }
 
     pred_df = pd.DataFrame(predictions) if predictions else pd.DataFrame()
@@ -1010,13 +1010,13 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
-                array=[2 * uncertainty],
+                array=[prediction_2026['ub'] - prediction_2026['predicted']],
                 visible=True,
                 color=theme['prediction_color'],
                 thickness=2,
                 width=6
             ),
-            hovertemplate=f'{current_year} Prediction<br>%{{y:.2f}}°C (±{2*uncertainty:.2f}°C)<extra></extra>'
+            hovertemplate=f'{current_year} Prediction<br>%{{y:.2f}}°C (±{prediction_2026["ub"] - prediction_2026["predicted"]:.2f}°C)<extra></extra>'
         ))
 
     # Add 1.5°C reference line
@@ -1103,9 +1103,9 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
     annual = annual.rename(columns={'anomaly': 'annual_anomaly'})
     annual['prior_year_anomaly'] = annual['annual_anomaly'].shift(1)
 
-    # For each historical year, calculate the trailing anomaly at the same day-of-year
-    # This becomes a feature in the model
+    # For each historical year, calculate the trailing anomaly and YTD mean at the same day-of-year
     trailing_by_year = {}
+    ytd_by_year = {}
     for year in annual['year'].unique():
         if year >= current_year:
             continue
@@ -1116,8 +1116,10 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
             # Use trailing 30 days (or available)
             lookback = min(30, len(year_data_to_doy))
             trailing_by_year[year] = year_data_to_doy.tail(lookback)['anomaly'].mean()
+            ytd_by_year[year] = year_data_to_doy['anomaly'].mean()
 
     annual['trailing_anomaly'] = annual['year'].map(trailing_by_year)
+    annual['ytd_anomaly'] = annual['year'].map(ytd_by_year)
 
     # Get prior year anomaly
     prior_year = annual[annual['year'] == current_year - 1]
@@ -1155,17 +1157,18 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
         (~annual['year'].isin(volcanic_years)) &
         (annual['prior_year_anomaly'].notna()) &
         (annual['trailing_anomaly'].notna()) &
+        (annual['ytd_anomaly'].notna()) &
         (annual['oni'].notna() if 'oni' in annual.columns else True)
     ].copy()
 
     if len(train_df) < 10:
         return None
 
-    # Include trailing_anomaly as a predictor
+    # Include trailing_anomaly and ytd_anomaly as predictors
     if 'oni' in train_df.columns:
-        X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly']].values
+        X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly', 'ytd_anomaly']].values
     else:
-        X = train_df[['year', 'prior_year_anomaly', 'trailing_anomaly']].values
+        X = train_df[['year', 'prior_year_anomaly', 'trailing_anomaly', 'ytd_anomaly']].values
     y = train_df['annual_anomaly'].values
 
     scaler = StandardScaler()
@@ -1176,26 +1179,22 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
 
     # Calculate uncertainty from residuals
     residuals = y - model.predict(X_scaled)
-    uncertainty = np.std(residuals)
+    uncertainty = max(np.std(residuals), 0.02)
 
-    # Make prediction for current year using trailing_30d_anomaly as the trailing feature
+    # Make prediction for current year using trailing_30d_anomaly and ytd_anomaly as features
     if 'oni' in train_df.columns:
-        X_pred = np.array([[current_year, prior_year_anomaly, weighted_enso, trailing_30d_anomaly]])
+        X_pred = np.array([[current_year, prior_year_anomaly, weighted_enso, trailing_30d_anomaly, ytd_anomaly]])
     else:
-        X_pred = np.array([[current_year, prior_year_anomaly, trailing_30d_anomaly]])
+        X_pred = np.array([[current_year, prior_year_anomaly, trailing_30d_anomaly, ytd_anomaly]])
     X_pred_scaled = scaler.transform(X_pred)
     prediction = model.predict(X_pred_scaled)[0]
 
-    # Uncertainty decreases as we have more actual data through the year
     days_elapsed = len(ytd_data)
-    days_in_year = 366 if (current_year % 4 == 0 and (current_year % 100 != 0 or current_year % 400 == 0)) else 365
-    ytd_fraction = days_elapsed / days_in_year
-    adjusted_uncertainty = uncertainty * (1 - ytd_fraction * 0.5)  # Uncertainty decreases but doesn't go to zero
 
     return {
         'date': target_date,
         'prediction': prediction,
-        'uncertainty': adjusted_uncertainty,
+        'uncertainty': uncertainty,
         'ytd_anomaly': ytd_anomaly,
         'trailing_30d_anomaly': trailing_30d_anomaly,
         'days_elapsed': days_elapsed
@@ -1618,9 +1617,11 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
             days_available = len(ytd_data)
             lookback_days = min(30, days_available)
             current_trailing_30d = ytd_data.tail(lookback_days)['anomaly'].mean() if days_available > 0 else None
+            current_ytd_anomaly = ytd_data['anomaly'].mean() if days_available > 0 else None
 
-            # Calculate trailing anomaly at same day-of-year for historical years
+            # Calculate trailing anomaly and YTD mean at same day-of-year for historical years
             trailing_by_year = {}
+            ytd_by_year = {}
             for year in annual['year'].unique():
                 if year >= current_year:
                     continue
@@ -1629,8 +1630,10 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                 if len(year_data_to_doy) > 0:
                     lookback = min(30, len(year_data_to_doy))
                     trailing_by_year[year] = year_data_to_doy.tail(lookback)['anomaly'].mean()
+                    ytd_by_year[year] = year_data_to_doy['anomaly'].mean()
 
             annual['trailing_anomaly'] = annual['year'].map(trailing_by_year)
+            annual['ytd_anomaly'] = annual['year'].map(ytd_by_year)
 
             # Train model with trailing anomaly
             volcanic_years = [1982, 1983, 1991, 1992, 1993]
@@ -1640,13 +1643,14 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                 (~annual['year'].isin(volcanic_years)) &
                 (annual['prior_year_anomaly'].notna()) &
                 (annual['trailing_anomaly'].notna()) &
+                (annual['ytd_anomaly'].notna()) &
                 (annual['oni'].notna())
             ]
 
             if len(train_df) > 10 and current_trailing_30d is not None:
                 from sklearn.preprocessing import StandardScaler
 
-                X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly']].values
+                X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly', 'ytd_anomaly']].values
                 y = train_df['annual_anomaly'].values
 
                 scaler = StandardScaler()
@@ -1657,7 +1661,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
 
                 # Calculate uncertainty
                 residuals = y - model.predict(X_scaled)
-                annual_err = np.std(residuals)
+                annual_err = max(np.std(residuals), 0.02)
 
                 # Get weighted ENSO for current year
                 current_month = latest_date.month
@@ -1671,15 +1675,10 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                     else:
                         weighted_enso = enso_ytd['oni'].mean()
 
-                    # Predict with trailing anomaly
-                    X_pred = np.array([[current_year, prev_year_mean, weighted_enso, current_trailing_30d]])
+                    # Predict with trailing anomaly and ytd_anomaly
+                    X_pred = np.array([[current_year, prev_year_mean, weighted_enso, current_trailing_30d, current_ytd_anomaly]])
                     X_pred_scaled = scaler.transform(X_pred)
                     annual_pred = model.predict(X_pred_scaled)[0]
-
-                    # Adjust uncertainty based on days elapsed
-                    days_in_year = 366 if (current_year % 4 == 0 and (current_year % 100 != 0 or current_year % 400 == 0)) else 365
-                    ytd_fraction = days_available / days_in_year
-                    annual_err = annual_err * (1 - ytd_fraction * 0.5)
     except Exception as e:
         pass  # Use default if prediction fails
 
