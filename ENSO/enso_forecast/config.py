@@ -83,15 +83,17 @@ NMME_FILENAME_TEMPLATE = "{model}.tmpsfc.{yyyymm}.ENSMEAN.anom.nc"
 
 # --- C3S Model Configuration ---
 C3S_MODELS = {
-    "ECMWF": {"system": "51", "originating_centre": "ecmwf"},
-    "UKMO": {"system": "603", "originating_centre": "ukmo"},
-    "Meteo-France": {"system": "9", "originating_centre": "meteo_france"},
-    "DWD": {"system": "22", "originating_centre": "dwd"},
-    "CMCC": {"system": "4", "originating_centre": "cmcc"},
-    "JMA": {"system": "3", "originating_centre": "jma"},
-    "ECCC": {"system": "5", "originating_centre": "eccc"},
-    "NCEP": {"system": "2", "originating_centre": "ncep"},
-    "BOM": {"system": "2", "originating_centre": "bom"},
+    # max_lead_months per ECMWF documentation
+    # https://confluence.ecmwf.int/display/CKB/Description+of+the+C3S+seasonal+multi-system
+    "ECMWF":        {"system": "51",  "originating_centre": "ecmwf",         "max_lead_months": 7},
+    "UKMO":         {"system": "603", "originating_centre": "ukmo",          "max_lead_months": 7},
+    "Meteo-France": {"system": "9",   "originating_centre": "meteo_france",  "max_lead_months": 7},
+    "DWD":          {"system": "22",  "originating_centre": "dwd",           "max_lead_months": 6},
+    "CMCC":         {"system": "4",   "originating_centre": "cmcc",          "max_lead_months": 6},
+    "JMA":          {"system": "3",   "originating_centre": "jma",           "max_lead_months": 7},
+    "ECCC":         {"system": "5",   "originating_centre": "eccc",          "max_lead_months": 7},
+    "NCEP":         {"system": "2",   "originating_centre": "ncep",          "max_lead_months": 7},
+    "BOM":          {"system": "2",   "originating_centre": "bom",           "max_lead_months": 7},
 }
 
 C3S_DATASET = "seasonal-postprocessed-single-levels"

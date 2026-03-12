@@ -247,7 +247,7 @@ def fetch_c3s(
                     "product_type": product_type,
                     "year": str(year),
                     "month": f"{month:02d}",
-                    "leadtime_month": [str(i) for i in range(1, 7)],
+                    "leadtime_month": [str(i) for i in range(1, model_info.get("max_lead_months", 6) + 1)],
                     "area": [5, -170, -5, -120],  # N, W, S, E
                     "data_format": "netcdf",
                 },
