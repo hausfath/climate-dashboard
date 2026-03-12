@@ -1,0 +1,8 @@
+data/raw/
+figures/
+__pycache__/
+*.pyc
+.pytest_cache/
+enso_forecast/config_local.py
+*.egg-info/
+.eggs/

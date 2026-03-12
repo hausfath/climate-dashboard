@@ -1,0 +1,253 @@
+"""Fetch CFS v2 Nino3.4 ensemble plume data from NOAA CPC."""
+
+import logging
+import time
+from datetime import date
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import requests
+import xarray as xr
+
+from enso_forecast.config import (
+    CFS_E3_URL,
+    CFS_URLS,
+    FORECASTS_DIR,
+    MAX_RETRIES,
+    RAW_DIR,
+    REQUEST_HEADERS,
+    REQUEST_TIMEOUT,
+    RETRY_DELAY,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _download_netcdf(url: str, dest: Path) -> Path:
+    """Download a NetCDF file with retry logic."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            logger.info("Downloading %s (attempt %d/%d)", url, attempt + 1, MAX_RETRIES)
+            resp = requests.get(
+                url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT, stream=True
+            )
+            resp.raise_for_status()
+            with open(dest, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            logger.info("Saved to %s", dest)
+            return dest
+        except (requests.RequestException, IOError) as e:
+            logger.warning("Download failed: %s", e)
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(RETRY_DELAY)
+            else:
+                raise
+    return dest  # unreachable but satisfies type checker
+
+
+def _detect_init_date(ds: xr.Dataset) -> str:
+    """Detect the effective initialization date from CFS data.
+
+    The CFS NetCDF includes historical verification months (all members identical,
+    std=0) followed by actual forecast months (members diverge). The init date
+    is the month before the first month with ensemble spread.
+    """
+    data = ds["anom"].squeeze(drop=True)
+
+    # Find ensemble and time dims
+    ens_dim = time_dim = None
+    for dim in data.dims:
+        if "ens" in dim.lower():
+            ens_dim = dim
+        elif "time" in dim.lower():
+            time_dim = dim
+        elif dim in ds.coords and np.issubdtype(ds.coords[dim].dtype, np.datetime64):
+            time_dim = dim
+
+    if ens_dim is None or time_dim is None:
+        # Fallback: use the history attribute creation date
+        history = ds.attrs.get("history", "")
+        if "created:" in history:
+            try:
+                created_str = history.split("created:")[1].strip().split()[0]
+                return pd.Timestamp(created_str).replace(day=1).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+        return date.today().replace(day=1).isoformat()
+
+    time_values = ds.coords[time_dim].values
+    stds = data.std(dim=ens_dim)
+
+    for i, t in enumerate(time_values):
+        s = float(stds.isel({time_dim: i}))
+        if s > 0.001:
+            # First month with spread — init is the month before
+            forecast_start = pd.Timestamp(t)
+            init = forecast_start - pd.DateOffset(months=1)
+            return init.replace(day=1).strftime("%Y-%m-%d")
+
+    # No spread found — use last verification month
+    last_t = pd.Timestamp(time_values[-1])
+    return last_t.replace(day=1).strftime("%Y-%m-%d")
+
+
+def _process_cfs_file(
+    nc_path: Path, ensemble_label: str
+) -> tuple[list[dict], str]:
+    """Process a single CFS NetCDF file.
+
+    Returns (records, init_date).
+    """
+    ds = xr.open_dataset(nc_path)
+    init_date = _detect_init_date(ds)
+    logger.info("CFS %s: detected init_date = %s", ensemble_label, init_date)
+
+    # Find variable
+    var_name = None
+    for v in ds.data_vars:
+        if "anom" in v.lower() or "nino" in v.lower() or "sst" in v.lower():
+            var_name = v
+            break
+    if var_name is None:
+        var_name = list(ds.data_vars)[0]
+
+    data = ds[var_name].squeeze(drop=True)
+
+    # Identify dims
+    ens_dim = time_dim = None
+    for dim in data.dims:
+        if dim in ds.coords and np.issubdtype(ds.coords[dim].dtype, np.datetime64):
+            time_dim = dim
+        elif "ens" in dim.lower() or "member" in dim.lower():
+            ens_dim = dim
+        elif "time" in dim.lower():
+            time_dim = dim
+
+    if time_dim is None or ens_dim is None:
+        # Fallback for non-standard dims
+        for dim in data.dims:
+            if dim == time_dim or dim == ens_dim:
+                continue
+            if data.sizes[dim] > 20:
+                ens_dim = dim
+            else:
+                time_dim = dim
+
+    time_values = ds.coords[time_dim].values if time_dim else []
+
+    records = []
+
+    if ens_dim and time_dim:
+        n_members = data.sizes[ens_dim]
+        for m_idx in range(n_members):
+            member_id = f"ens_{ensemble_label}_{m_idx + 1:03d}"
+            member_data = data.isel({ens_dim: m_idx})
+
+            for t_idx in range(len(time_values)):
+                val = float(member_data.isel({time_dim: t_idx}).values)
+                if np.isnan(val):
+                    continue
+
+                t_val = time_values[t_idx]
+                target_dt = pd.Timestamp(t_val) if np.issubdtype(type(t_val), np.datetime64) else None
+                if target_dt is None:
+                    continue
+                target_month = target_dt.strftime("%Y-%m")
+
+                init_dt = pd.Timestamp(init_date)
+                lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
+
+                records.append({
+                    "source": "CFS",
+                    "model": "CFSv2",
+                    "model_type": "dynamical",
+                    "init_date": init_date,
+                    "target_month": target_month,
+                    "nino34_anom": val,
+                    "member_id": member_id,
+                    "lead_months": max(lead, 0),
+                    "temporal_resolution": "monthly",
+                    "anomaly_base_period": "1991-2020",
+                })
+
+    ds.close()
+    return records, init_date
+
+
+def fetch_cfs(e3_only: bool = True) -> pd.DataFrame:
+    """Download and parse CFS v2 Nino3.4 ensemble data.
+
+    Args:
+        e3_only: If True (default), only download the latest 10-day ensemble (E3).
+            If False, download all three ensemble groups (E1, E2, E3).
+
+    Returns DataFrame with individual ensemble members and ensemble mean.
+    """
+    cfs_raw = RAW_DIR / "cfs"
+    cfs_raw.mkdir(parents=True, exist_ok=True)
+
+    all_records = []
+    init_date = None
+
+    if e3_only:
+        urls = [("E3", CFS_E3_URL)]
+    else:
+        urls = [(f"E{i}", url) for i, url in enumerate(CFS_URLS, start=1)]
+
+    for ensemble_label, url in urls:
+        nc_path = cfs_raw / f"nino34Mon_{ensemble_label}.nc"
+        _download_netcdf(url, nc_path)
+
+        records, file_init = _process_cfs_file(nc_path, ensemble_label)
+        all_records.extend(records)
+
+        if init_date is None:
+            init_date = file_init
+
+    df = pd.DataFrame(all_records)
+
+    if len(df) == 0:
+        logger.warning("No CFS data extracted")
+        return df
+
+    # Compute ensemble mean per target_month
+    member_df = df[df["member_id"] != "mean"].copy()
+    if len(member_df) > 0:
+        mean_df = (
+            member_df.groupby("target_month", as_index=False)
+            .agg({"nino34_anom": "mean", "lead_months": "first"})
+        )
+        mean_df["source"] = "CFS"
+        mean_df["model"] = "CFSv2"
+        mean_df["model_type"] = "dynamical"
+        mean_df["init_date"] = init_date
+        mean_df["member_id"] = "mean"
+        mean_df["temporal_resolution"] = "monthly"
+        mean_df["anomaly_base_period"] = "1991-2020"
+        df = pd.concat([df, mean_df], ignore_index=True)
+
+    n_members = df[df["member_id"] != "mean"]["member_id"].nunique()
+    logger.info(
+        "CFS: %d total records, %d unique members, %d target months, init=%s",
+        len(df), n_members, df["target_month"].nunique(), init_date,
+    )
+    return df
+
+
+def save_cfs(force: bool = False) -> pd.DataFrame:
+    """Fetch and save CFS v2 ensemble data."""
+    today_str = date.today().isoformat()
+    out_dir = FORECASTS_DIR / "CFS"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{today_str}.csv"
+
+    if not force and out_path.exists():
+        logger.info("CFS data for %s already exists, skipping", today_str)
+        return pd.read_csv(out_path)
+
+    df = fetch_cfs(e3_only=True)
+    df.to_csv(out_path, index=False)
+    logger.info("Saved CFS data to %s", out_path)
+    return df
