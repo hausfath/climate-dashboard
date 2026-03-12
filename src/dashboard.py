@@ -1706,6 +1706,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         return _cmip_lazy[gen]
 
     app.layout = dbc.Container([
+        # URL location for deep-linking tabs
+        dcc.Location(id='url', refresh=False),
         # Store for mobile detection
         dcc.Store(id='is-mobile-store', data=False),
         dcc.Store(id='initial-load', data=True),
@@ -2331,6 +2333,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         'models': 'CMIP3, CMIP5, and CMIP6 Models vs Observations',
     }
 
+    _VALID_TABS = {'global', 'enso', 'models'}
+
     # Callback to switch between tab content divs
     @app.callback(
         [Output('tab-content-global', 'style'),
@@ -2338,14 +2342,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('tab-content-models', 'style'),
          Output('active-tab-store', 'data'),
          Output('main-title', 'children'),
-         Output('subtitle', 'children')],
+         Output('subtitle', 'children'),
+         Output('url', 'hash')],
         [Input('nav-global', 'n_clicks'),
          Input('nav-enso', 'n_clicks'),
          Input('nav-models', 'n_clicks'),
+         Input('url', 'hash'),
          Input('active-tab-store', 'modified_timestamp')],
         [State('active-tab-store', 'data')],
     )
-    def switch_tab(n_global, n_enso, n_models, _ts, current_tab):
+    def switch_tab(n_global, n_enso, n_models, url_hash, _ts, current_tab):
         triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
         if triggered == 'nav-global':
             tab = 'global'
@@ -2353,6 +2359,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             tab = 'enso'
         elif triggered == 'nav-models':
             tab = 'models'
+        elif triggered == 'url':
+            # Parse hash from URL (e.g. #enso -> enso)
+            h = (url_hash or '').lstrip('#').lower()
+            tab = h if h in _VALID_TABS else (current_tab or 'global')
         else:
             tab = current_tab or 'global'
         return (
@@ -2362,6 +2372,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             tab,
             _TAB_TITLES[tab],
             _TAB_SUBTITLES[tab],
+            f'#{tab}',
         )
 
     # Callback to style active/inactive nav links
