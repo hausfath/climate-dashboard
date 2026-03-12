@@ -133,6 +133,39 @@ def build_enso_combined(oni_df, forecast_df):
     result = pd.DataFrame(rows)
     result["date"] = pd.to_datetime(result["date"])
     result = result.sort_values("date").reset_index(drop=True)
+
+    # Interpolate gaps between observed and forecast (e.g. Feb 2026
+    # between observed Jan and forecast Mar).  Only fill gaps where
+    # one side is observed and the other is forecast — this avoids
+    # spurious interpolation past the end of the forecast period.
+    filled = []
+    for i in range(len(result)):
+        filled.append(result.iloc[i].to_dict())
+        if i < len(result) - 1:
+            cur = result.iloc[i]
+            nxt = result.iloc[i + 1]
+            # Only interpolate across the observed→forecast boundary
+            if not (cur["is_forecast"] == False and nxt["is_forecast"] == True):
+                continue
+            cur_period = cur["date"].to_period("M")
+            nxt_period = nxt["date"].to_period("M")
+            gap = (nxt_period - cur_period).n  # months between
+            if gap > 1:
+                for g in range(1, gap):
+                    mid_period = cur_period + g
+                    frac = g / gap
+                    filled.append({
+                        "date": mid_period.to_timestamp(),
+                        "year": mid_period.year,
+                        "month": mid_period.month,
+                        "oni": cur["oni"] + frac * (nxt["oni"] - cur["oni"]),
+                        "is_forecast": True,
+                    })
+    if len(filled) > len(result):
+        result = pd.DataFrame(filled)
+        result["date"] = pd.to_datetime(result["date"])
+        result = result.sort_values("date").reset_index(drop=True)
+
     return result
 
 

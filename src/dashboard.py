@@ -1468,17 +1468,25 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         annual = annual.rename(columns={'anomaly': 'annual_anomaly'})
         annual['prior_year_anomaly'] = annual['annual_anomaly'].shift(1)
 
-        # Load ENSO data
+        # Load ENSO data — prefer multi-model mean forecast
         from pathlib import Path
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from config import DATA_DIR
 
-        enso_file = DATA_DIR / "enso_combined.csv"
-        if enso_file.exists():
-            import pandas as pd
-            enso_df = pd.read_csv(enso_file)
-            enso_df['date'] = pd.to_datetime(enso_df['date'])
+        enso_df = None
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, _, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef)
+        except Exception:
+            enso_file = DATA_DIR / "enso_combined.csv"
+            if enso_file.exists():
+                import pandas as pd
+                enso_df = pd.read_csv(enso_file)
+                enso_df['date'] = pd.to_datetime(enso_df['date'])
+
+        if enso_df is not None and len(enso_df) > 0:
 
             # Get annual ENSO
             enso_hist = enso_df[~enso_df['is_forecast']]
