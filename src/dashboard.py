@@ -832,18 +832,27 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     # Add prior year anomaly
     annual['prior_year_anomaly'] = annual['annual_anomaly'].shift(1)
 
-    # Calculate annual ENSO if available
-    if len(enso_df) > 0:
-        enso_historical = enso_df[~enso_df['is_forecast']] if 'is_forecast' in enso_df.columns else enso_df
-        annual_enso = enso_historical.groupby('year')['oni'].mean().reset_index()
-        annual_enso = annual_enso.rename(columns={'oni': 'annual_enso'})
-        annual = annual.merge(annual_enso, on='year', how='left')
-    else:
-        annual['annual_enso'] = 0
-
     current_year = df_adj['year'].max()
     latest_date = df_adj['date'].max()
+    current_month = latest_date.month
     day_of_year = latest_date.dayofyear
+
+    # Calculate split ENSO features (obs vs future) if available
+    if len(enso_df) > 0:
+        enso_historical = enso_df[~enso_df['is_forecast']] if 'is_forecast' in enso_df.columns else enso_df
+        enso_obs_by_year = {}
+        enso_future_by_year = {}
+        for year in annual['year'].unique():
+            yr_enso = enso_historical[enso_historical['year'] == year]
+            obs_months = yr_enso[yr_enso['month'] <= current_month]
+            fut_months = yr_enso[yr_enso['month'] > current_month]
+            enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
+            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+        annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
+        annual['enso_future'] = annual['year'].map(enso_future_by_year)
+    else:
+        annual['enso_obs'] = 0
+        annual['enso_future'] = 0
 
     # Get current year's trailing 30-day anomaly
     ytd_data = df_adj[df_adj['year'] == current_year].sort_values('date')
@@ -876,7 +885,8 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         (annual['prior_year_anomaly'].notna()) &
         (annual['trailing_anomaly'].notna()) &
         (annual['ytd_anomaly'].notna()) &
-        (annual['annual_enso'].notna())
+        (annual['enso_obs'].notna()) &
+        (annual['enso_future'].notna())
     ].copy()
 
     # Train model if we have enough data
@@ -887,7 +897,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     if len(train_df) > 10:
         from sklearn.preprocessing import StandardScaler
 
-        feature_cols = ['year', 'prior_year_anomaly', 'annual_enso', 'trailing_anomaly', 'ytd_anomaly']
+        feature_cols = ['year', 'prior_year_anomaly', 'enso_obs', 'enso_future', 'trailing_anomaly', 'ytd_anomaly']
         X = train_df[feature_cols].values
         y = train_df['annual_anomaly'].values
 
@@ -905,7 +915,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         # Generate predictions for historical years (for plotting trend line)
         for _, row in train_df.iterrows():
             year = row['year']
-            X_pred = np.array([[year, row['prior_year_anomaly'], row['annual_enso'], row['trailing_anomaly'], row['ytd_anomaly']]])
+            X_pred = np.array([[year, row['prior_year_anomaly'], row['enso_obs'], row['enso_future'], row['trailing_anomaly'], row['ytd_anomaly']]])
             X_pred_scaled = scaler.transform(X_pred)
             pred = model.predict(X_pred_scaled)[0]
 
@@ -918,27 +928,20 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
 
         # Prediction for current year using current trailing 30-day data
         if current_trailing_30d is not None and len(enso_df) > 0:
-            current_month = latest_date.month
-
             enso_ytd = enso_df[(enso_df['year'] == current_year) &
                                (enso_df['month'] <= current_month)]
-            enso_future = enso_df[(enso_df['year'] == current_year) &
-                                  (enso_df['month'] > current_month)]
+            enso_future_months = enso_df[(enso_df['year'] == current_year) &
+                                         (enso_df['month'] > current_month)]
 
-            if len(enso_ytd) > 0 and len(enso_future) > 0:
-                fraction = current_month / 12
-                enso_val = fraction * enso_ytd['oni'].mean() + (1-fraction) * enso_future['oni'].mean()
-            elif len(enso_ytd) > 0:
-                enso_val = enso_ytd['oni'].mean()
-            else:
-                enso_val = 0
+            enso_obs_val = enso_ytd['oni'].mean() if len(enso_ytd) > 0 else 0
+            enso_future_val = enso_future_months['oni'].mean() if len(enso_future_months) > 0 else 0
 
             # Get prior year anomaly
             prior_year_row = annual[annual['year'] == current_year - 1]
             if len(prior_year_row) > 0:
                 prior_year_anomaly = prior_year_row['annual_anomaly'].values[0]
 
-                X_pred = np.array([[current_year, prior_year_anomaly, enso_val, current_trailing_30d, current_ytd_anomaly]])
+                X_pred = np.array([[current_year, prior_year_anomaly, enso_obs_val, enso_future_val, current_trailing_30d, current_ytd_anomaly]])
                 X_pred_scaled = scaler.transform(X_pred)
                 pred = model.predict(X_pred_scaled)[0]
 
@@ -1118,27 +1121,30 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
         return None
     prior_year_anomaly = prior_year['annual_anomaly'].values[0]
 
-    # Calculate annual ENSO
+    # Calculate split ENSO features (obs vs future)
     if len(enso_df) > 0:
         enso_historical = enso_df[~enso_df['is_forecast']] if 'is_forecast' in enso_df.columns else enso_df
-        annual_enso = enso_historical.groupby('year')['oni'].mean().reset_index()
-        annual = annual.merge(annual_enso, on='year', how='left')
+        enso_obs_by_year = {}
+        enso_future_by_year = {}
+        for year in annual['year'].unique():
+            yr_enso = enso_historical[enso_historical['year'] == year]
+            obs_months = yr_enso[yr_enso['month'] <= current_month]
+            fut_months = yr_enso[yr_enso['month'] > current_month]
+            enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
+            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+        annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
+        annual['enso_future'] = annual['year'].map(enso_future_by_year)
 
-        # Calculate weighted ENSO for current year
+        # Current year ENSO values
         enso_ytd = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] <= current_month)]
-        enso_future = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] > current_month)]
-
-        if len(enso_ytd) > 0:
-            fraction = current_month / 12
-            if len(enso_future) > 0:
-                weighted_enso = fraction * enso_ytd['oni'].mean() + (1-fraction) * enso_future['oni'].mean()
-            else:
-                weighted_enso = enso_ytd['oni'].mean()
-        else:
-            weighted_enso = 0
+        enso_future_months = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] > current_month)]
+        enso_obs_val = enso_ytd['oni'].mean() if len(enso_ytd) > 0 else 0
+        enso_future_val = enso_future_months['oni'].mean() if len(enso_future_months) > 0 else 0
     else:
-        annual['oni'] = 0
-        weighted_enso = 0
+        annual['enso_obs'] = 0
+        annual['enso_future'] = 0
+        enso_obs_val = 0
+        enso_future_val = 0
 
     # Train model with trailing anomaly as a feature
     volcanic_years = [1982, 1983, 1991, 1992, 1993]
@@ -1149,17 +1155,15 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
         (annual['prior_year_anomaly'].notna()) &
         (annual['trailing_anomaly'].notna()) &
         (annual['ytd_anomaly'].notna()) &
-        (annual['oni'].notna() if 'oni' in annual.columns else True)
+        (annual['enso_obs'].notna()) &
+        (annual['enso_future'].notna())
     ].copy()
 
     if len(train_df) < 10:
         return None
 
-    # Include trailing_anomaly and ytd_anomaly as predictors
-    if 'oni' in train_df.columns:
-        X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly', 'ytd_anomaly']].values
-    else:
-        X = train_df[['year', 'prior_year_anomaly', 'trailing_anomaly', 'ytd_anomaly']].values
+    feature_cols = ['year', 'prior_year_anomaly', 'enso_obs', 'enso_future', 'trailing_anomaly', 'ytd_anomaly']
+    X = train_df[feature_cols].values
     y = train_df['annual_anomaly'].values
 
     scaler = StandardScaler()
@@ -1172,11 +1176,8 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
     residuals = y - model.predict(X_scaled)
     uncertainty = max(np.std(residuals), 0.02)
 
-    # Make prediction for current year using trailing_30d_anomaly and ytd_anomaly as features
-    if 'oni' in train_df.columns:
-        X_pred = np.array([[current_year, prior_year_anomaly, weighted_enso, trailing_30d_anomaly, ytd_anomaly]])
-    else:
-        X_pred = np.array([[current_year, prior_year_anomaly, trailing_30d_anomaly, ytd_anomaly]])
+    # Make prediction for current year
+    X_pred = np.array([[current_year, prior_year_anomaly, enso_obs_val, enso_future_val, trailing_30d_anomaly, ytd_anomaly]])
     X_pred_scaled = scaler.transform(X_pred)
     prediction = model.predict(X_pred_scaled)[0]
 
@@ -1488,10 +1489,19 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
 
         if enso_df is not None and len(enso_df) > 0:
 
-            # Get annual ENSO
-            enso_hist = enso_df[~enso_df['is_forecast']]
-            annual_enso = enso_hist.groupby('year')['oni'].mean().reset_index()
-            annual = annual.merge(annual_enso, on='year', how='left')
+            # Calculate split ENSO features (obs vs future)
+            current_month = latest_date.month
+            enso_hist = enso_df[~enso_df['is_forecast']] if 'is_forecast' in enso_df.columns else enso_df
+            enso_obs_by_year = {}
+            enso_future_by_year = {}
+            for year in annual['year'].unique():
+                yr_enso = enso_hist[enso_hist['year'] == year]
+                obs_months = yr_enso[yr_enso['month'] <= current_month]
+                fut_months = yr_enso[yr_enso['month'] > current_month]
+                enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
+                enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+            annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
+            annual['enso_future'] = annual['year'].map(enso_future_by_year)
 
             # Calculate trailing 30-day anomaly for current year
             day_of_year = latest_date.dayofyear
@@ -1526,13 +1536,14 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                 (annual['prior_year_anomaly'].notna()) &
                 (annual['trailing_anomaly'].notna()) &
                 (annual['ytd_anomaly'].notna()) &
-                (annual['oni'].notna())
+                (annual['enso_obs'].notna()) &
+                (annual['enso_future'].notna())
             ]
 
             if len(train_df) > 10 and current_trailing_30d is not None:
                 from sklearn.preprocessing import StandardScaler
 
-                X = train_df[['year', 'prior_year_anomaly', 'oni', 'trailing_anomaly', 'ytd_anomaly']].values
+                X = train_df[['year', 'prior_year_anomaly', 'enso_obs', 'enso_future', 'trailing_anomaly', 'ytd_anomaly']].values
                 y = train_df['annual_anomaly'].values
 
                 scaler = StandardScaler()
@@ -1545,20 +1556,16 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                 residuals = y - model.predict(X_scaled)
                 annual_err = max(np.std(residuals), 0.02)
 
-                # Get weighted ENSO for current year
-                current_month = latest_date.month
+                # Get separate ENSO values for current year
                 enso_ytd = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] <= current_month)]
-                enso_future = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] > current_month)]
+                enso_future_months = enso_df[(enso_df['year'] == current_year) & (enso_df['month'] > current_month)]
+
+                enso_obs_val = enso_ytd['oni'].mean() if len(enso_ytd) > 0 else 0
+                enso_future_val = enso_future_months['oni'].mean() if len(enso_future_months) > 0 else 0
 
                 if len(enso_ytd) > 0:
-                    fraction = current_month / 12
-                    if len(enso_future) > 0:
-                        weighted_enso = fraction * enso_ytd['oni'].mean() + (1-fraction) * enso_future['oni'].mean()
-                    else:
-                        weighted_enso = enso_ytd['oni'].mean()
-
                     # Predict with trailing anomaly and ytd_anomaly
-                    X_pred = np.array([[current_year, prev_year_mean, weighted_enso, current_trailing_30d, current_ytd_anomaly]])
+                    X_pred = np.array([[current_year, prev_year_mean, enso_obs_val, enso_future_val, current_trailing_30d, current_ytd_anomaly]])
                     X_pred_scaled = scaler.transform(X_pred)
                     annual_pred = model.predict(X_pred_scaled)[0]
     except Exception as e:
