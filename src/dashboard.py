@@ -806,14 +806,19 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from config import DATA_DIR
 
-    # Load ENSO data if not provided
+    # Load ENSO data if not provided — prefer multi-model mean forecast
     if enso_df is None:
-        enso_file = DATA_DIR / "enso_combined.csv"
-        if enso_file.exists():
-            enso_df = pd.read_csv(enso_file)
-            enso_df['date'] = pd.to_datetime(enso_df['date'])
-        else:
-            enso_df = pd.DataFrame()
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, _, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef)
+        except Exception:
+            enso_file = DATA_DIR / "enso_combined.csv"
+            if enso_file.exists():
+                enso_df = pd.read_csv(enso_file)
+                enso_df['date'] = pd.to_datetime(enso_df['date'])
+            else:
+                enso_df = pd.DataFrame()
 
     # Adjust to preindustrial
     df_adj = adjust_anomalies_to_preindustrial(df)
@@ -1046,14 +1051,19 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from config import DATA_DIR
 
-    # Load ENSO data if not provided
+    # Load ENSO data if not provided — prefer multi-model mean forecast
     if enso_df is None:
-        enso_file = DATA_DIR / "enso_combined.csv"
-        if enso_file.exists():
-            enso_df = pd.read_csv(enso_file)
-            enso_df['date'] = pd.to_datetime(enso_df['date'])
-        else:
-            enso_df = pd.DataFrame()
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, _, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef)
+        except Exception:
+            enso_file = DATA_DIR / "enso_combined.csv"
+            if enso_file.exists():
+                enso_df = pd.read_csv(enso_file)
+                enso_df['date'] = pd.to_datetime(enso_df['date'])
+            else:
+                enso_df = pd.DataFrame()
 
     current_year = target_date.year
     current_month = target_date.month
@@ -1673,16 +1683,18 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     # Pre-load ENSO forecast data
     _ENSO_AVAILABLE = False
     _enso_forecast_df = _enso_obs_df = _enso_oni_df = pd.DataFrame()
+    _enso_combined_df = pd.DataFrame()
     _enso_cards = {}
     try:
         from src.enso_plots import (
-            load_enso_forecast_data, compute_enso_cards,
+            load_enso_forecast_data, compute_enso_cards, build_enso_combined,
             create_enso_mega_plume as _create_enso_mega_plume,
             create_enso_box_distribution as _create_enso_box_distribution,
             create_enso_historical_context as _create_enso_historical_context,
         )
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
         _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df)
+        _enso_combined_df = build_enso_combined(_enso_oni_df, _enso_forecast_df)
         _ENSO_AVAILABLE = not _enso_forecast_df.empty
         if _ENSO_AVAILABLE:
             logger.info("ENSO forecast data loaded successfully")

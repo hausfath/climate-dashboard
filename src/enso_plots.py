@@ -75,6 +75,68 @@ def load_full_observed(start_year=1990):
 
 
 # ---------------------------------------------------------------------------
+# Combined ENSO DataFrame (for annual prediction model)
+# ---------------------------------------------------------------------------
+
+def build_enso_combined(oni_df, forecast_df):
+    """Build a combined observed + forecast ENSO DataFrame.
+
+    Returns DataFrame with columns: date, year, month, oni, is_forecast.
+    Observed data comes from ONI; forecast uses the multi-model mean
+    from the combined forecast plume.
+    """
+    rows = []
+
+    # Observed from ONI
+    if not oni_df.empty and "oni" in oni_df.columns:
+        for _, r in oni_df.iterrows():
+            rows.append({
+                "date": r["date"],
+                "year": int(r["year"]),
+                "month": int(r["month"]),
+                "oni": r["oni"],
+                "is_forecast": False,
+            })
+
+    # Forecast from multi-model mean (deduplicated)
+    if not forecast_df.empty:
+        try:
+            forecast_only = _get_forecast_only(forecast_df)
+            mega = _build_mega_df(forecast_only)
+            means = mega[mega["member_id"] == "mean"].copy()
+            if not means.empty:
+                mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
+                mm["date"] = mm["target_month"].apply(_target_month_to_date)
+                mm = mm.sort_values("date")
+
+                # Only include months not already covered by observed data
+                obs_dates = set()
+                if not oni_df.empty:
+                    obs_dates = set(oni_df["date"].dt.to_period("M").astype(str))
+
+                for _, r in mm.iterrows():
+                    period = r["date"].to_period("M")
+                    if str(period) not in obs_dates:
+                        rows.append({
+                            "date": r["date"],
+                            "year": r["date"].year,
+                            "month": r["date"].month,
+                            "oni": r["nino34_anom"],
+                            "is_forecast": True,
+                        })
+        except Exception as e:
+            logger.warning(f"Error building forecast portion of ENSO combined: {e}")
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "year", "month", "oni", "is_forecast"])
+
+    result = pd.DataFrame(rows)
+    result["date"] = pd.to_datetime(result["date"])
+    result = result.sort_values("date").reset_index(drop=True)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Card computation
 # ---------------------------------------------------------------------------
 
