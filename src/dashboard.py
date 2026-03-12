@@ -778,6 +778,15 @@ def generate_all_static_images(df: pd.DataFrame, output_dir: Path, enso_df: pd.D
     # Also generate ridgeline images
     generate_ridgeline_images(df, output_dir)
 
+    # Generate ENSO static images
+    try:
+        from src.enso_plots import load_enso_forecast_data, generate_enso_static_images
+        ef, eo, _ = load_enso_forecast_data()
+        if not ef.empty:
+            generate_enso_static_images(ef, eo, output_dir)
+    except Exception as e:
+        logger.error(f"Failed to generate ENSO static images: {e}")
+
     logger.info("All static images generated successfully")
 
 
@@ -1661,6 +1670,25 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     except Exception as e:
         logger.warning(f"Could not pre-load CMIP data: {e}")
 
+    # Pre-load ENSO forecast data
+    _ENSO_AVAILABLE = False
+    _enso_forecast_df = _enso_obs_df = _enso_oni_df = pd.DataFrame()
+    _enso_cards = {}
+    try:
+        from src.enso_plots import (
+            load_enso_forecast_data, compute_enso_cards,
+            create_enso_mega_plume as _create_enso_mega_plume,
+            create_enso_box_distribution as _create_enso_box_distribution,
+            create_enso_historical_context as _create_enso_historical_context,
+        )
+        _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
+        _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df)
+        _ENSO_AVAILABLE = not _enso_forecast_df.empty
+        if _ENSO_AVAILABLE:
+            logger.info("ENSO forecast data loaded successfully")
+    except Exception as e:
+        logger.warning(f"Could not pre-load ENSO data: {e}")
+
     # Lazy-load registry for CMIP3/5 — populated on first use
     _cmip_lazy: dict = {}
 
@@ -1689,6 +1717,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 dbc.Nav([
                     dbc.NavItem(dbc.NavLink(
                         "Global Temperature", id='nav-global', href='#', n_clicks=0,
+                        style={'cursor': 'pointer'},
+                    )),
+                    dbc.NavItem(dbc.NavLink(
+                        "ENSO Forecast", id='nav-enso', href='#', n_clicks=0,
                         style={'cursor': 'pointer'},
                     )),
                     dbc.NavItem(dbc.NavLink(
@@ -1921,6 +1953,105 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ], className="mb-4"),
 
         ]),  # end tab-content-global
+
+        html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
+
+            # ENSO Summary Cards
+            dbc.Row([
+                dbc.Col([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Card([
+                                dbc.CardBody([
+                                    html.H4("Current ENSO State", className="card-title",
+                                            id='enso-card-1-title', style={'fontSize': '1rem'}),
+                                    html.P(_enso_cards.get('current_state', 'N/A'),
+                                           className="card-text", id='enso-card-1-value',
+                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                    html.Small(
+                                        f"Updated: {_enso_cards.get('update_date', 'N/A')}",
+                                        id='enso-card-1-sub'),
+                                ], id='enso-card-1-body', className="p-2 p-md-3")
+                            ], id='enso-card-1', className="h-100")
+                        ], xs=6, md=4),
+                        dbc.Col([
+                            dbc.Card([
+                                dbc.CardBody([
+                                    html.H4("Peak Forecast", className="card-title",
+                                            id='enso-card-2-title', style={'fontSize': '1rem'}),
+                                    html.P(_enso_cards.get('max_change_str', 'N/A'),
+                                           className="card-text", id='enso-card-2-value',
+                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                    html.Small(
+                                        _enso_cards.get('max_change_range', 'N/A'),
+                                        id='enso-card-2-sub'),
+                                ], id='enso-card-2-body', className="p-2 p-md-3")
+                            ], id='enso-card-2', className="h-100")
+                        ], xs=6, md=4),
+                        dbc.Col([
+                            dbc.Card([
+                                dbc.CardBody([
+                                    html.H4("Forecast Sources", className="card-title",
+                                            id='enso-card-3-title', style={'fontSize': '1rem'}),
+                                    html.P("CFS, NMME, C3S" if _ENSO_AVAILABLE else "N/A",
+                                           className="card-text", id='enso-card-3-value',
+                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
+                                    html.Small(
+                                        "11 models" if _ENSO_AVAILABLE else "N/A",
+                                        id='enso-card-3-sub'),
+                                ], id='enso-card-3-body', className="p-2 p-md-3")
+                            ], id='enso-card-3', className="h-100")
+                        ], xs=12, md=4),
+                    ], className="g-2"),
+                ], xs=12, md={'size': 10, 'offset': 1}),
+            ], className="mb-4"),
+
+            # Viz 1: Mega Plume
+            dbc.Row([
+                dbc.Col([
+                    html.Img(id='enso-mega-plume-img',
+                             src='/assets/images/enso_mega_plume_dark.png',
+                             style={'width': '100%', 'height': 'auto'}),
+                    dcc.Loading(
+                        id="loading-enso-mega-plume", type="circle",
+                        children=[dcc.Graph(id='enso-mega-plume-plot',
+                                            style={'height': '550px', 'display': 'none'},
+                                            config={'toImageButtonOptions': {'scale': 3}})]
+                    ),
+                ], xs=12, md={'size': 10, 'offset': 1}),
+            ], className="mb-4"),
+
+            # Viz 2: Box Distribution
+            dbc.Row([
+                dbc.Col([
+                    html.Img(id='enso-box-distribution-img',
+                             src='/assets/images/enso_box_distribution_dark.png',
+                             style={'width': '100%', 'height': 'auto'}),
+                    dcc.Loading(
+                        id="loading-enso-box-distribution", type="circle",
+                        children=[dcc.Graph(id='enso-box-distribution-plot',
+                                            style={'height': '550px', 'display': 'none'},
+                                            config={'toImageButtonOptions': {'scale': 3}})]
+                    ),
+                ], xs=12, md={'size': 10, 'offset': 1}),
+            ], className="mb-4"),
+
+            # Viz 3: Historical Context
+            dbc.Row([
+                dbc.Col([
+                    html.Img(id='enso-historical-img',
+                             src='/assets/images/enso_historical_dark.png',
+                             style={'width': '100%', 'height': 'auto'}),
+                    dcc.Loading(
+                        id="loading-enso-historical", type="circle",
+                        children=[dcc.Graph(id='enso-historical-plot',
+                                            style={'height': '450px', 'display': 'none'},
+                                            config={'toImageButtonOptions': {'scale': 3}})]
+                    ),
+                ], xs=12, md={'size': 10, 'offset': 1}),
+            ], className="mb-4"),
+
+        ]),  # end tab-content-enso
 
         html.Div(id='tab-content-models', style={'display': 'none'}, children=[
 
@@ -2188,33 +2319,55 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             footer_style, sun_style, moon_style,
         )
 
+    # Tab titles and subtitles
+    _TAB_TITLES = {
+        'global': 'Global Temperature Dashboard',
+        'enso': 'ENSO Forecast Dashboard',
+        'models': 'Models vs. Observations',
+    }
+    _TAB_SUBTITLES = {
+        'global': 'ERA5 Daily Global Mean 2m Temperature',
+        'enso': 'ENSO Forecasts Compiled from CFS, NMME, and C3S',
+        'models': 'CMIP3, CMIP5, and CMIP6 Models vs Observations',
+    }
+
     # Callback to switch between tab content divs
     @app.callback(
         [Output('tab-content-global', 'style'),
+         Output('tab-content-enso', 'style'),
          Output('tab-content-models', 'style'),
-         Output('active-tab-store', 'data')],
+         Output('active-tab-store', 'data'),
+         Output('main-title', 'children'),
+         Output('subtitle', 'children')],
         [Input('nav-global', 'n_clicks'),
+         Input('nav-enso', 'n_clicks'),
          Input('nav-models', 'n_clicks'),
          Input('active-tab-store', 'modified_timestamp')],
         [State('active-tab-store', 'data')],
     )
-    def switch_tab(n_global, n_models, _ts, current_tab):
+    def switch_tab(n_global, n_enso, n_models, _ts, current_tab):
         triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
         if triggered == 'nav-global':
             tab = 'global'
+        elif triggered == 'nav-enso':
+            tab = 'enso'
         elif triggered == 'nav-models':
             tab = 'models'
         else:
             tab = current_tab or 'global'
         return (
             {} if tab == 'global' else {'display': 'none'},
+            {} if tab == 'enso' else {'display': 'none'},
             {} if tab == 'models' else {'display': 'none'},
             tab,
+            _TAB_TITLES[tab],
+            _TAB_SUBTITLES[tab],
         )
 
     # Callback to style active/inactive nav links
     @app.callback(
         [Output('nav-global', 'style'),
+         Output('nav-enso', 'style'),
          Output('nav-models', 'style')],
         [Input('dark-mode-switch', 'value'),
          Input('active-tab-store', 'data')],
@@ -2229,6 +2382,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         inactive = {**base, 'opacity': '0.6', 'fontWeight': 'normal'}
         return (
             active if active_tab == 'global' else inactive,
+            active if active_tab == 'enso' else inactive,
             active if active_tab == 'models' else inactive,
         )
 
@@ -2256,6 +2410,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             # Toggle icons
             Output('static-icon', 'style'),
             Output('interactive-icon', 'style'),
+            # Image visibility — ENSO tab (3)
+            Output('enso-mega-plume-img', 'style'),
+            Output('enso-box-distribution-img', 'style'),
+            Output('enso-historical-img', 'style'),
+            # Graph visibility — ENSO tab (3)
+            Output('enso-mega-plume-plot', 'style'),
+            Output('enso-box-distribution-plot', 'style'),
+            Output('enso-historical-plot', 'style'),
             # Image visibility — Models tab (3)
             Output('models-timeseries-img', 'style'),
             Output('models-trend-explorer-img', 'style'),
@@ -2296,6 +2458,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
                 # Icons (static inactive, interactive active)
                 icon_inactive, icon_active,
+                # Hide images — ENSO (3)
+                img_style_hide, img_style_hide, img_style_hide,
+                # Show graphs — ENSO (3)
+                {'height': '550px', 'display': 'block'},
+                {'height': '550px', 'display': 'block'},
+                {'height': '450px', 'display': 'block'},
                 # Hide images — Models (3)
                 img_style_hide, img_style_hide, img_style_hide,
                 # Show graphs — Models (3), with per-plot heights
@@ -2313,6 +2481,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 # Icons (static active, interactive inactive)
                 icon_active, icon_inactive,
+                # Show images — ENSO (3)
+                img_style_show, img_style_show, img_style_show,
+                # Hide graphs — ENSO (3)
+                graph_style_hide, graph_style_hide, graph_style_hide,
                 # Show images — Models (3)
                 img_style_show, img_style_show, img_style_show,
                 # Hide graphs — Models (3)
@@ -2331,6 +2503,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('heatmap-anomaly-img', 'src'),
             Output('heatmap-temp-img', 'src'),
             Output('ridgeline-img', 'src'),
+            # ENSO tab images
+            Output('enso-mega-plume-img', 'src'),
+            Output('enso-box-distribution-img', 'src'),
+            Output('enso-historical-img', 'src'),
             # Models tab images
             Output('models-timeseries-img', 'src'),
             Output('models-trend-explorer-img', 'src'),
@@ -2350,6 +2526,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/heatmap_anomaly_{mode}.png',
             f'/assets/images/heatmap_temp_{mode}.png',
             f'/assets/images/ridgeline_{mode}.png',
+            f'/assets/images/enso_mega_plume_{mode}.png',
+            f'/assets/images/enso_box_distribution_{mode}.png',
+            f'/assets/images/enso_historical_{mode}.png',
             f'/assets/images/models_timeseries_{mode}.png',
             f'/assets/images/models_trend_explorer_{mode}.png',
             f'/assets/images/models_histograms_{mode}.png',
@@ -2599,6 +2778,98 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         except Exception as e:
             logger.error(f"Models cards update error: {e}")
             raise PreventUpdate
+
+    # ── ENSO Forecast callbacks ─────────────────────────────────────────────
+
+    # ENSO card styling (dark/light)
+    @app.callback(
+        [Output('enso-card-1', 'color'),
+         Output('enso-card-2', 'color'),
+         Output('enso-card-3', 'color'),
+         Output('enso-card-1', 'style'),
+         Output('enso-card-2', 'style'),
+         Output('enso-card-3', 'style'),
+         Output('enso-card-1-title', 'style'),
+         Output('enso-card-2-title', 'style'),
+         Output('enso-card-3-title', 'style'),
+         Output('enso-card-1-value', 'style'),
+         Output('enso-card-2-value', 'style'),
+         Output('enso-card-3-value', 'style'),
+         Output('enso-card-1-sub', 'style'),
+         Output('enso-card-2-sub', 'style'),
+         Output('enso-card-3-sub', 'style')],
+        [Input('dark-mode-switch', 'value')],
+    )
+    def update_enso_card_styles(dark_mode):
+        theme = get_theme(dark_mode)
+        card_color = theme['card_color']
+        card_style = {'backgroundColor': theme['card_color'] if dark_mode else None}
+        title_style = {'fontSize': '1rem', 'color': theme['text_color']}
+        value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
+        sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
+        return (
+            card_color, card_color, card_color,
+            card_style, card_style, card_style,
+            title_style, title_style, title_style,
+            value_style, value_style, value_style,
+            sub_style, sub_style, sub_style,
+        )
+
+    # ENSO Graph 1: Mega Plume (triggered by interactive switch + dark mode)
+    @app.callback(
+        Output('enso-mega-plume-plot', 'figure'),
+        [Input('interactive-switch', 'value'),
+         Input('dark-mode-switch', 'value')],
+    )
+    def update_enso_mega_plume(interactive, dark_mode):
+        from dash.exceptions import PreventUpdate
+        if not interactive:
+            raise PreventUpdate
+        if not _ENSO_AVAILABLE:
+            return go.Figure()
+        try:
+            return _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode)
+        except Exception as e:
+            logger.error(f"ENSO mega plume error: {e}")
+            return go.Figure()
+
+    # ENSO Graph 2: Box Distribution (chained from mega plume)
+    @app.callback(
+        Output('enso-box-distribution-plot', 'figure'),
+        [Input('enso-mega-plume-plot', 'figure')],
+        [State('dark-mode-switch', 'value'),
+         State('interactive-switch', 'value')],
+    )
+    def update_enso_box_distribution(_, dark_mode, interactive):
+        from dash.exceptions import PreventUpdate
+        if not interactive:
+            raise PreventUpdate
+        if not _ENSO_AVAILABLE:
+            return go.Figure()
+        try:
+            return _create_enso_box_distribution(_enso_forecast_df, dark_mode)
+        except Exception as e:
+            logger.error(f"ENSO box distribution error: {e}")
+            return go.Figure()
+
+    # ENSO Graph 3: Historical Context (chained from box distribution)
+    @app.callback(
+        Output('enso-historical-plot', 'figure'),
+        [Input('enso-box-distribution-plot', 'figure')],
+        [State('dark-mode-switch', 'value'),
+         State('interactive-switch', 'value')],
+    )
+    def update_enso_historical(_, dark_mode, interactive):
+        from dash.exceptions import PreventUpdate
+        if not interactive:
+            raise PreventUpdate
+        if not _ENSO_AVAILABLE:
+            return go.Figure()
+        try:
+            return _create_enso_historical_context(_enso_forecast_df, dark_mode)
+        except Exception as e:
+            logger.error(f"ENSO historical context error: {e}")
+            return go.Figure()
 
     return app
 
