@@ -39,44 +39,40 @@ def update_data(force: bool = False) -> None:
     try:
         import pandas as pd
         enso_file = DATA_DIR / "enso_combined.csv"
-        snapshot_file = DATA_DIR / "last_iri_snapshot.csv"
-
-        # Load persisted IRI snapshot (committed to git, survives deploys)
-        old_snapshot = None
-        if snapshot_file.exists():
-            old_snapshot = pd.read_csv(snapshot_file)
-            old_snapshot['oni'] = old_snapshot['oni'].round(2)
-            old_snapshot = old_snapshot.sort_values(['year', 'month']).reset_index(drop=True)
+        snapshot_file = DATA_DIR / "last_enso_forecast_snapshot.csv"
 
         create_combined_enso_dataset(enso_file)
 
-        # Extract fresh IRI values from the newly written file
-        new_enso = pd.read_csv(enso_file)
-        mask = new_enso['source'] == 'IRI_Dynamical'
-        new_iri = new_enso[mask][['year', 'month', 'oni']].copy()
-        new_iri['oni'] = new_iri['oni'].round(2)
-        new_iri = new_iri.sort_values(['year', 'month']).reset_index(drop=True)
+        # Build multi-model mean forecast (same data the prediction model uses)
+        from src.enso_plots import load_enso_forecast_data, build_enso_combined
+        ef, _, oni = load_enso_forecast_data()
+        enso_combined = build_enso_combined(oni, ef)
+
+        # Extract forecast-only rows as the snapshot
+        new_forecast = enso_combined[enso_combined['is_forecast']][['year', 'month', 'oni']].copy()
+        new_forecast['oni'] = new_forecast['oni'].round(3)
+        new_forecast = new_forecast.sort_values(['year', 'month']).reset_index(drop=True)
+
+        # Load previous snapshot
+        old_snapshot = None
+        if snapshot_file.exists():
+            old_snapshot = pd.read_csv(snapshot_file)
+            old_snapshot['oni'] = old_snapshot['oni'].round(3)
+            old_snapshot = old_snapshot.sort_values(['year', 'month']).reset_index(drop=True)
 
         if old_snapshot is None:
-            # First run — initialise snapshot without flagging a change
-            new_iri.to_csv(snapshot_file, index=False)
-            logger.info("IRI snapshot initialised (first run)")
+            new_forecast.to_csv(snapshot_file, index=False)
+            logger.info("Multi-model ENSO forecast snapshot initialised (first run)")
         else:
-            # Compare by month order only, not by (year, month).
-            # The IRI always publishes the same 9 seasons (center months 2–10).
-            # When current_month rolls over (e.g. Feb→Mar), the year assigned to
-            # JFM shifts from the current year to next year, making old_snapshot
-            # and new_iri differ even when the forecast values haven't changed.
-            if len(old_snapshot) == len(new_iri) and len(new_iri) > 0:
+            # Compare forecast values; use month order to handle year rollovers
+            if len(old_snapshot) == len(new_forecast) and len(new_forecast) > 0:
                 old_vals = old_snapshot.sort_values('month')['oni'].reset_index(drop=True)
-                new_vals = new_iri.sort_values('month')['oni'].reset_index(drop=True)
-                iri_changed = not old_vals.equals(new_vals)
+                new_vals = new_forecast.sort_values('month')['oni'].reset_index(drop=True)
+                forecast_changed = not old_vals.equals(new_vals)
             else:
-                # Different row count → structural change in the IRI page
-                iri_changed = True
-            if iri_changed:
-                # Update snapshot and log the update date
-                new_iri.to_csv(snapshot_file, index=False)
+                forecast_changed = True
+            if forecast_changed:
+                new_forecast.to_csv(snapshot_file, index=False)
                 updates_file = DATA_DIR / "enso_forecast_updates.csv"
                 today_str = datetime.now().strftime('%Y-%m-%d')
                 if updates_file.exists():
@@ -87,12 +83,12 @@ def update_data(force: bool = False) -> None:
                             ignore_index=True
                         )
                         updates_df.to_csv(updates_file, index=False)
-                        logger.info(f"ENSO forecast changed — recorded update on {today_str}")
+                        logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
                 else:
                     pd.DataFrame({'date': [today_str]}).to_csv(updates_file, index=False)
-                    logger.info(f"ENSO forecast changed — recorded update on {today_str}")
+                    logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
             else:
-                logger.info("IRI forecast unchanged")
+                logger.info("Multi-model ENSO forecast unchanged")
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 
