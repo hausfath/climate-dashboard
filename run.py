@@ -145,9 +145,6 @@ def update_data(force: bool = False) -> None:
     # Update observational temperature records (for Models vs. Obs tab)
     update_obs_data(force=force)
 
-    # Update ERA5 spatial data (current month)
-    update_spatial(force=force)
-
     logger.info("Data update complete")
 
 
@@ -162,21 +159,6 @@ def update_obs_data(force: bool = False) -> None:
         logger.info("Observational data updated")
     except Exception as e:
         logger.error(f"Failed to update observational data: {e}")
-
-
-def update_spatial(force: bool = False) -> None:
-    """Download and precompute current-month ERA5 gridded data."""
-    logger.info("Updating ERA5 spatial data...")
-    try:
-        from src.precompute_monthly_stats import (
-            download_current_month_mtd,
-            precompute_current_month,
-        )
-        download_current_month_mtd(force=force)
-        precompute_current_month()
-        logger.info("Spatial data updated")
-    except Exception as e:
-        logger.error(f"Failed to update spatial data: {e}")
 
 
 def run_dashboard(host: str = DASHBOARD_HOST, port: int = DASHBOARD_PORT,
