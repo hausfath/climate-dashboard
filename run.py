@@ -4,7 +4,7 @@
 import argparse
 import logging
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 # Add src to path
@@ -22,6 +22,56 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def update_enso_forecasts(force: bool = False) -> None:
+    """Fetch multi-model ENSO forecasts (CFS, NMME, C3S, IRI) and observed data."""
+    enso_root = str(Path(__file__).parent / "ENSO")
+    if enso_root not in sys.path:
+        sys.path.insert(0, enso_root)
+
+    from enso_forecast.fetchers.observed import save_observed
+    from enso_forecast.fetchers.cfs import save_cfs
+    from enso_forecast.fetchers.nmme import save_nmme
+    from enso_forecast.fetchers.c3s import save_c3s
+    from enso_forecast.fetchers.iri import save_iri
+    from enso_forecast.config import FORECASTS_DIR
+
+    sources = [
+        ("observed", save_observed),
+        ("CFS", save_cfs),
+        ("NMME", save_nmme),
+        ("C3S", save_c3s),
+        ("IRI", save_iri),
+    ]
+
+    for name, fetch_fn in sources:
+        try:
+            # Monthly sources: skip if we already have a file from the current month
+            # (C3S in particular takes ~30 min via CDS API)
+            if name in ("NMME", "C3S", "IRI") and not force:
+                src_dir = FORECASTS_DIR / name
+                if src_dir.exists():
+                    current_month_prefix = date.today().strftime("%Y-%m")
+                    existing = [f.stem for f in src_dir.glob("*.csv")]
+                    if any(f.startswith(current_month_prefix) for f in existing):
+                        logger.info(f"{name} already fetched this month, skipping")
+                        continue
+
+            logger.info(f"Fetching {name} ENSO data...")
+            fetch_fn(force=force)
+
+            # Clean up old dated CSVs, keep only the latest
+            if name != "observed":  # observed uses fixed filenames
+                src_dir = FORECASTS_DIR / name
+                csvs = sorted(src_dir.glob("*.csv"))
+                if len(csvs) > 1:
+                    for old in csvs[:-1]:
+                        old.unlink()
+                        logger.info(f"Removed old {name} file: {old.name}")
+
+        except Exception as e:
+            logger.error(f"Failed to fetch {name}: {e}")
+
+
 def update_data(force: bool = False) -> None:
     """Update all data sources."""
     logger.info("Updating data sources...")
@@ -33,6 +83,13 @@ def update_data(force: bool = False) -> None:
             fetch_era5_data(source["url"], source["local_file"])
         else:
             load_or_fetch_data(source["url"], source["local_file"])
+
+    # Fetch multi-model ENSO forecasts
+    logger.info("Fetching ENSO multi-model forecasts...")
+    try:
+        update_enso_forecasts(force=force)
+    except Exception as e:
+        logger.error(f"ENSO forecast fetch failed: {e}")
 
     # Update ENSO data
     logger.info("Updating ENSO data...")

@@ -26,10 +26,6 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Update data and generate images
-        run: |
-          python run.py update --force
-
       - name: Configure CDS API credentials
         run: |
           mkdir -p ~/.config/cdsapi
@@ -37,6 +33,13 @@ jobs:
           url: ${{ secrets.CDS_URL }}
           key: ${{ secrets.CDS_KEY }}
           EOF
+
+      - name: Update data and generate images
+        env:
+          CDS_API_KEY: ${{ secrets.CDS_KEY }}
+          CDS_API_URL: ${{ secrets.CDS_URL }}
+        run: |
+          python run.py update --force
 
       - name: Update ERA5 spatial data (current month)
         run: |
