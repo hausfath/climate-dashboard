@@ -197,10 +197,10 @@ def compute_enso_cards(forecast_df, oni_df):
         else:
             cards["current_state"] = f"Neutral: {val:+.1f}\u00b0C"
 
-    # Update date
+    # Update date (month-level, since most models publish monthly)
     if not forecast_df.empty and "init_date" in forecast_df.columns:
         max_init = pd.to_datetime(forecast_df["init_date"]).max()
-        cards["update_date"] = max_init.strftime("%b %d, %Y")
+        cards["update_date"] = max_init.strftime("%b %Y")
 
     # Peak forecast anomaly over full projection period
     if not forecast_df.empty:

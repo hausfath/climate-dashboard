@@ -2247,7 +2247,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
         ]),  # end tabs wrapper
 
-        # Footer (outside tabs)
+        # Footer (ERA5-specific, only shown on Global Temperature tab)
         dbc.Row([
             dbc.Col([
                 html.Hr(id='footer-hr'),
@@ -2260,7 +2260,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     f" | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
                 ], className="text-center", id='footer-text')
             ])
-        ])
+        ], id='era5-footer')
 
     ], fluid=True, id='main-container')
 
@@ -2374,6 +2374,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Output('tab-content-global', 'style'),
          Output('tab-content-enso', 'style'),
          Output('tab-content-models', 'style'),
+         Output('era5-footer', 'style'),
          Output('active-tab-store', 'data'),
          Output('main-title', 'children'),
          Output('subtitle', 'children'),
@@ -2403,6 +2404,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             {} if tab == 'global' else {'display': 'none'},
             {} if tab == 'enso' else {'display': 'none'},
             {} if tab == 'models' else {'display': 'none'},
+            {} if tab == 'global' else {'display': 'none'},
             tab,
             _TAB_TITLES[tab],
             _TAB_SUBTITLES[tab],
