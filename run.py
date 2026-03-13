@@ -159,14 +159,21 @@ def update_data(force: bool = False) -> None:
         source = DATA_SOURCES["era5_global"]
         df = load_or_fetch_data(source["url"], source["local_file"])
 
-        # Load ENSO data
-        enso_df = None
-        if enso_file.exists():
-            enso_df = pd.read_csv(enso_file)
-            enso_df['date'] = pd.to_datetime(enso_df['date'])
+        # Use multi-model mean ENSO forecast (not the IRI-based enso_combined.csv)
+        # so projections are consistent with the annual prediction plot
+        enso_proj = None
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, _, oni = load_enso_forecast_data()
+            enso_proj = build_enso_combined(oni, ef)
+        except Exception as enso_err:
+            logger.warning(f"Could not load multi-model ENSO, falling back to combined: {enso_err}")
+            if enso_file.exists():
+                enso_proj = pd.read_csv(enso_file)
+                enso_proj['date'] = pd.to_datetime(enso_proj['date'])
 
         # Generate/update projection history
-        load_and_update_projection_history(df, enso_df)
+        load_and_update_projection_history(df, enso_proj)
         logger.info("Projection history updated")
     except Exception as e:
         logger.error(f"Failed to update projection history: {e}")
