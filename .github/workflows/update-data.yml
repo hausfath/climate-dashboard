@@ -62,4 +62,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add -A
           git commit -m "Daily data update $(date -u +'%Y-%m-%d')"
+          git pull --rebase
           git push
