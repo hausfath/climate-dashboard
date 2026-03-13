@@ -31,7 +31,8 @@ OBS_CACHE = DATA_DIR / 'combined_obs_1981_2010.csv'
 
 # ── Observational data source URLs ────────────────────────────────────────────
 GISTEMP_URL = 'https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.txt'
-NOAA_URL = 'https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/global/time-series/globe/land_ocean/1/0/1850-2030/data.csv'
+def _noaa_url():
+    return f'https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/global/time-series/globe/land_ocean/tavg/1/0/1850-{datetime.today().year}/data.csv'
 HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.0.2.0/analysis/diagnostics/HadCRUT.5.0.2.0.analysis.summary_series.global.monthly.csv'
 BERKELEY_URL = 'https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_complete.txt'
 
@@ -186,7 +187,7 @@ def _import_gistemp() -> pd.DataFrame:
 
 def _import_noaa() -> pd.DataFrame:
     """Import NOAA GlobalTemp."""
-    df = pd.read_csv(NOAA_URL, skiprows=5, names=['date', 'noaa'])
+    df = pd.read_csv(_noaa_url(), skiprows=5, names=['date', 'noaa'])
     df['year']  = df['date'].astype(str).str[:4].astype(int)
     df['month'] = df['date'].astype(str).str[4:6].astype(int)
     df['noaa']  = pd.to_numeric(df['noaa'], errors='coerce')
@@ -484,52 +485,84 @@ def compute_variable_start_trends(cmip_df: pd.DataFrame,
 
 # ── Statistics card data ──────────────────────────────────────────────────────
 
-def compute_model_obs_cards(cmip6_df: pd.DataFrame, obs_df: pd.DataFrame) -> dict:
-    """Compute values for the 4 statistics cards."""
-    stats6 = compute_ensemble_stats(cmip6_df)
+def _trend_card(cmip_df, obs_df, start_year, last_date):
+    """Compute obs mean trend, model mean trend, and model 5-95 range for a period."""
+    start = f'{start_year}-01-01'
+    end = last_date.strftime('%Y-%m-%d')
+    obs_trends = calculate_obs_trends(obs_df, start, end)
+    obs_vals = [v for v in obs_trends.values() if v is not None]
+    obs_mean = np.mean(obs_vals) if obs_vals else None
+    model_trends = calculate_member_trends(cmip_df, start, end)
+    model_mean = np.mean(model_trends) if len(model_trends) > 0 else None
+    model_p05 = np.percentile(model_trends, 5) if len(model_trends) > 0 else None
+    model_p95 = np.percentile(model_trends, 95) if len(model_trends) > 0 else None
+    return obs_mean, model_mean, model_p05, model_p95
 
-    # Last 12 months overlap
+
+def compute_model_obs_cards(cmip_df: pd.DataFrame, obs_df: pd.DataFrame,
+                            cmip_label: str = 'CMIP6') -> dict:
+    """Compute values for the 4 statistics cards.
+
+    Cards:
+      1. Model vs Observed warming since preindustrial (last 12 months)
+      2. 1970-Present trend
+      3. Past 25 years trend (dynamic start year)
+      4. Past 15 years trend (dynamic start year)
+    """
+    stats = compute_ensemble_stats(cmip_df)
+    current_year = datetime.today().year
+
+    # Card 1: Warming since preindustrial (last 12 months)
     last_date = obs_df['date'].max()
-    start_12  = last_date - pd.DateOffset(months=11)
-    m_recent  = stats6[(stats6['date'] >= start_12) & (stats6['date'] <= last_date)]
-    o_recent  = obs_df[(obs_df['date'] >= start_12) & (obs_df['date'] <= last_date)]
+    start_12 = last_date - pd.DateOffset(months=11)
+    m_recent = stats[(stats['date'] >= start_12) & (stats['date'] <= last_date)]
+    o_recent = obs_df[(obs_df['date'] >= start_12) & (obs_df['date'] <= last_date)]
 
-    obs_cols = ['hadcrut5','gistemp','noaa','berkeley','copernicus']
+    obs_cols = ['hadcrut5', 'gistemp', 'noaa', 'berkeley', 'copernicus']
     obs_recent_mean = o_recent[obs_cols].mean(axis=1).mean()
     model_recent_mean = m_recent['mean'].mean()
-    diff = model_recent_mean - obs_recent_mean
+    model_p05_recent = m_recent['p05'].mean() if 'p05' in m_recent.columns else None
+    model_p95_recent = m_recent['p95'].mean() if 'p95' in m_recent.columns else None
 
-    # Long-term trend since 1970
-    obs_trend_1970 = calculate_obs_trends(obs_df, '1970-01-01', last_date.strftime('%Y-%m-%d'))
-    obs_trend_vals = [v for v in obs_trend_1970.values() if v is not None]
-    obs_mean_trend_1970 = np.mean(obs_trend_vals) if obs_trend_vals else None
+    # Card 2: 1970-Present trend
+    obs_1970, model_1970, m05_1970, m95_1970 = _trend_card(cmip_df, obs_df, 1970, last_date)
 
-    model_trends_1970 = calculate_member_trends(cmip6_df, '1970-01-01', last_date.strftime('%Y-%m-%d'))
-    model_mean_trend_1970 = np.mean(model_trends_1970) if len(model_trends_1970) > 0 else None
+    # Card 3: Past 25 years trend
+    start_25 = current_year - 25
+    obs_25, model_25, m05_25, m95_25 = _trend_card(cmip_df, obs_df, start_25, last_date)
 
-    # Recent trend 2011-present
-    obs_trend_2011 = calculate_obs_trends(obs_df, '2011-01-01', last_date.strftime('%Y-%m-%d'))
-    obs_trend_vals_2011 = [v for v in obs_trend_2011.values() if v is not None]
-    obs_recent_trend = np.mean(obs_trend_vals_2011) if obs_trend_vals_2011 else None
+    # Card 4: Past 15 years trend
+    start_15 = current_year - 15
+    obs_15, model_15, m05_15, m95_15 = _trend_card(cmip_df, obs_df, start_15, last_date)
 
-    model_trends_2011 = calculate_member_trends(cmip6_df, '2011-01-01', last_date.strftime('%Y-%m-%d'))
+    def _fmt(v, suffix=''):
+        return f'{v:.2f}{suffix}' if v is not None else 'N/A'
 
-    # Obs percentile within model distribution
-    if len(model_trends_1970) > 0 and obs_mean_trend_1970 is not None:
-        percentile_rank = int(np.sum(model_trends_1970 <= obs_mean_trend_1970) / len(model_trends_1970) * 100)
-    else:
-        percentile_rank = None
+    def _fmt_range(lo, hi, suffix=''):
+        if lo is not None and hi is not None:
+            return f'{lo:.2f}–{hi:.2f}{suffix}'
+        return 'N/A'
 
     return {
-        'model_recent_mean':  f'{model_recent_mean:+.2f}°C' if not np.isnan(model_recent_mean) else 'N/A',
-        'obs_recent_mean':    f'{obs_recent_mean:+.2f}°C' if not np.isnan(obs_recent_mean) else 'N/A',
-        'model_obs_diff':     f'{diff:+.2f}°C' if not np.isnan(diff) else 'N/A',
-        'obs_trend_1970':     f'{obs_mean_trend_1970:.2f}°C/decade' if obs_mean_trend_1970 else 'N/A',
-        'model_trend_1970':   f'{model_mean_trend_1970:.2f}°C/decade' if model_mean_trend_1970 else 'N/A',
-        'obs_recent_trend':   f'{obs_recent_trend:.2f}°C/decade' if obs_recent_trend else 'N/A',
-        'model_p05_2011':     f'{np.percentile(model_trends_2011, 5):.2f}' if len(model_trends_2011) > 0 else 'N/A',
-        'model_p95_2011':     f'{np.percentile(model_trends_2011, 95):.2f}' if len(model_trends_2011) > 0 else 'N/A',
-        'percentile_rank':    f'{percentile_rank}th' if percentile_rank is not None else 'N/A',
+        'cmip_label': cmip_label,
+        # Card 1
+        'obs_warming': _fmt(obs_recent_mean, '°C'),
+        'model_warming': _fmt(model_recent_mean, '°C'),
+        'model_warming_range': _fmt_range(model_p05_recent, model_p95_recent, '°C'),
+        # Card 2
+        'obs_trend_1970': _fmt(obs_1970, '°C/dec'),
+        'model_trend_1970': _fmt(model_1970, '°C/dec'),
+        'model_range_1970': _fmt_range(m05_1970, m95_1970, '°C/dec'),
+        # Card 3
+        'start_25': start_25,
+        'obs_trend_25': _fmt(obs_25, '°C/dec'),
+        'model_trend_25': _fmt(model_25, '°C/dec'),
+        'model_range_25': _fmt_range(m05_25, m95_25, '°C/dec'),
+        # Card 4
+        'start_15': start_15,
+        'obs_trend_15': _fmt(obs_15, '°C/dec'),
+        'model_trend_15': _fmt(model_15, '°C/dec'),
+        'model_range_15': _fmt_range(m05_15, m95_15, '°C/dec'),
     }
 
 

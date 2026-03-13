@@ -2098,14 +2098,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         dbc.Col([
                             dbc.Card([
                                 dbc.CardBody([
-                                    html.H4("CMIP6 vs Observed", className="card-title",
+                                    html.H4(f"{_models_cards.get('cmip_label', 'CMIP6')} vs Observed",
+                                            className="card-title",
                                             id='models-card-1-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('model_obs_diff', 'N/A'),
+                                    html.P(_models_cards.get('obs_warming', 'N/A'),
                                            className="card-text", id='models-card-1-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                                     html.Small(
-                                        f"Models: {_models_cards.get('model_recent_mean', 'N/A')} | "
-                                        f"Obs: {_models_cards.get('obs_recent_mean', 'N/A')}",
+                                        f"Models: {_models_cards.get('model_warming', 'N/A')} "
+                                        f"({_models_cards.get('model_warming_range', 'N/A')})",
                                         id='models-card-1-sub'),
                                 ], id='models-card-1-body', className="p-2 p-md-3")
                             ], id='models-card-1', className="h-100")
@@ -2113,13 +2114,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         dbc.Col([
                             dbc.Card([
                                 dbc.CardBody([
-                                    html.H4("Observed Trend", className="card-title",
+                                    html.H4("1970–Present Trend", className="card-title",
                                             id='models-card-2-title', style={'fontSize': '1rem'}),
                                     html.P(_models_cards.get('obs_trend_1970', 'N/A'),
                                            className="card-text", id='models-card-2-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                                     html.Small(
-                                        f"Models: {_models_cards.get('model_trend_1970', 'N/A')}",
+                                        f"Models: {_models_cards.get('model_trend_1970', 'N/A')} "
+                                        f"({_models_cards.get('model_range_1970', 'N/A')})",
                                         id='models-card-2-sub'),
                                 ], id='models-card-2-body', className="p-2 p-md-3")
                             ], id='models-card-2', className="h-100")
@@ -2127,14 +2129,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         dbc.Col([
                             dbc.Card([
                                 dbc.CardBody([
-                                    html.H4("2011–Present Trend", className="card-title",
+                                    html.H4(f"{_models_cards.get('start_25', '')}–Present Trend",
+                                            className="card-title",
                                             id='models-card-3-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('obs_recent_trend', 'N/A'),
+                                    html.P(_models_cards.get('obs_trend_25', 'N/A'),
                                            className="card-text", id='models-card-3-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                                     html.Small(
-                                        f"Model range: {_models_cards.get('model_p05_2011', 'N/A')}"
-                                        f"–{_models_cards.get('model_p95_2011', 'N/A')}°C/dec",
+                                        f"Models: {_models_cards.get('model_trend_25', 'N/A')} "
+                                        f"({_models_cards.get('model_range_25', 'N/A')})",
                                         id='models-card-3-sub'),
                                 ], id='models-card-3-body', className="p-2 p-md-3")
                             ], id='models-card-3', className="h-100")
@@ -2142,13 +2145,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         dbc.Col([
                             dbc.Card([
                                 dbc.CardBody([
-                                    html.H4("Model-Obs Alignment", className="card-title",
+                                    html.H4(f"{_models_cards.get('start_15', '')}–Present Trend",
+                                            className="card-title",
                                             id='models-card-4-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('percentile_rank', 'N/A'),
+                                    html.P(_models_cards.get('obs_trend_15', 'N/A'),
                                            className="card-text", id='models-card-4-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small("Obs. percentile in model range (1970–present)",
-                                               id='models-card-4-sub'),
+                                    html.Small(
+                                        f"Models: {_models_cards.get('model_trend_15', 'N/A')} "
+                                        f"({_models_cards.get('model_range_15', 'N/A')})",
+                                        id='models-card-4-sub'),
                                 ], id='models-card-4-body', className="p-2 p-md-3")
                             ], id='models-card-4', className="h-100")
                         ], xs=6, md=3),
@@ -2166,7 +2172,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                     html.Label("Model Generation", id='models-label-gen',
                                                className="mb-1",
                                                style={'fontWeight': '500', 'fontSize': '0.9rem'}),
-                                    dcc.Dropdown(
+                                    dbc.Select(
                                         id='models-cmip-gen',
                                         options=[
                                             {'label': 'CMIP6 (2014–)', 'value': 'cmip6'},
@@ -2174,8 +2180,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                             {'label': 'CMIP3 (2001–)', 'value': 'cmip3'},
                                         ],
                                         value='cmip6',
-                                        clearable=False,
-                                        className='dark-dropdown',
                                     ),
                                 ], md=4, sm=6, className="mb-2"),
                                 dbc.Col([
@@ -2772,7 +2776,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('models-controls-card', 'color'),
          Output('models-label-gen', 'style'),
          Output('models-label-smoothing', 'style'),
-         Output('models-smoothing', 'labelStyle')],
+         Output('models-smoothing', 'labelStyle'),
+         Output('models-cmip-gen', 'style')],
         [Input('dark-mode-switch', 'value')],
     )
     def update_models_card_styles(dark_mode):
@@ -2783,6 +2788,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
         sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
         label_style = {'fontWeight': '500', 'fontSize': '0.9rem', 'color': theme['text_color']}
+        select_style = {
+            'backgroundColor': theme['card_color'] if dark_mode else '#fff',
+            'color': theme['text_color'],
+            'borderColor': '#555' if dark_mode else '#ced4da',
+        }
         return (
             card_color, card_color, card_color, card_color,
             card_style, card_style, card_style, card_style,
@@ -2791,17 +2801,22 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             sub_style, sub_style, sub_style, sub_style,
             card_color,
             label_style, label_style, {'color': theme['text_color']},
+            select_style,
         )
 
     # Update cards when CMIP generation changes
     @app.callback(
-        [Output('models-card-1-value', 'children'),
+        [Output('models-card-1-title', 'children'),
+         Output('models-card-1-value', 'children'),
          Output('models-card-1-sub', 'children'),
          Output('models-card-2-value', 'children'),
          Output('models-card-2-sub', 'children'),
+         Output('models-card-3-title', 'children'),
          Output('models-card-3-value', 'children'),
          Output('models-card-3-sub', 'children'),
-         Output('models-card-4-value', 'children')],
+         Output('models-card-4-title', 'children'),
+         Output('models-card-4-value', 'children'),
+         Output('models-card-4-sub', 'children')],
         [Input('models-cmip-gen', 'value')],
         prevent_initial_call=True,
     )
@@ -2811,16 +2826,21 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             raise PreventUpdate
         try:
             gen = cmip_gen or 'cmip6'
+            label = gen.upper()
             cmip_df = _get_cmip(gen)
-            cards = compute_model_obs_cards(cmip_df, _obs_models)
+            cards = compute_model_obs_cards(cmip_df, _obs_models, cmip_label=label)
             return (
-                cards.get('model_obs_diff', 'N/A'),
-                f"Models: {cards.get('model_recent_mean', 'N/A')} | Obs: {cards.get('obs_recent_mean', 'N/A')}",
+                f"{label} vs Observed",
+                cards.get('obs_warming', 'N/A'),
+                f"Models: {cards.get('model_warming', 'N/A')} ({cards.get('model_warming_range', 'N/A')})",
                 cards.get('obs_trend_1970', 'N/A'),
-                f"Models: {cards.get('model_trend_1970', 'N/A')}",
-                cards.get('obs_recent_trend', 'N/A'),
-                f"Model range: {cards.get('model_p05_2011', 'N/A')}–{cards.get('model_p95_2011', 'N/A')}°C/dec",
-                cards.get('percentile_rank', 'N/A'),
+                f"Models: {cards.get('model_trend_1970', 'N/A')} ({cards.get('model_range_1970', 'N/A')})",
+                f"{cards.get('start_25', '')}–Present Trend",
+                cards.get('obs_trend_25', 'N/A'),
+                f"Models: {cards.get('model_trend_25', 'N/A')} ({cards.get('model_range_25', 'N/A')})",
+                f"{cards.get('start_15', '')}–Present Trend",
+                cards.get('obs_trend_15', 'N/A'),
+                f"Models: {cards.get('model_trend_15', 'N/A')} ({cards.get('model_range_15', 'N/A')})",
             )
         except Exception as e:
             logger.error(f"Models cards update error: {e}")
