@@ -357,14 +357,6 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
     fig.add_hline(y=-0.5, line=dict(color="blue", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=0, line=dict(color="gray", width=0.5), opacity=0.4)
 
-    # ENSO background shading (use 100 so it always fills to axis edge)
-    fig.add_shape(type="rect", x0=0, x1=1, y0=0.5, y1=100,
-                  xref="paper", yref="y",
-                  fillcolor="red", opacity=0.04, line_width=0)
-    fig.add_shape(type="rect", x0=0, x1=1, y0=-100, y1=-0.5,
-                  xref="paper", yref="y",
-                  fillcolor="blue", opacity=0.04, line_width=0)
-
     # Counts for title
     n_models = means["model"].nunique() if not means.empty else 0
     n_total = sum(
@@ -380,6 +372,14 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
         all_vals.extend(obs_df["nino34_anom"].dropna().tolist())
     ymin = min(-3.0, min(all_vals) - 0.3) if all_vals else -3.0
     ymax = max(3.0, max(all_vals) + 0.3) if all_vals else 3.0
+
+    # ENSO background shading (use computed ymin/ymax so autorange stays bounded)
+    fig.add_shape(type="rect", x0=0, x1=1, y0=0.5, y1=ymax,
+                  xref="paper", yref="y",
+                  fillcolor="red", opacity=0.04, line_width=0)
+    fig.add_shape(type="rect", x0=0, x1=1, y0=ymin, y1=-0.5,
+                  xref="paper", yref="y",
+                  fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
         title=f"ENSO Nino3.4 Combined Forecast Plume ({n_models} models, {n_total} members)",
@@ -521,20 +521,20 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
     fig.add_hline(y=-0.5, line=dict(color="blue", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=0, line=dict(color="gray", width=0.5), opacity=0.4)
 
-    # ENSO background shading (use 100 so it always fills to axis edge)
-    fig.add_shape(type="rect", x0=0, x1=1, y0=0.5, y1=100,
-                  xref="paper", yref="y",
-                  fillcolor="red", opacity=0.04, line_width=0)
-    fig.add_shape(type="rect", x0=0, x1=1, y0=-100, y1=-0.5,
-                  xref="paper", yref="y",
-                  fillcolor="blue", opacity=0.04, line_width=0)
-
     tick_labels = [pd.Timestamp(tm + "-01").strftime("%b\n%Y") for tm in target_months]
 
     # Y-axis range
     all_vals = members["nino34_anom"].dropna().tolist()
     ymin = min(-3.0, min(all_vals) - 0.3) if all_vals else -3.0
     ymax = max(3.0, max(all_vals) + 0.3) if all_vals else 3.0
+
+    # ENSO background shading (use computed ymin/ymax so autorange stays bounded)
+    fig.add_shape(type="rect", x0=0, x1=1, y0=0.5, y1=ymax,
+                  xref="paper", yref="y",
+                  fillcolor="red", opacity=0.04, line_width=0)
+    fig.add_shape(type="rect", x0=0, x1=1, y0=ymin, y1=-0.5,
+                  xref="paper", yref="y",
+                  fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
         title=f"Nino3.4 Forecast Distribution ({len(models)} models, model-weighted box plot)",
