@@ -121,11 +121,14 @@ def update_data(force: bool = False) -> None:
             new_forecast.to_csv(snapshot_file, index=False)
             logger.info("Multi-model ENSO forecast snapshot initialised (first run)")
         else:
-            # Compare forecast values; use month order to handle year rollovers
+            # Compare forecast values; only flag a change if the largest
+            # monthly shift exceeds 0.05 °C (avoids spurious stars from
+            # tiny daily numerical drift across CFS/NMME/C3S updates).
             if len(old_snapshot) == len(new_forecast) and len(new_forecast) > 0:
                 old_vals = old_snapshot.sort_values('month')['oni'].reset_index(drop=True)
                 new_vals = new_forecast.sort_values('month')['oni'].reset_index(drop=True)
-                forecast_changed = not old_vals.equals(new_vals)
+                max_diff = (new_vals - old_vals).abs().max()
+                forecast_changed = max_diff >= 0.05
             else:
                 forecast_changed = True
             if forecast_changed:
