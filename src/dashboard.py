@@ -2180,6 +2180,24 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                             {'label': 'CMIP3 (2001–)', 'value': 'cmip3'},
                                         ],
                                         value='cmip6',
+                                        style={'color': '#000'},
+                                    ),
+                                ], md=4, sm=6, className="mb-2"),
+                                dbc.Col([
+                                    html.Label("Baseline", id='models-label-baseline',
+                                               className="mb-1",
+                                               style={'fontWeight': '500', 'fontSize': '0.9rem'}),
+                                    dbc.Select(
+                                        id='models-baseline',
+                                        options=[
+                                            {'label': '1850–1900 (pre-industrial)', 'value': '1850-1900'},
+                                            {'label': '1951–1980', 'value': '1951-1980'},
+                                            {'label': '1961–1990', 'value': '1961-1990'},
+                                            {'label': '1971–2000', 'value': '1971-2000'},
+                                            {'label': '1981–2010', 'value': '1981-2010'},
+                                        ],
+                                        value='1850-1900',
+                                        style={'color': '#000'},
                                     ),
                                 ], md=4, sm=6, className="mb-2"),
                                 dbc.Col([
@@ -2687,9 +2705,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('interactive-switch', 'value'),
          Input('models-cmip-gen', 'value'),
          Input('models-smoothing', 'value'),
+         Input('models-baseline', 'value'),
          Input('dark-mode-switch', 'value')],
     )
-    def update_models_timeseries(interactive, cmip_gen, smoothing, dark_mode):
+    def update_models_timeseries(interactive, cmip_gen, smoothing, baseline, dark_mode):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
@@ -2700,7 +2719,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             rolling = (smoothing == 'rolling')
-            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode, gen_label)
+            bl = baseline or '1850-1900'
+            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode, gen_label, bl)
         except Exception as e:
             logger.error(f"Models timeseries error: {e}")
             return go.Figure()
@@ -2775,9 +2795,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('models-card-4-sub', 'style'),
          Output('models-controls-card', 'color'),
          Output('models-label-gen', 'style'),
+         Output('models-label-baseline', 'style'),
          Output('models-label-smoothing', 'style'),
          Output('models-smoothing', 'labelStyle'),
-         Output('models-cmip-gen', 'style')],
+         Output('models-cmip-gen', 'style'),
+         Output('models-baseline', 'style')],
         [Input('dark-mode-switch', 'value')],
     )
     def update_models_card_styles(dark_mode):
@@ -2790,7 +2812,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         label_style = {'fontWeight': '500', 'fontSize': '0.9rem', 'color': theme['text_color']}
         select_style = {
             'backgroundColor': theme['card_color'] if dark_mode else '#fff',
-            'color': theme['text_color'],
+            'color': theme['text_color'] if dark_mode else '#000',
             'borderColor': '#555' if dark_mode else '#ced4da',
         }
         return (
@@ -2800,8 +2822,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             value_style, value_style, value_style, value_style,
             sub_style, sub_style, sub_style, sub_style,
             card_color,
-            label_style, label_style, {'color': theme['text_color']},
-            select_style,
+            label_style, label_style, label_style, {'color': theme['text_color']},
+            select_style, select_style,
         )
 
     # Update cards when CMIP generation changes

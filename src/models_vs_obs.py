@@ -59,7 +59,7 @@ OBS_COLORS = {
     'dark': {
         'hadcrut5':   '#ff6b6b',   # coral
         'gistemp':    '#ff9f43',   # amber
-        'noaa':       '#55efc4',   # mint
+        'noaa':       '#2ed573',   # green
         'berkeley':   '#a29bfe',   # lavender
         'copernicus': '#fd79a8',   # pink
         'era5_daily': '#74b9ff',   # sky blue
@@ -216,46 +216,25 @@ def _import_berkeley() -> pd.DataFrame:
 
 
 def _import_copernicus() -> pd.DataFrame:
-    """Import Copernicus ERA5 monthly (with cascading fallback URLs)."""
-    today = datetime.today()
-    ssl._create_default_https_context = ssl._create_unverified_context
+    """Derive monthly Copernicus/ERA5 anomalies from the local ERA5 daily CSV.
 
-    def _url(year, month):
-        m = str(month).zfill(2)
-        return (
-            f'https://climate.copernicus.eu/sites/default/files/ftp-data/temperature/'
-            f'{year}/{m}/ERA5_1991-2020/ts_1month_anomaly_Global_ERA5_2t_'
-            f'{year}{m}_1991-2020_v01.1.csv'
-        )
-
-    for yr, mo in [(today.year, today.month), (today.year, today.month - 1)]:
-        if mo < 1:
-            yr -= 1
-            mo = 12
-        try:
-            df = pd.read_csv(_url(yr, mo), header=7)
-            df.columns = ['date', 'copernicus', 'copernicus_europe']
-            df['year']  = df['date'].astype(str).str[:4].astype(int)
-            df['month'] = df['date'].astype(str).str[4:6].astype(int)
-            df['copernicus'] = pd.to_numeric(df['copernicus'], errors='coerce')
-            return df[['year','month','copernicus']].dropna().reset_index(drop=True)
-        except Exception:
-            continue
-
-    # Hard-coded fallback
+    The daily file (1991-2020 baseline, back to 1940) is already fetched for the
+    Global Temperature tab, so we aggregate to monthly means instead of scraping
+    the Copernicus website.
+    """
+    era5_csv = DATA_DIR.parent / 'era5_daily_series_2t_global.csv'
     try:
-        df = pd.read_csv(
-            'https://climate.copernicus.eu/sites/default/files/ftp-data/temperature/'
-            '2025/12/ERA5_1991-2020/ts_1month_anomaly_Global_ERA5_2t_202512_1991-2020_v01.1.csv',
-            header=7)
-        df.columns = ['date', 'copernicus', 'copernicus_europe']
-        df['year']  = df['date'].astype(str).str[:4].astype(int)
-        df['month'] = df['date'].astype(str).str[4:6].astype(int)
-        df['copernicus'] = pd.to_numeric(df['copernicus'], errors='coerce')
-        return df[['year','month','copernicus']].dropna().reset_index(drop=True)
+        df = pd.read_csv(era5_csv, comment='#')
+        df['date'] = pd.to_datetime(df['date'])
+        df['year']  = df['date'].dt.year
+        df['month'] = df['date'].dt.month
+        df['ano_91-20'] = pd.to_numeric(df['ano_91-20'], errors='coerce')
+        monthly = df.groupby(['year', 'month'])['ano_91-20'].mean().reset_index()
+        monthly.rename(columns={'ano_91-20': 'copernicus'}, inplace=True)
+        return monthly[['year', 'month', 'copernicus']].dropna().reset_index(drop=True)
     except Exception as e:
-        logger.warning(f"Copernicus import failed: {e}")
-        return pd.DataFrame(columns=['year','month','copernicus'])
+        logger.warning(f"Copernicus/ERA5 daily import failed: {e}")
+        return pd.DataFrame(columns=['year', 'month', 'copernicus'])
 
 
 def _rebaseline(df: pd.DataFrame, col: str, start: int = 1981, end: int = 2010) -> pd.DataFrame:
@@ -639,22 +618,38 @@ def create_models_vs_obs_timeseries(
     rolling: bool = False,
     dark_mode: bool = False,
     gen_label: str = 'CMIP6',
+    baseline: str = '1850-1900',
 ) -> go.Figure:
     """
     Visualization 1: Model envelope vs. all observational datasets, 1900-2040.
+
+    baseline: one of '1850-1900', '1951-1980', '1961-1990', '1971-2000', '1981-2010'.
     """
     from src.dashboard import get_theme
     theme = get_theme(dark_mode)
     mc    = MODEL_COLORS['dark' if dark_mode else 'light']
     oc    = OBS_COLORS['dark' if dark_mode else 'light']
 
-    stats = compute_ensemble_stats(cmip_df)
+    bl_start, bl_end = (int(x) for x in baseline.split('-'))
+
+    stats = compute_ensemble_stats(cmip_df, baseline_start=bl_start, baseline_end=bl_end)
 
     # Filter to 1900-2040
     stats = stats[(stats['date'].dt.year >= 1900) & (stats['date'].dt.year <= 2040)]
 
     if rolling:
         stats = stats.set_index('date').rolling(12, min_periods=6).mean().reset_index()
+
+    # Rebaseline obs from 1850-1900 to the selected baseline
+    obs_cols_ordered = ['hadcrut5','gistemp','noaa','berkeley','copernicus']
+    obs_to_plot = obs_df.copy()
+    if baseline != '1850-1900':
+        bl_mask = (obs_to_plot['date'].dt.year >= bl_start) & (obs_to_plot['date'].dt.year <= bl_end)
+        for c in obs_cols_ordered:
+            if c in obs_to_plot.columns:
+                bl_mean = obs_to_plot.loc[bl_mask, c].mean()
+                if not np.isnan(bl_mean):
+                    obs_to_plot[c] = obs_to_plot[c] - bl_mean
 
     fig = go.Figure()
 
@@ -681,7 +676,6 @@ def create_models_vs_obs_timeseries(
     ))
 
     # Observational datasets
-    obs_cols_ordered = ['hadcrut5','gistemp','noaa','berkeley','copernicus']
     obs_labels = {
         'hadcrut5':   'HadCRUT5',
         'gistemp':    'GISTEMP v4',
@@ -689,7 +683,6 @@ def create_models_vs_obs_timeseries(
         'berkeley':   'Berkeley Earth',
         'copernicus': 'Copernicus/ERA5',
     }
-    obs_to_plot = obs_df.copy()
     if rolling:
         for c in obs_cols_ordered:
             if c in obs_to_plot.columns:
@@ -707,15 +700,17 @@ def create_models_vs_obs_timeseries(
             hovertemplate='%{y:.2f}°C<extra>' + obs_labels[col] + '</extra>',
         ))
 
-    # 1.5°C reference line
-    fig.add_hline(y=1.5, line_dash='dash',
-                  line_color=theme.get('threshold_color', 'orange'),
-                  annotation_text='1.5°C', annotation_position='top left',
-                  annotation_font_color=theme['text_color'])
+    # 1.5°C reference line (only meaningful for 1850-1900 baseline)
+    if baseline == '1850-1900':
+        fig.add_hline(y=1.5, line_dash='dash',
+                      line_color=theme.get('threshold_color', 'orange'),
+                      annotation_text='1.5°C', annotation_position='top left',
+                      annotation_font_color=theme['text_color'])
 
+    bl_label = f'{bl_start}\u2013{bl_end}'
     layout = _base_layout(theme, f'Climate Models vs. Observations ({gen_label})', height=520)
     layout.update(
-        yaxis_title='Temperature anomaly (°C, rel. 1850–1900)',
+        yaxis_title=f'Temperature anomaly (\u00b0C, rel. {bl_label})',
         xaxis=dict(
             gridcolor=theme['grid_color'], showgrid=True,
             rangeslider=dict(visible=True, thickness=0.05),

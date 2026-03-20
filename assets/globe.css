@@ -4,6 +4,12 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Force dbc.Select text color to respect inline style */
+#models-cmip-gen.form-select,
+#models-baseline.form-select {
+    color: inherit !important;
+}
+
 /* ========================================
    DROPDOWN DARK THEME - SCOPED TO .dark-dropdown
    ======================================== */
