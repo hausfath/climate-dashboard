@@ -1606,10 +1606,22 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         except Exception:
             pass
 
+    # Daily anomaly rank vs same day-of-year in all historical years
+    daily_rank_str = None
+    try:
+        doy = latest_date.dayofyear
+        hist_doy = df_adj[(df_adj['day_of_year'] == doy) & (df_adj['year'] < current_year)]
+        if len(hist_doy) > 0:
+            daily_rank = int((hist_doy['anomaly'] > latest_row['anomaly']).sum()) + 1
+            daily_rank_str = "Record warmest" if daily_rank == 1 else f"{ordinal(daily_rank)} warmest"
+    except Exception:
+        pass
+
     return {
         'latest_date': latest_date.strftime('%Y-%m-%d'),
         'latest_temp': f"{latest_row['temperature']:.2f}°C",
         'latest_anomaly': f"{latest_row['anomaly']:+.2f}°C",
+        'daily_rank': daily_rank_str,
         'ytd_anomaly': f"{ytd_mean_anomaly:+.2f}°C",
         'prev_year_anomaly': f"{prev_year_mean:+.2f}°C",
         'month_name': month_name,
@@ -1831,7 +1843,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             dbc.CardBody([
                                 html.H4("Latest Anomaly", className="card-title", id='card-2-title', style={'fontSize': '1rem'}),
                                 html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                html.Small(f"Absolute: {stats['latest_temp']}", id='card-2-sub')
+                                html.Small(f"{stats['daily_rank']} for this day" if stats['daily_rank'] else f"Absolute: {stats['latest_temp']}", id='card-2-sub')
                             ], id='card-2-body', className="p-2 p-md-3")
                         ], id='card-2', className="h-100")
                     ], xs=6, md=3),
