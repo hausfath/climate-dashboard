@@ -42,7 +42,7 @@ def load_enso_forecast_data():
     Returns (forecast_df, obs_df, oni_df).
     """
     try:
-        forecast_df = load_all_forecasts(sources=["CFS", "NMME", "C3S"])
+        forecast_df = load_all_forecasts(sources=["CFS", "NMME", "C3S", "CanSIPS"])
     except Exception as e:
         logger.error(f"Failed to load ENSO forecasts: {e}")
         forecast_df = pd.DataFrame()
@@ -289,6 +289,13 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
         fig.update_layout(title="No forecast data available")
         return fig
 
+    # Limit to target months with at least 3 distinct models reporting
+    if not means.empty:
+        models_per_month = means.groupby("target_month")["model"].nunique()
+        valid_months = models_per_month[models_per_month >= 3].index
+        means = means[means["target_month"].isin(valid_months)].copy()
+        members = members[members["target_month"].isin(valid_months)].copy()
+
     # -- Ensemble members as thin lines per model (None-separated for efficiency) --
     if not members.empty:
         members["date"] = members["target_month"].apply(_target_month_to_date)
@@ -420,6 +427,11 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
     if members.empty:
         fig.update_layout(title="No member data available")
         return fig
+
+    # Limit to target months with at least 3 distinct models reporting
+    models_per_month = members.groupby("target_month")["model"].nunique()
+    valid_months = models_per_month[models_per_month >= 3].index
+    members = members[members["target_month"].isin(valid_months)].copy()
 
     members["date"] = members["target_month"].apply(_target_month_to_date)
 
@@ -605,6 +617,13 @@ def create_enso_historical_context(forecast_df, dark_mode=False):
             mega = _build_mega_df(forecast_only)
             means = mega[mega["member_id"] == "mean"].copy()
             fc_members = mega[mega["member_id"] != "mean"].copy()
+
+            # Limit to months with at least 3 distinct models reporting
+            if not means.empty:
+                models_per_month = means.groupby("target_month")["model"].nunique()
+                valid_months = models_per_month[models_per_month >= 3].index
+                means = means[means["target_month"].isin(valid_months)].copy()
+                fc_members = fc_members[fc_members["target_month"].isin(valid_months)].copy()
 
             if not means.empty:
                 mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()

@@ -842,10 +842,12 @@ def plot_distribution(
 # --- Deduplication rules for the mega plume ---
 # (source, model) pairs to DROP because they duplicate another source's version
 MEGA_PLUME_DROP = {
-    ("NMME", "NCEP-CFSv2"),   # use CFS/CFSv2 instead
-    ("NMME", "NMME"),          # overall mean, not a distinct model
-    ("C3S", "NCEP"),           # CFSv2 duplicate
-    ("C3S", "ECCC"),           # same as NMME/ECCC-GEM5.2-NEMO
+    ("NMME", "NCEP-CFSv2"),        # use CFS/CFSv2 instead
+    ("NMME", "NMME"),               # overall mean, not a distinct model
+    ("C3S", "NCEP"),                # CFSv2 duplicate
+    ("C3S", "ECCC"),                # replaced by CanSIPS direct source
+    ("NMME", "ECCC-CanESM5"),       # replaced by CanSIPS (more recent init)
+    ("NMME", "ECCC-GEM5.2-NEMO"),   # replaced by CanSIPS (more recent init)
 }
 
 # Distinct color per model for the mega plume
@@ -856,8 +858,8 @@ MEGA_COLORS = {
     "DWD": "#ff7f0e",
     "CMCC": "#9467bd",
     "BOM": "#e377c2",
-    "ECCC-CanESM5": "#17becf",
-    "ECCC-GEM5.2-NEMO": "#bcbd22",
+    "CanSIPS-CanESM5": "#17becf",
+    "CanSIPS-GEM-NEMO": "#bcbd22",
     "NCAR-CESM1": "#8c564b",
     "NCAR-CCSM4": "#7f7f7f",
     "NASA-GEOS-S2S-2": "#aec7e8",

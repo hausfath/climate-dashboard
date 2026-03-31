@@ -15,5 +15,7 @@ kaleido>=0.2.0
 cdsapi>=0.7.7
 xarray>=2023.1.0
 netCDF4>=1.6.0
+cfgrib>=0.9.10
+eccodes>=2.30.0
 regionmask>=0.13.0
 geopandas>=0.14.0

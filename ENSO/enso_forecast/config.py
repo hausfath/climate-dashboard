@@ -39,6 +39,10 @@ NMME_BASE_URL = "https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/ENSMEAN/"
 OBSERVED_SSTOI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices"
 OBSERVED_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 
+# --- CanSIPS (MSC Datamart) ---
+CANSIPS_GRIB_BASE = "https://dd.weather.gc.ca/today/model_cansips/100km/forecast"
+CANSIPS_CSV_BASE = "https://dd.weather.gc.ca/today/ensemble/cansips/csv/indices/forecast/monthly"
+
 # --- Nino3.4 Region ---
 NINO34_LAT_BOUNDS = (-5.0, 5.0)
 NINO34_LON_BOUNDS_180 = (-170.0, -120.0)  # -180 to 180 convention
@@ -119,8 +123,11 @@ MODEL_CANONICAL_MAP = {
     ("IRI", "NASA GMAO"): "NASA-GEOS",
     ("NMME", "NASA-GEOS-S2S-2"): "NASA-GEOS",
     ("IRI", "CMC CANSIP"): "ECCC-CanESM",
-    ("NMME", "ECCC-CanESM5"): "ECCC-CanESM",
-    ("C3S", "ECCC"): "ECCC-CanESM",
+    ("NMME", "ECCC-CanESM5"): "ECCC-CanESM5",
+    ("CanSIPS", "CanSIPS-CanESM5"): "ECCC-CanESM5",
+    ("NMME", "ECCC-GEM5.2-NEMO"): "ECCC-GEM-NEMO",
+    ("CanSIPS", "CanSIPS-GEM-NEMO"): "ECCC-GEM-NEMO",
+    ("C3S", "ECCC"): "ECCC-CanSIPS",
 }
 
 # Preferred source per canonical model for deduplication
@@ -132,7 +139,8 @@ DEDUP_PREFERENCE = {
     "BOM-ACCESS": ("C3S", "BOM"),
     "Meteo-France": ("C3S", "Meteo-France"),
     "NASA-GEOS": ("NMME", "NASA-GEOS-S2S-2"),
-    "ECCC-CanESM": ("C3S", "ECCC"),
+    "ECCC-CanESM5": ("CanSIPS", "CanSIPS-CanESM5"),
+    "ECCC-GEM-NEMO": ("CanSIPS", "CanSIPS-GEM-NEMO"),
 }
 
 # --- HTTP request settings ---

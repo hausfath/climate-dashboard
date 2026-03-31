@@ -223,7 +223,7 @@ def load_all_forecasts(
             init_date falls in that month.
     """
     if sources is None:
-        sources = ["IRI", "CFS", "NMME", "C3S"]
+        sources = ["IRI", "CFS", "NMME", "C3S", "CanSIPS"]
 
     dfs = []
     for src in sources:

@@ -33,6 +33,7 @@ def update_enso_forecasts(force: bool = False) -> None:
     from enso_forecast.fetchers.nmme import save_nmme
     from enso_forecast.fetchers.c3s import save_c3s
     from enso_forecast.fetchers.iri import save_iri
+    from enso_forecast.fetchers.cansips import save_cansips
     from enso_forecast.config import FORECASTS_DIR
 
     sources = [
@@ -40,6 +41,7 @@ def update_enso_forecasts(force: bool = False) -> None:
         ("CFS", save_cfs),
         ("NMME", save_nmme),
         ("C3S", save_c3s),
+        ("CanSIPS", save_cansips),
         ("IRI", save_iri),
     ]
 
@@ -47,7 +49,7 @@ def update_enso_forecasts(force: bool = False) -> None:
         try:
             # Monthly sources: skip if we already have a file from the current month
             # (C3S in particular takes ~30 min via CDS API)
-            if name in ("NMME", "C3S", "IRI") and not force:
+            if name in ("NMME", "C3S", "CanSIPS", "IRI") and not force:
                 src_dir = FORECASTS_DIR / name
                 if src_dir.exists():
                     current_month_prefix = date.today().strftime("%Y-%m")
