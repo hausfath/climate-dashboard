@@ -2397,7 +2397,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     }
     _TAB_SUBTITLES = {
         'global': 'ERA5 Daily Global Mean 2m Temperature',
-        'enso': 'ENSO Forecasts Compiled from CFS, NMME, and C3S',
+        'enso': 'ENSO Forecasts Compiled from CFS, NMME, C3S, and CanSIPS',
         'models': 'CMIP3, CMIP5, and CMIP6 Models vs Observations',
     }
 
