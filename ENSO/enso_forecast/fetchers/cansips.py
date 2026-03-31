@@ -31,8 +31,11 @@ _CSV_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAI", "JUN",
                "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 # Member ranges per sub-model in the 1-degree GRIB2 files
-_GEM_NEMO_MEMBERS = range(1, 21)    # perturbation numbers 1-20
-_CANESM5_MEMBERS = range(21, 41)    # perturbation numbers 21-40
+# Verified by comparing spread patterns with NMME's separate model files:
+# GEM-NEMO is the warmer model (matching NMME GEM5.2-NEMO) = members 21-40
+# CanESM5 is the cooler model (matching NMME CanESM5) = members 1-20
+_CANESM5_MEMBERS = range(1, 21)     # perturbation numbers 1-20
+_GEM_NEMO_MEMBERS = range(21, 41)   # perturbation numbers 21-40
 
 
 def _download_file(url: str, dest: Path) -> bool:
