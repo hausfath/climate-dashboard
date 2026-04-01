@@ -2041,7 +2041,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                 dbc.CardBody([
                                     html.H4("Forecast Sources", className="card-title",
                                             id='enso-card-3-title', style={'fontSize': '1rem'}),
-                                    html.P("CFS, NMME, C3S" if _ENSO_AVAILABLE else "N/A",
+                                    html.P("CFS, NMME, C3S, CanSIPS" if _ENSO_AVAILABLE else "N/A",
                                            className="card-text", id='enso-card-3-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                                     html.Small(
