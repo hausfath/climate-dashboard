@@ -62,10 +62,11 @@ def update_enso_forecasts(force: bool = False) -> None:
             fetch_fn(force=force)
 
             # Clean up old dated CSVs, keep only the latest
+            # Only clean up if the latest file has real data (> 10 bytes)
             if name != "observed":  # observed uses fixed filenames
                 src_dir = FORECASTS_DIR / name
                 csvs = sorted(src_dir.glob("*.csv"))
-                if len(csvs) > 1:
+                if len(csvs) > 1 and csvs[-1].stat().st_size > 10:
                     for old in csvs[:-1]:
                         old.unlink()
                         logger.info(f"Removed old {name} file: {old.name}")
