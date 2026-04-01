@@ -210,19 +210,29 @@ def fetch_cansips(
     if month is None:
         month = date.today().month
 
+    # CanSIPS is initialized at end-of-month, so data for the current month
+    # may not be available yet (especially early in the month). Try the
+    # current month first, then fall back to the previous month.
     init_dt = _get_init_date(year, month)
+    csv_anomalies = None
+    try:
+        csv_anomalies = _fetch_ensemble_mean_csv(init_dt)
+    except Exception as e:
+        logger.warning("CanSIPS CSV not available for %s: %s. Trying previous month.", init_dt, e)
+        prev = pd.Timestamp(f"{year}-{month:02d}-01") - pd.DateOffset(months=1)
+        year, month = prev.year, prev.month
+        init_dt = _get_init_date(year, month)
+        try:
+            csv_anomalies = _fetch_ensemble_mean_csv(init_dt)
+        except Exception as e2:
+            logger.error("Failed to fetch CanSIPS CSV for %s: %s", init_dt, e2)
+            return pd.DataFrame()
+
     init_date_str = init_dt.isoformat()
     yyyymm = f"{year}{month:02d}"
 
     raw_dir = RAW_DIR / "cansips" / yyyymm
     raw_dir.mkdir(parents=True, exist_ok=True)
-
-    # Step 1: Fetch ensemble mean CSV anomalies
-    try:
-        csv_anomalies = _fetch_ensemble_mean_csv(init_dt)
-    except Exception as e:
-        logger.error("Failed to fetch CanSIPS CSV: %s", e)
-        return pd.DataFrame()
 
     # Step 2: Download and process GRIB2 files for each lead month
     all_records = []
@@ -332,6 +342,9 @@ def save_cansips(force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_path)
 
     df = fetch_cansips()
+    if df.empty:
+        logger.warning("CanSIPS fetch returned no data, keeping existing file")
+        return df
     df.to_csv(out_path, index=False)
     logger.info("Saved CanSIPS data to %s", out_path)
     return df

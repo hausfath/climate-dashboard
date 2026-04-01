@@ -203,10 +203,13 @@ def load_source_forecasts(source: str, fetch_date: str | None = None) -> pd.Data
         logger.warning("No data for %s on %s", source, fetch_date)
         return pd.DataFrame()
 
-    # Use latest
-    latest = csv_files[-1]
-    logger.info("Loading %s from %s", source, latest.name)
-    return pd.read_csv(latest)
+    # Use latest non-empty file
+    for latest in reversed(csv_files):
+        if latest.stat().st_size > 10:  # skip empty/trivial files
+            logger.info("Loading %s from %s", source, latest.name)
+            return pd.read_csv(latest)
+    logger.warning("No non-empty CSV files for source %s", source)
+    return pd.DataFrame()
 
 
 def load_all_forecasts(
