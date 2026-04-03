@@ -33,8 +33,8 @@ OBS_CACHE = DATA_DIR / 'combined_obs_1981_2010.csv'
 GISTEMP_URL = 'https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.txt'
 def _noaa_url():
     return f'https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/global/time-series/globe/land_ocean/tavg/1/0/1850-{datetime.today().year}/data.csv'
-HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.0.2.0/analysis/diagnostics/HadCRUT.5.0.2.0.analysis.summary_series.global.monthly.csv'
-BERKELEY_URL = 'https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_complete.txt'
+HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.1.0.0/analysis/diagnostics/HadCRUT.5.1.0.0.analysis.summary_series.global.monthly.csv'
+BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/global/Global_TAVG_monthly.txt'
 
 # ── Rebaseline offsets: shift from 1981-2010 baseline to 1850-1900 ────────────
 # Computed from existing combined_obs_1981_2010.csv (mean of 1850-1900 period)
@@ -42,8 +42,8 @@ PREINDUSTRIAL_OFFSETS = {
     'hadcrut5': -0.7021,
     'gistemp':  -0.6398,
     'noaa':     -0.5991,
-    'berkeley': -0.7044,
-    'copernicus': -0.7044,  # Proxy: use Berkeley offset (no pre-1950 data)
+    'berkeley': -0.6903,
+    'copernicus': -0.6903,  # Proxy: use Berkeley offset (no pre-1950 data)
 }
 
 # ── Theme colors for this tab ─────────────────────────────────────────────────
