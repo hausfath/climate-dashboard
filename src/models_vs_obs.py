@@ -43,7 +43,7 @@ PREINDUSTRIAL_OFFSETS = {
     'gistemp':  -0.6398,
     'noaa':     -0.5991,
     'berkeley': -0.6903,
-    'copernicus': -0.6903,  # Proxy: use Berkeley offset (no pre-1950 data)
+    'copernicus': -0.6611,  # Average of HadCRUT5/Berkeley/NOAA (records extending to 1850)
 }
 
 # ── Theme colors for this tab ─────────────────────────────────────────────────
