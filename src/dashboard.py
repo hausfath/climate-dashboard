@@ -1358,14 +1358,14 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
                     x=marker_x,
                     y=marker_y,
                     mode='markers',
-                    name='ENSO Forecast Update',
+                    name='Major ENSO Forecast Update',
                     marker=dict(
                         symbol='star',
                         size=14,
                         color=theme['enso_update_color'],
                         line=dict(width=1, color=theme['text_color'])
                     ),
-                    hovertemplate='%{x|%b %d}<br>ENSO Forecast Updated<br>Projection: %{y:.2f}°C<extra></extra>'
+                    hovertemplate='%{x|%b %d}<br>Major ENSO Forecast Update<br>Projection: %{y:.2f}°C<extra></extra>'
                 ))
 
     # Add 1.5°C reference line
