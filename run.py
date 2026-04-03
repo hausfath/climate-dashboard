@@ -113,45 +113,56 @@ def update_data(force: bool = False) -> None:
         new_forecast['oni'] = new_forecast['oni'].round(3)
         new_forecast = new_forecast.sort_values(['year', 'month']).reset_index(drop=True)
 
-        # Load previous snapshot
-        old_snapshot = None
-        if snapshot_file.exists():
-            old_snapshot = pd.read_csv(snapshot_file)
-            old_snapshot['oni'] = old_snapshot['oni'].round(3)
-            old_snapshot = old_snapshot.sort_values(['year', 'month']).reset_index(drop=True)
-
-        if old_snapshot is None:
-            new_forecast.to_csv(snapshot_file, index=False)
-            logger.info("Multi-model ENSO forecast snapshot initialised (first run)")
+        # Guard: don't save empty snapshots (fetch failure)
+        if new_forecast.empty:
+            logger.warning("ENSO forecast snapshot is empty — skipping snapshot update")
         else:
-            # Compare forecast values; only flag a change if the largest
-            # monthly shift exceeds 0.1 °C (avoids spurious stars from
-            # daily numerical drift across CFS/NMME/C3S updates).
-            if len(old_snapshot) == len(new_forecast) and len(new_forecast) > 0:
-                old_vals = old_snapshot.sort_values('month')['oni'].reset_index(drop=True)
-                new_vals = new_forecast.sort_values('month')['oni'].reset_index(drop=True)
-                max_diff = (new_vals - old_vals).abs().max()
-                forecast_changed = max_diff >= 0.1
-            else:
-                forecast_changed = True
-            if forecast_changed:
+            # Load previous snapshot
+            old_snapshot = None
+            if snapshot_file.exists():
+                old_snapshot = pd.read_csv(snapshot_file)
+                if old_snapshot.empty or 'oni' not in old_snapshot.columns:
+                    old_snapshot = None
+                else:
+                    old_snapshot['oni'] = old_snapshot['oni'].round(3)
+                    old_snapshot = old_snapshot.sort_values(['year', 'month']).reset_index(drop=True)
+
+            if old_snapshot is None:
                 new_forecast.to_csv(snapshot_file, index=False)
-                updates_file = DATA_DIR / "enso_forecast_updates.csv"
-                today_str = datetime.now().strftime('%Y-%m-%d')
-                if updates_file.exists():
-                    updates_df = pd.read_csv(updates_file)
-                    if today_str not in updates_df['date'].values:
-                        updates_df = pd.concat(
-                            [updates_df, pd.DataFrame({'date': [today_str]})],
-                            ignore_index=True
-                        )
-                        updates_df.to_csv(updates_file, index=False)
+                logger.info("Multi-model ENSO forecast snapshot initialised (first run)")
+            else:
+                # Compare forecast values on months present in both snapshots;
+                # only flag a change if the largest monthly shift exceeds 0.1 °C
+                # (avoids spurious stars from daily numerical drift).
+                # Only consider months with ≥3 models (build_enso_combined
+                # already filters to these, but guard against edge cases).
+                merged = old_snapshot.merge(new_forecast, on=['year', 'month'],
+                                           suffixes=('_old', '_new'))
+                if len(merged) > 0:
+                    max_diff = (merged['oni_new'] - merged['oni_old']).abs().max()
+                    forecast_changed = max_diff >= 0.1
+                else:
+                    # No overlapping months — likely a major composition change
+                    forecast_changed = True
+
+                if forecast_changed:
+                    new_forecast.to_csv(snapshot_file, index=False)
+                    updates_file = DATA_DIR / "enso_forecast_updates.csv"
+                    today_str = datetime.now().strftime('%Y-%m-%d')
+                    if updates_file.exists():
+                        updates_df = pd.read_csv(updates_file)
+                        if today_str not in updates_df['date'].values:
+                            updates_df = pd.concat(
+                                [updates_df, pd.DataFrame({'date': [today_str]})],
+                                ignore_index=True
+                            )
+                            updates_df.to_csv(updates_file, index=False)
+                            logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
+                    else:
+                        pd.DataFrame({'date': [today_str]}).to_csv(updates_file, index=False)
                         logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
                 else:
-                    pd.DataFrame({'date': [today_str]}).to_csv(updates_file, index=False)
-                    logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
-            else:
-                logger.info("Multi-model ENSO forecast unchanged")
+                    logger.info("Multi-model ENSO forecast unchanged")
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 

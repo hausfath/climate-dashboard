@@ -241,6 +241,9 @@ def save_iri(force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_path)
 
     df = fetch_iri()
+    if df.empty:
+        logger.warning("IRI fetch returned no data, keeping existing file")
+        return df
     df.to_csv(out_path, index=False)
     logger.info("Saved IRI forecasts to %s", out_path)
     return df

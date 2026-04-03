@@ -349,6 +349,9 @@ def save_nmme(force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_path)
 
     df = fetch_nmme(include_members=True)
+    if df.empty:
+        logger.warning("NMME fetch returned no data, keeping existing file")
+        return df
     df.to_csv(out_path, index=False)
     logger.info("Saved NMME data to %s", out_path)
     return df

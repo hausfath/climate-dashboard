@@ -105,6 +105,11 @@ def build_enso_combined(oni_df, forecast_df):
             mega = _build_mega_df(forecast_only)
             means = mega[mega["member_id"] == "mean"].copy()
             if not means.empty:
+                # Only include months with ≥3 models reporting
+                models_per_month = means.groupby("target_month")["model"].nunique()
+                valid_months = models_per_month[models_per_month >= 3].index
+                means = means[means["target_month"].isin(valid_months)]
+
                 mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")

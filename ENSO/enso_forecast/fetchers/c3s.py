@@ -309,6 +309,9 @@ def save_c3s(force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_path)
 
     df = fetch_c3s(include_members=True)
+    if df.empty:
+        logger.warning("C3S fetch returned no data, keeping existing file")
+        return df
     df.to_csv(out_path, index=False)
     logger.info("Saved C3S data to %s", out_path)
     return df

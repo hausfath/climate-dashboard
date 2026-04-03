@@ -248,6 +248,9 @@ def save_cfs(force: bool = False) -> pd.DataFrame:
         return pd.read_csv(out_path)
 
     df = fetch_cfs(e3_only=True)
+    if df.empty:
+        logger.warning("CFS fetch returned no data, keeping existing file")
+        return df
     df.to_csv(out_path, index=False)
     logger.info("Saved CFS data to %s", out_path)
     return df

@@ -1346,8 +1346,13 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             for upd_date in relevant['date']:
                 match = history[history['date'].dt.date == upd_date.date()]
                 if len(match) > 0:
+                    pred = match['prediction'].values[0]
+                    # Only show marker if projection shifted >0.015°C vs prior day
+                    prev = history[history['date'].dt.date == (upd_date - pd.Timedelta(days=1)).date()]
+                    if len(prev) > 0 and abs(pred - prev['prediction'].values[0]) <= 0.015:
+                        continue
                     marker_x.append(upd_date)
-                    marker_y.append(match['prediction'].values[0])
+                    marker_y.append(pred)
             if marker_x:
                 fig.add_trace(go.Scatter(
                     x=marker_x,
