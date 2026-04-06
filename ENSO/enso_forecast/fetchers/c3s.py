@@ -188,8 +188,21 @@ def _extract_records(
     return records
 
 
-def _fetch_c3s_month(year: int, month: int, include_members: bool) -> list[dict]:
-    """Fetch C3S data for a specific init month. Returns list of record dicts."""
+def _fetch_c3s_month(
+    year: int,
+    month: int,
+    include_members: bool,
+    only_models: set[str] | None = None,
+) -> tuple[list[dict], set[str]]:
+    """Fetch C3S data for a specific init month.
+
+    Args:
+        only_models: If provided, only fetch these model names.
+
+    Returns:
+        (records, succeeded_models) — the fetched records and the set of
+        model names that returned data.
+    """
     import cdsapi
 
     init_date = f"{year}-{month:02d}-01"
@@ -199,8 +212,11 @@ def _fetch_c3s_month(year: int, month: int, include_members: bool) -> list[dict]
     client = cdsapi.Client(url=CDS_API_URL, key=CDS_API_KEY)
     product_type = "monthly_mean" if include_members else "ensemble_mean"
     all_records = []
+    succeeded_models: set[str] = set()
 
     for model_name, model_info in C3S_MODELS.items():
+        if only_models is not None and model_name not in only_models:
+            continue
         logger.info("Fetching C3S %s (system %s, %s)...",
                      model_name, model_info["system"], product_type)
 
@@ -235,6 +251,7 @@ def _fetch_c3s_month(year: int, month: int, include_members: bool) -> list[dict]
 
             model_records = _extract_records(nino34, model_name, init_date)
             all_records.extend(model_records)
+            succeeded_models.add(model_name)
 
             n_members = 0
             for dim in nino34.dims:
@@ -255,7 +272,7 @@ def _fetch_c3s_month(year: int, month: int, include_members: bool) -> list[dict]
             logger.warning("Error processing C3S %s: %s", model_name, e)
             continue
 
-    return all_records
+    return all_records, succeeded_models
 
 
 def fetch_c3s(
@@ -265,8 +282,8 @@ def fetch_c3s(
 ) -> pd.DataFrame:
     """Fetch C3S seasonal forecasts for all configured models.
 
-    Tries the current month first; falls back to previous month if
-    the current month's data is not yet available on CDS.
+    Tries the current month first for each model; for any models whose
+    data is not yet available, falls back to the previous month.
 
     Returns DataFrame in standard forecast schema.
     """
@@ -287,14 +304,27 @@ def fetch_c3s(
     if month is None:
         month = date.today().month
 
-    # Try current month first; fall back to previous month if not available
-    all_records = _fetch_c3s_month(year, month, include_members)
+    # Try current month for all models
+    all_records, succeeded = _fetch_c3s_month(year, month, include_members)
 
-    if not all_records:
+    # Fall back to previous month for any models that didn't return data
+    missing = set(C3S_MODELS.keys()) - succeeded
+    if missing:
         prev = pd.Timestamp(f"{year}-{month:02d}-01") - pd.DateOffset(months=1)
-        logger.info("C3S data not available for %d-%02d, trying %d-%02d",
-                     year, month, prev.year, prev.month)
-        all_records = _fetch_c3s_month(prev.year, prev.month, include_members)
+        logger.info(
+            "C3S: %d models missing for %d-%02d (%s), falling back to %d-%02d",
+            len(missing), year, month, ", ".join(sorted(missing)),
+            prev.year, prev.month,
+        )
+        prev_records, prev_succeeded = _fetch_c3s_month(
+            prev.year, prev.month, include_members, only_models=missing,
+        )
+        all_records.extend(prev_records)
+        succeeded |= prev_succeeded
+
+        still_missing = missing - prev_succeeded
+        if still_missing:
+            logger.warning("C3S: no data for models: %s", ", ".join(sorted(still_missing)))
 
     df = pd.DataFrame(all_records)
     if len(df) > 0:
