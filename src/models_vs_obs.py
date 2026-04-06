@@ -733,7 +733,6 @@ def create_models_vs_obs_timeseries(
         yaxis_title=f'Temperature anomaly (\u00b0C, rel. {bl_label})',
         xaxis=dict(
             gridcolor=theme['grid_color'], showgrid=True,
-            rangeslider=dict(visible=True, thickness=0.05),
             range=['1900-01-01', '2040-12-31'],
         ),
     )
