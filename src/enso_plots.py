@@ -456,6 +456,7 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
     np.random.seed(42)
 
     # -- Scatter dots per model --
+    legend_added = set()
     for i, tm in enumerate(target_months):
         for model in models:
             color = MEGA_COLORS.get(model, "#999999")
@@ -463,11 +464,13 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
             if len(mdf) == 0:
                 continue
             jitter = np.random.uniform(-0.25, 0.25, len(mdf))
+            show = model not in legend_added
+            legend_added.add(model)
             fig.add_trace(go.Scatter(
                 x=i + jitter, y=mdf["nino34_anom"],
                 mode="markers",
                 marker=dict(color=color, size=5, opacity=0.5),
-                showlegend=(i == 0),  # legend entry only on first month
+                showlegend=show,
                 name=model,
                 hovertemplate=f"{model}: %{{y:.2f}}\u00b0C<extra></extra>",
             ))
