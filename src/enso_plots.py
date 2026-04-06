@@ -178,8 +178,8 @@ def build_enso_combined(oni_df, forecast_df):
 # Card computation
 # ---------------------------------------------------------------------------
 
-def compute_enso_cards(forecast_df, oni_df):
-    """Compute summary card values from forecast and ONI data.
+def compute_enso_cards(forecast_df, oni_df, obs_df=None):
+    """Compute summary card values from forecast, ONI, and observed data.
 
     Returns dict with keys: current_state, update_date, max_change_str,
     max_change_range.
@@ -191,14 +191,25 @@ def compute_enso_cards(forecast_df, oni_df):
         "max_change_range": "N/A",
     }
 
-    # Current ENSO state from latest ONI
-    if not oni_df.empty and "oni" in oni_df.columns:
+    # Current ENSO state from latest observed monthly Nino3.4
+    # (more current than ONI, which is a 3-month running mean and lags)
+    if obs_df is not None and not obs_df.empty and "nino34_anom" in obs_df.columns:
+        latest = obs_df.sort_values("date").iloc[-1]
+        val = latest["nino34_anom"]
+        month_label = pd.Timestamp(latest["date"]).strftime("%b %Y")
+        if val >= 0.5:
+            cards["current_state"] = f"El Ni\u00f1o: {val:+.1f}\u00b0C ({month_label})"
+        elif val <= -0.5:
+            cards["current_state"] = f"La Ni\u00f1a: {val:.1f}\u00b0C ({month_label})"
+        else:
+            cards["current_state"] = f"Neutral: {val:+.1f}\u00b0C ({month_label})"
+    elif not oni_df.empty and "oni" in oni_df.columns:
         latest = oni_df.sort_values("date").iloc[-1]
         val = latest["oni"]
         if val >= 0.5:
-            cards["current_state"] = f"El Nino: +{val:.1f}\u00b0C"
+            cards["current_state"] = f"El Ni\u00f1o: +{val:.1f}\u00b0C"
         elif val <= -0.5:
-            cards["current_state"] = f"La Nina: {val:.1f}\u00b0C"
+            cards["current_state"] = f"La Ni\u00f1a: {val:.1f}\u00b0C"
         else:
             cards["current_state"] = f"Neutral: {val:+.1f}\u00b0C"
 

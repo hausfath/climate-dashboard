@@ -1732,7 +1732,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             create_enso_historical_context as _create_enso_historical_context,
         )
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
-        _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df)
+        _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df)
         _enso_combined_df = build_enso_combined(_enso_oni_df, _enso_forecast_df)
         _ENSO_AVAILABLE = not _enso_forecast_df.empty
         if _ENSO_AVAILABLE:
