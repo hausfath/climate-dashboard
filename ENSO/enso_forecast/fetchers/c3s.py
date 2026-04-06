@@ -188,47 +188,17 @@ def _extract_records(
     return records
 
 
-def fetch_c3s(
-    year: int | None = None,
-    month: int | None = None,
-    include_members: bool = True,
-) -> pd.DataFrame:
-    """Fetch C3S seasonal forecasts for all configured models.
-
-    Args:
-        year: Forecast initialization year (default: current year).
-        month: Forecast initialization month (default: current month).
-        include_members: If True, fetch individual ensemble members.
-            If False, fetch only ensemble means.
-
-    Returns DataFrame in standard forecast schema.
-    """
-    if not CDS_API_KEY:
-        raise ValueError(
-            "CDS API key not configured. Set CDS_API_KEY environment variable "
-            "or edit enso_forecast/config.py. Get a key at "
-            "https://cds.climate.copernicus.eu/"
-        )
-
-    try:
-        import cdsapi
-    except ImportError:
-        raise ImportError("cdsapi package required. Install with: pip install cdsapi")
-
-    if year is None:
-        year = date.today().year
-    if month is None:
-        month = date.today().month
+def _fetch_c3s_month(year: int, month: int, include_members: bool) -> list[dict]:
+    """Fetch C3S data for a specific init month. Returns list of record dicts."""
+    import cdsapi
 
     init_date = f"{year}-{month:02d}-01"
     c3s_raw = RAW_DIR / "c3s" / f"{year}{month:02d}"
     c3s_raw.mkdir(parents=True, exist_ok=True)
 
     client = cdsapi.Client(url=CDS_API_URL, key=CDS_API_KEY)
-
-    all_records = []
-
     product_type = "monthly_mean" if include_members else "ensemble_mean"
+    all_records = []
 
     for model_name, model_info in C3S_MODELS.items():
         logger.info("Fetching C3S %s (system %s, %s)...",
@@ -257,7 +227,6 @@ def fetch_c3s(
             logger.warning("Failed to fetch C3S %s: %s", model_name, e)
             continue
 
-        # Process
         try:
             ds = xr.open_dataset(nc_path)
             nino34 = _compute_nino34_area_mean(ds)
@@ -285,6 +254,47 @@ def fetch_c3s(
         except Exception as e:
             logger.warning("Error processing C3S %s: %s", model_name, e)
             continue
+
+    return all_records
+
+
+def fetch_c3s(
+    year: int | None = None,
+    month: int | None = None,
+    include_members: bool = True,
+) -> pd.DataFrame:
+    """Fetch C3S seasonal forecasts for all configured models.
+
+    Tries the current month first; falls back to previous month if
+    the current month's data is not yet available on CDS.
+
+    Returns DataFrame in standard forecast schema.
+    """
+    if not CDS_API_KEY:
+        raise ValueError(
+            "CDS API key not configured. Set CDS_API_KEY environment variable "
+            "or edit enso_forecast/config.py. Get a key at "
+            "https://cds.climate.copernicus.eu/"
+        )
+
+    try:
+        import cdsapi
+    except ImportError:
+        raise ImportError("cdsapi package required. Install with: pip install cdsapi")
+
+    if year is None:
+        year = date.today().year
+    if month is None:
+        month = date.today().month
+
+    # Try current month first; fall back to previous month if not available
+    all_records = _fetch_c3s_month(year, month, include_members)
+
+    if not all_records:
+        prev = pd.Timestamp(f"{year}-{month:02d}-01") - pd.DateOffset(months=1)
+        logger.info("C3S data not available for %d-%02d, trying %d-%02d",
+                     year, month, prev.year, prev.month)
+        all_records = _fetch_c3s_month(prev.year, prev.month, include_members)
 
     df = pd.DataFrame(all_records)
     if len(df) > 0:
