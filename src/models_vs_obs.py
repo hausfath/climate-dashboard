@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.stats import linregress
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 logger = logging.getLogger(__name__)
 
@@ -491,17 +492,36 @@ def compute_model_obs_cards(cmip_df: pd.DataFrame, obs_df: pd.DataFrame,
     stats = compute_ensemble_stats(cmip_df)
     current_year = datetime.today().year
 
-    # Card 1: Warming since preindustrial (last 12 months)
+    # Card 1: Current warming level via LOWESS smooth (20-year bandwidth)
     last_date = obs_df['date'].max()
-    start_12 = last_date - pd.DateOffset(months=11)
-    m_recent = stats[(stats['date'] >= start_12) & (stats['date'] <= last_date)]
-    o_recent = obs_df[(obs_df['date'] >= start_12) & (obs_df['date'] <= last_date)]
-
     obs_cols = ['hadcrut5', 'gistemp', 'noaa', 'berkeley', 'copernicus']
-    obs_recent_mean = o_recent[obs_cols].mean(axis=1).mean()
-    model_recent_mean = m_recent['mean'].mean()
-    model_p05_recent = m_recent['p05'].mean() if 'p05' in m_recent.columns else None
-    model_p95_recent = m_recent['p95'].mean() if 'p95' in m_recent.columns else None
+    obs_mean_ts = obs_df[obs_cols].mean(axis=1)
+    obs_time = obs_df['date'].dt.year + (obs_df['date'].dt.month - 0.5) / 12
+    valid = obs_mean_ts.notna()
+    t_valid = obs_time[valid].values
+    y_valid = obs_mean_ts[valid].values
+    span_years = t_valid[-1] - t_valid[0]
+    frac = min(20.0 / span_years, 1.0) if span_years > 0 else 1.0
+    smoothed = lowess(y_valid, t_valid, frac=frac, return_sorted=True)
+    obs_recent_mean = smoothed[-1, 1]  # last smoothed value = current warming level
+
+    # Model LOWESS — truncate to obs time range so endpoint matches present
+    stats_trunc = stats[stats['date'] <= last_date].copy()
+    model_time = stats_trunc['date'].dt.year + (stats_trunc['date'].dt.month - 0.5) / 12
+    m_span = model_time.values[-1] - model_time.values[0] if len(model_time) > 1 else 1
+    m_frac = min(20.0 / m_span, 1.0)
+    model_smooth = lowess(stats_trunc['mean'].values, model_time.values, frac=m_frac, return_sorted=True)
+    model_recent_mean = model_smooth[-1, 1]
+    if 'p05' in stats_trunc.columns:
+        p05_smooth = lowess(stats_trunc['p05'].values, model_time.values, frac=m_frac, return_sorted=True)
+        model_p05_recent = p05_smooth[-1, 1]
+    else:
+        model_p05_recent = None
+    if 'p95' in stats_trunc.columns:
+        p95_smooth = lowess(stats_trunc['p95'].values, model_time.values, frac=m_frac, return_sorted=True)
+        model_p95_recent = p95_smooth[-1, 1]
+    else:
+        model_p95_recent = None
 
     # Card 2: 1970-Present trend
     obs_1970, model_1970, m05_1970, m95_1970 = _trend_card(cmip_df, obs_df, 1970, last_date)
