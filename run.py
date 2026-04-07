@@ -181,8 +181,8 @@ def update_data(force: bool = False) -> None:
         enso_proj = None
         try:
             from src.enso_plots import load_enso_forecast_data, build_enso_combined
-            ef, _, oni = load_enso_forecast_data()
-            enso_proj = build_enso_combined(oni, ef)
+            ef, eo, oni = load_enso_forecast_data()
+            enso_proj = build_enso_combined(oni, ef, eo)
         except Exception as enso_err:
             logger.warning(f"Could not load multi-model ENSO, falling back to combined: {enso_err}")
             if enso_file.exists():
@@ -205,12 +205,18 @@ def update_data(force: bool = False) -> None:
         source = DATA_SOURCES["era5_global"]
         df = load_or_fetch_data(source["url"], source["local_file"])
 
-        # Load ENSO data
+        # Load ENSO data from live multi-model forecast
         enso_df = None
-        enso_file = DATA_DIR / "enso_combined.csv"
-        if enso_file.exists():
-            enso_df = pd.read_csv(enso_file)
-            enso_df['date'] = pd.to_datetime(enso_df['date'])
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, eo, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef, eo)
+        except Exception as enso_err:
+            logger.warning(f"Could not load multi-model ENSO for images: {enso_err}")
+            enso_file = DATA_DIR / "enso_combined.csv"
+            if enso_file.exists():
+                enso_df = pd.read_csv(enso_file)
+                enso_df['date'] = pd.to_datetime(enso_df['date'])
 
         # Generate all static images
         assets_dir = Path(__file__).parent / 'assets' / 'images'
