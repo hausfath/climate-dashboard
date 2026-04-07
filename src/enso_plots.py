@@ -78,14 +78,15 @@ def load_full_observed(start_year=1990):
 # Combined ENSO DataFrame (for annual prediction model)
 # ---------------------------------------------------------------------------
 
-def build_enso_combined(oni_df, forecast_df):
+def build_enso_combined(oni_df, forecast_df, obs_df=None):
     """Build a combined observed + forecast ENSO DataFrame.
 
     Returns DataFrame with columns: date, year, month, oni, is_forecast.
-    Observed data comes from ONI; forecast uses the multi-model mean
-    from the combined forecast plume.
+    Observed data comes from ONI + monthly Nino3.4; forecast uses the
+    multi-model weighted median from the combined forecast plume.
     """
     rows = []
+    obs_dates = set()
 
     # Observed from ONI
     if not oni_df.empty and "oni" in oni_df.columns:
@@ -97,31 +98,41 @@ def build_enso_combined(oni_df, forecast_df):
                 "oni": r["oni"],
                 "is_forecast": False,
             })
+            obs_dates.add(str(pd.Timestamp(r["date"]).to_period("M")))
 
-    # Forecast from multi-model mean (deduplicated)
+    # Fill in any months with observed Nino3.4 not yet covered by ONI
+    if obs_df is not None and not obs_df.empty and "nino34_anom" in obs_df.columns:
+        for _, r in obs_df.iterrows():
+            period = str(pd.Timestamp(r["date"]).to_period("M"))
+            if period not in obs_dates:
+                rows.append({
+                    "date": pd.Timestamp(r["date"]),
+                    "year": int(r["year"]),
+                    "month": int(r["month"]),
+                    "oni": r["nino34_anom"],
+                    "is_forecast": False,
+                })
+                obs_dates.add(period)
+
+    # Forecast from multi-model weighted median (deduplicated)
     if not forecast_df.empty:
         try:
             forecast_only = _get_forecast_only(forecast_df)
             mega = _build_mega_df(forecast_only)
-            means = mega[mega["member_id"] == "mean"].copy()
-            if not means.empty:
+            members = mega[mega["member_id"] != "mean"].copy()
+            if not members.empty:
                 # Only include months with ≥3 models reporting
-                models_per_month = means.groupby("target_month")["model"].nunique()
+                models_per_month = members.groupby("target_month")["model"].nunique()
                 valid_months = models_per_month[models_per_month >= 3].index
-                means = means[means["target_month"].isin(valid_months)]
+                members = members[members["target_month"].isin(valid_months)]
 
-                mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
+                mm = _multimodel_weighted_median(members)
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")
 
-                # Only include months not already covered by observed data
-                obs_dates = set()
-                if not oni_df.empty:
-                    obs_dates = set(oni_df["date"].dt.to_period("M").astype(str))
-
                 for _, r in mm.iterrows():
-                    period = r["date"].to_period("M")
-                    if str(period) not in obs_dates:
+                    period = str(r["date"].to_period("M"))
+                    if period not in obs_dates:
                         rows.append({
                             "date": r["date"],
                             "year": r["date"].year,
@@ -226,8 +237,8 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None):
             means = mega[mega["member_id"] == "mean"].copy()
             members = mega[mega["member_id"] != "mean"].copy()
 
-            if not means.empty:
-                mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
+            if not members.empty:
+                mm = _multimodel_weighted_median(members)
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")
 
@@ -283,6 +294,30 @@ def _enso_threshold_shapes(theme, y_range=(-4, 4)):
                    showlegend=False, hoverinfo="skip"),
     ]
     return shapes, threshold_traces
+
+
+def _multimodel_weighted_median(members, target_months=None):
+    """Compute model-weighted median Nino3.4 anomaly per target month.
+
+    Each model gets equal weight regardless of ensemble size.
+    Returns DataFrame with columns: target_month, nino34_anom.
+    """
+    if target_months is None:
+        target_months = sorted(members["target_month"].unique())
+    rows = []
+    for tm in target_months:
+        tm_members = members[members["target_month"] == tm]
+        if tm_members.empty:
+            continue
+        model_counts = tm_members.groupby("model").size()
+        weights = tm_members["model"].map(lambda m: 1.0 / model_counts[m]).values
+        vals = tm_members["nino34_anom"].values
+        valid = ~np.isnan(vals)
+        if valid.sum() == 0:
+            continue
+        median_val = _weighted_quantile(vals[valid], weights[valid], 0.50)
+        rows.append({"target_month": tm, "nino34_anom": median_val})
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -347,17 +382,24 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
                 hovertemplate=f"{model}<br>%{{x|%b %Y}}: %{{y:.2f}}\u00b0C<extra></extra>",
             ))
 
-        # Multi-model mean
-        mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
+        # Multi-model weighted median — substitute observed values where available
+        mm = _multimodel_weighted_median(members)
         mm["date"] = mm["target_month"].apply(_target_month_to_date)
         mm = mm.sort_values("date")
+        if obs_df is not None and not obs_df.empty:
+            obs_lookup = obs_df.set_index(
+                pd.to_datetime(obs_df["date"]).dt.to_period("M").astype(str)
+            )["nino34_anom"]
+            for idx, row in mm.iterrows():
+                if row["target_month"] in obs_lookup.index:
+                    mm.loc[idx, "nino34_anom"] = obs_lookup[row["target_month"]]
         mm_color = "white" if dark_mode else "black"
         fig.add_trace(go.Scatter(
             x=mm["date"], y=mm["nino34_anom"],
             mode="lines",
-            name="Multi-model mean",
+            name="Multi-model median",
             line=dict(color=mm_color, width=3, dash="dash"),
-            hovertemplate="Multi-model mean<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
+            hovertemplate="Multi-model median<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
         ))
 
     # -- Observed (start from Dec 2025) --
@@ -645,14 +687,27 @@ def create_enso_historical_context(forecast_df, dark_mode=False):
                 fc_members = fc_members[fc_members["target_month"].isin(valid_months)].copy()
 
             if not means.empty:
-                mm = means.groupby("target_month", as_index=False)["nino34_anom"].mean()
+                mm = _multimodel_weighted_median(fc_members)
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")
+
+                # Substitute observed values where available
+                obs_lookup = obs_full.set_index(
+                    obs_full["date"].dt.to_period("M").astype(str)
+                )["nino34_anom"]
+                for idx, row in mm.iterrows():
+                    if row["target_month"] in obs_lookup.index:
+                        mm.loc[idx, "nino34_anom"] = obs_lookup[row["target_month"]]
 
                 # Compute weighted 25-75th percentiles
                 target_months_sorted = sorted(mm["target_month"].unique())
                 q25_vals, q75_vals = [], []
                 for tm in target_months_sorted:
+                    # Use observed value (no spread) for months with observations
+                    if tm in obs_lookup.index:
+                        q25_vals.append(obs_lookup[tm])
+                        q75_vals.append(obs_lookup[tm])
+                        continue
                     tm_members = fc_members[fc_members["target_month"] == tm]
                     if tm_members.empty:
                         q25_vals.append(np.nan)
@@ -694,7 +749,7 @@ def create_enso_historical_context(forecast_df, dark_mode=False):
                 fig.add_trace(go.Scatter(
                     x=fc_dates, y=forecast_mean,
                     mode="lines",
-                    name="Multi-model mean forecast",
+                    name="Multi-model median forecast",
                     line=dict(color=mm_line_color, width=2.2, dash="dash"),
                     hovertemplate="Forecast<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
                 ))

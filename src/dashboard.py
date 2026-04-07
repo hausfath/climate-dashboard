@@ -810,8 +810,8 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     if enso_df is None:
         try:
             from src.enso_plots import load_enso_forecast_data, build_enso_combined
-            ef, _, oni = load_enso_forecast_data()
-            enso_df = build_enso_combined(oni, ef)
+            ef, eo, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef, eo)
         except Exception:
             enso_file = DATA_DIR / "enso_combined.csv"
             if enso_file.exists():
@@ -1058,8 +1058,8 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
     if enso_df is None:
         try:
             from src.enso_plots import load_enso_forecast_data, build_enso_combined
-            ef, _, oni = load_enso_forecast_data()
-            enso_df = build_enso_combined(oni, ef)
+            ef, eo, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef, eo)
         except Exception:
             enso_file = DATA_DIR / "enso_combined.csv"
             if enso_file.exists():
@@ -1483,8 +1483,8 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         enso_df = None
         try:
             from src.enso_plots import load_enso_forecast_data, build_enso_combined
-            ef, _, oni = load_enso_forecast_data()
-            enso_df = build_enso_combined(oni, ef)
+            ef, eo, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef, eo)
         except Exception:
             enso_file = DATA_DIR / "enso_combined.csv"
             if enso_file.exists():
@@ -1733,7 +1733,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         )
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
         _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df)
-        _enso_combined_df = build_enso_combined(_enso_oni_df, _enso_forecast_df)
+        _enso_combined_df = build_enso_combined(_enso_oni_df, _enso_forecast_df, _enso_obs_df)
         _ENSO_AVAILABLE = not _enso_forecast_df.empty
         if _ENSO_AVAILABLE:
             logger.info("ENSO forecast data loaded successfully")
