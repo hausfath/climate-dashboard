@@ -1658,6 +1658,41 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ], suppress_callback_exceptions=True,
        assets_folder=str(assets_path))
 
+    SITE_URL = "https://climate-dashboard.onrender.com"
+    OG_IMAGE = f"{SITE_URL}/assets/images/annual_prediction_light.png"
+    OG_TITLE = "Global Temperature Dashboard"
+    OG_DESC = (
+        "Daily-updated global temperature tracker with ERA5 data, "
+        "ENSO forecasts, and 2026 annual projections."
+    )
+
+    app.index_string = f'''<!DOCTYPE html>
+<html>
+    <head>
+        {{%metas%}}
+        <title>{OG_TITLE}</title>
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="{SITE_URL}" />
+        <meta property="og:title" content="{OG_TITLE}" />
+        <meta property="og:description" content="{OG_DESC}" />
+        <meta property="og:image" content="{OG_IMAGE}" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="{OG_TITLE}" />
+        <meta name="twitter:description" content="{OG_DESC}" />
+        <meta name="twitter:image" content="{OG_IMAGE}" />
+        {{%favicon%}}
+        {{%css%}}
+    </head>
+    <body>
+        {{%app_entry%}}
+        <footer>
+            {{%config%}}
+            {{%scripts%}}
+            {{%renderer%}}
+        </footer>
+    </body>
+</html>'''
+
     # Log data info for debugging
     logger.info(f"Creating dashboard with {len(df)} rows of data")
     logger.info(f"Data columns: {df.columns.tolist()}")
