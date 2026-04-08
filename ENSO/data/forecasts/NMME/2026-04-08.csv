@@ -139,7 +139,7 @@ NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-05,1,0.6216,ens_016,monthly,model-spec
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-06,2,1.273,ens_016,monthly,model-specific
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-07,3,1.9548,ens_016,monthly,model-specific
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-08,4,2.2019,ens_016,monthly,model-specific
-NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-09,5,2.2445,ens_016,monthly,model-specific
+NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-09,5,2.2446,ens_016,monthly,model-specific
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-10,6,2.5958,ens_016,monthly,model-specific
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-11,7,2.6911,ens_016,monthly,model-specific
 NMME,NCEP-CFSv2,dynamical,2026-04-01,2026-12,8,2.1347,ens_016,monthly,model-specific
@@ -314,7 +314,7 @@ NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-09,5,0.3451,ens_002,monthly,model-sp
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-10,6,0.2981,ens_002,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-11,7,0.5868,ens_002,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-12,8,0.7733,ens_002,monthly,model-specific
-NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-04,0,0.3105,ens_003,monthly,model-specific
+NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-04,0,0.3106,ens_003,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-05,1,0.6408,ens_003,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-06,2,0.9532,ens_003,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-07,3,0.9616,ens_003,monthly,model-specific
@@ -346,7 +346,7 @@ NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-05,1,0.8757,ens_006,monthly,model-sp
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-06,2,0.9156,ens_006,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-07,3,0.865,ens_006,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-08,4,0.7022,ens_006,monthly,model-specific
-NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-09,5,0.5566,ens_006,monthly,model-specific
+NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-09,5,0.5567,ens_006,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-10,6,0.6898,ens_006,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-11,7,0.8984,ens_006,monthly,model-specific
 NMME,ECCC-CanESM5,dynamical,2026-04-01,2026-12,8,1.0615,ens_006,monthly,model-specific
@@ -537,7 +537,7 @@ NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-07,3,1.9996,ens_006,monthly,mode
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-08,4,2.0356,ens_006,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-09,5,2.2556,ens_006,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-10,6,2.3708,ens_006,monthly,model-specific
-NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-11,7,2.532,ens_006,monthly,model-specific
+NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-11,7,2.5321,ens_006,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-12,8,2.5411,ens_006,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-04,0,0.6108,ens_007,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-05,1,1.1686,ens_007,monthly,model-specific
@@ -559,7 +559,7 @@ NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-11,7,1.2083,ens_008,monthly,mode
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-12,8,1.0835,ens_008,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-04,0,0.5635,ens_009,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-05,1,1.015,ens_009,monthly,model-specific
-NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-06,2,1.4505,ens_009,monthly,model-specific
+NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-06,2,1.4506,ens_009,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-07,3,1.8563,ens_009,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-08,4,1.6679,ens_009,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-09,5,1.796,ens_009,monthly,model-specific
@@ -600,7 +600,7 @@ NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-07,3,1.9693,ens_013,monthly,mode
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-08,4,2.3349,ens_013,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-09,5,2.5509,ens_013,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-10,6,2.5141,ens_013,monthly,model-specific
-NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-11,7,2.6093,ens_013,monthly,model-specific
+NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-11,7,2.6094,ens_013,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-12,8,2.5635,ens_013,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-04,0,0.3424,ens_014,monthly,model-specific
 NMME,ECCC-GEM5.2-NEMO,dynamical,2026-04-01,2026-05,1,0.9994,ens_014,monthly,model-specific
@@ -704,7 +704,7 @@ NMME,NCAR-CESM1,dynamical,2026-04-01,2026-12,8,4.3506,ens_003,monthly,model-spec
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-04,0,0.3463,ens_004,monthly,model-specific
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-05,1,0.7686,ens_004,monthly,model-specific
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-06,2,1.3462,ens_004,monthly,model-specific
-NMME,NCAR-CESM1,dynamical,2026-04-01,2026-07,3,2.1752,ens_004,monthly,model-specific
+NMME,NCAR-CESM1,dynamical,2026-04-01,2026-07,3,2.1753,ens_004,monthly,model-specific
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-08,4,3.1457,ens_004,monthly,model-specific
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-09,5,3.6258,ens_004,monthly,model-specific
 NMME,NCAR-CESM1,dynamical,2026-04-01,2026-10,6,4.0409,ens_004,monthly,model-specific
@@ -815,7 +815,7 @@ NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-06,2,0.9797,ens_005,monthly,model-spec
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-07,3,1.383,ens_005,monthly,model-specific
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-08,4,1.7664,ens_005,monthly,model-specific
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-09,5,2.0229,ens_005,monthly,model-specific
-NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-10,6,2.1835,ens_005,monthly,model-specific
+NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-10,6,2.1836,ens_005,monthly,model-specific
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-11,7,2.2422,ens_005,monthly,model-specific
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-12,8,2.1784,ens_005,monthly,model-specific
 NMME,NCAR-CCSM4,dynamical,2026-04-01,2026-04,0,0.2653,ens_006,monthly,model-specific
@@ -970,7 +970,7 @@ NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-08,4,2.7089,mean,monthly,model-sp
 NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-09,5,3.1973,mean,monthly,model-specific
 NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-10,6,3.5033,mean,monthly,model-specific
 NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-11,7,3.6551,mean,monthly,model-specific
-NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-12,8,3.7843,mean,monthly,model-specific
+NMME,NASA-GEOS-S2S-2,dynamical,2026-04-01,2026-12,8,3.7844,mean,monthly,model-specific
 NMME,NMME,dynamical,2026-04-01,2026-04,0,0.3458,mean,monthly,model-specific
 NMME,NMME,dynamical,2026-04-01,2026-05,1,0.7578,mean,monthly,model-specific
 NMME,NMME,dynamical,2026-04-01,2026-06,2,1.179,mean,monthly,model-specific
