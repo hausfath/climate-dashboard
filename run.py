@@ -53,10 +53,32 @@ def update_enso_forecasts(force: bool = False) -> None:
                 src_dir = FORECASTS_DIR / name
                 if src_dir.exists():
                     current_month_prefix = date.today().strftime("%Y-%m")
-                    existing = [f.stem for f in src_dir.glob("*.csv")]
-                    if any(f.startswith(current_month_prefix) for f in existing):
-                        logger.info(f"{name} already fetched this month, skipping")
-                        continue
+                    existing = sorted(src_dir.glob("*.csv"))
+                    has_current = any(
+                        f.stem.startswith(current_month_prefix) for f in existing
+                    )
+                    if has_current:
+                        # For C3S, re-fetch if some models used prior-month fallback
+                        # (new models trickle in over ~10 days each month)
+                        if name == "C3S" and existing:
+                            import pandas as pd
+                            latest = pd.read_csv(existing[-1])
+                            if "init_date" in latest.columns:
+                                current_init = f"{date.today().strftime('%Y-%m')}-01"
+                                has_stale = (latest["init_date"] < current_init).any()
+                                if has_stale:
+                                    logger.info(
+                                        "C3S has models on prior-month init, re-fetching"
+                                    )
+                                else:
+                                    logger.info(f"{name} already fetched this month (all models current), skipping")
+                                    continue
+                            else:
+                                logger.info(f"{name} already fetched this month, skipping")
+                                continue
+                        else:
+                            logger.info(f"{name} already fetched this month, skipping")
+                            continue
 
             logger.info(f"Fetching {name} ENSO data...")
             fetch_fn(force=force)
