@@ -25,6 +25,54 @@ from enso_forecast.config import (
 
 logger = logging.getLogger(__name__)
 
+# Cache for resolved system versions {(centre, year, month): system}
+_system_cache: dict[tuple[str, int, int], str] = {}
+
+
+def _resolve_system(centre: str, year: int, month: int, configured_system: str) -> str:
+    """Return the correct system version for a centre/year/month combo.
+
+    Uses the CDS constraints API to find the valid system when the
+    configured default doesn't match (centres periodically bump versions).
+    Results are cached for the session.
+    """
+    key = (centre, year, month)
+    if key in _system_cache:
+        return _system_cache[key]
+
+    try:
+        import requests
+        url = f"{CDS_API_URL}/retrieve/v1/processes/{C3S_DATASET}/constraints"
+        headers = {"PRIVATE-TOKEN": CDS_API_KEY}
+        r = requests.post(url, headers=headers, json={
+            "inputs": {
+                "originating_centre": [centre],
+                "variable": [C3S_VARIABLE],
+                "year": [str(year)],
+                "month": [f"{month:02d}"],
+            }
+        }, timeout=30)
+        if r.status_code == 200:
+            data = r.json()
+            systems = data.get("system", [])
+            if configured_system in systems:
+                _system_cache[key] = configured_system
+                return configured_system
+            if systems:
+                # Use the highest-numbered system (latest version)
+                best = max(systems, key=lambda s: int(s) if s.isdigit() else 0)
+                logger.info(
+                    "C3S %s: system %s not valid for %d-%02d, using system %s",
+                    centre, configured_system, year, month, best,
+                )
+                _system_cache[key] = best
+                return best
+    except Exception as e:
+        logger.debug("Constraints lookup failed for %s: %s", centre, e)
+
+    _system_cache[key] = configured_system
+    return configured_system
+
 
 def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
     """Compute cosine-latitude-weighted Nino3.4 area mean from gridded C3S data.
@@ -217,18 +265,21 @@ def _fetch_c3s_month(
     for model_name, model_info in C3S_MODELS.items():
         if only_models is not None and model_name not in only_models:
             continue
+
+        centre = model_info["originating_centre"]
+        system = _resolve_system(centre, year, month, model_info["system"])
         logger.info("Fetching C3S %s (system %s, %s)...",
-                     model_name, model_info["system"], product_type)
+                     model_name, system, product_type)
 
         suffix = "members" if include_members else "ensmean"
-        nc_path = c3s_raw / f"{model_info['originating_centre']}_{year}{month:02d}_{suffix}.nc"
+        nc_path = c3s_raw / f"{centre}_{year}{month:02d}_{suffix}.nc"
 
         try:
             client.retrieve(
                 C3S_DATASET,
                 {
-                    "originating_centre": model_info["originating_centre"],
-                    "system": model_info["system"],
+                    "originating_centre": centre,
+                    "system": system,
                     "variable": C3S_VARIABLE,
                     "product_type": product_type,
                     "year": str(year),

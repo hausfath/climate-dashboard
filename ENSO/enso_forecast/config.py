@@ -90,11 +90,11 @@ C3S_MODELS = {
     # max_lead_months per ECMWF documentation
     # https://confluence.ecmwf.int/display/CKB/Description+of+the+C3S+seasonal+multi-system
     "ECMWF":        {"system": "51",  "originating_centre": "ecmwf",         "max_lead_months": 7},
-    "UKMO":         {"system": "603", "originating_centre": "ukmo",          "max_lead_months": 6},
+    "UKMO":         {"system": "610", "originating_centre": "ukmo",          "max_lead_months": 6},
     "Meteo-France": {"system": "9",   "originating_centre": "meteo_france",  "max_lead_months": 7},
     "DWD":          {"system": "22",  "originating_centre": "dwd",           "max_lead_months": 6},
     "CMCC":         {"system": "4",   "originating_centre": "cmcc",          "max_lead_months": 6},
-    "JMA":          {"system": "3",   "originating_centre": "jma",           "max_lead_months": 6},
+    "JMA":          {"system": "4",   "originating_centre": "jma",           "max_lead_months": 6},
     "ECCC":         {"system": "5",   "originating_centre": "eccc",          "max_lead_months": 7},
     "NCEP":         {"system": "2",   "originating_centre": "ncep",          "max_lead_months": 7},
     "BOM":          {"system": "2",   "originating_centre": "bom",           "max_lead_months": 7},
