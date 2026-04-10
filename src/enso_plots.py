@@ -200,6 +200,8 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None):
         "update_date": "N/A",
         "max_change_str": "N/A",
         "max_change_range": "N/A",
+        "n_models": 0,
+        "n_members": 0,
     }
 
     # Current ENSO state from latest observed monthly Nino3.4
@@ -236,6 +238,12 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None):
             mega = _build_mega_df(forecast_only)
             means = mega[mega["member_id"] == "mean"].copy()
             members = mega[mega["member_id"] != "mean"].copy()
+
+            cards["n_models"] = members["model"].nunique() if not members.empty else 0
+            cards["n_members"] = sum(
+                members[members["model"] == m]["member_id"].nunique()
+                for m in members["model"].unique()
+            ) if not members.empty else 0
 
             if not members.empty:
                 mm = _multimodel_weighted_median(members)

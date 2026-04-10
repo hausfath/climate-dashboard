@@ -2085,7 +2085,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                            className="card-text", id='enso-card-3-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
                                     html.Small(
-                                        "11 models" if _ENSO_AVAILABLE else "N/A",
+                                        f"{_enso_cards.get('n_models', '?')} models, {_enso_cards.get('n_members', '?')} members" if _ENSO_AVAILABLE else "N/A",
                                         id='enso-card-3-sub'),
                                 ], id='enso-card-3-body', className="p-2 p-md-3")
                             ], id='enso-card-3', className="h-100")
