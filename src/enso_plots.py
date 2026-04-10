@@ -416,6 +416,21 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
                 line=dict(color=obs_color, width=2.5),
                 hovertemplate="Observed<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
             ))
+            # Dashed connector from last observation to first forecast-only median
+            if not mm.empty:
+                last_obs_date = obs["date"].max()
+                forecast_only = mm[mm["date"] > last_obs_date].sort_values("date")
+                if not forecast_only.empty:
+                    first_fcst = forecast_only.iloc[0]
+                    last_obs_row = obs.loc[obs["date"].idxmax()]
+                    fig.add_trace(go.Scatter(
+                        x=[last_obs_date, first_fcst["date"]],
+                        y=[last_obs_row["nino34_anom"], first_fcst["nino34_anom"]],
+                        mode="lines",
+                        line=dict(color=obs_color, width=2, dash="dash"),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ))
 
     # -- ENSO threshold lines --
     fig.add_hline(y=0.5, line=dict(color="red", width=1, dash="dash"), opacity=0.5)
