@@ -220,13 +220,15 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
     for year in years_to_highlight:
         year_data = df_adj[df_adj['year'] == year].sort_values('day_of_year')
         if len(year_data) > 0:
+            dates = year_data['date'].dt.strftime('%b %-d')
             fig.add_trace(go.Scatter(
                 x=year_data['day_of_year'],
                 y=year_data['anomaly'],
                 mode='lines',
                 name=str(year),
                 line=dict(color=theme['highlight_colors'][year], width=2.5),
-                hovertemplate=f'{year}<br>Day %{{x}}<br>Anomaly: %{{y:.2f}}°C<extra></extra>'
+                customdata=dates,
+                hovertemplate=f'{year}<br>%{{customdata}}<br>Anomaly: %{{y:.2f}}°C<extra></extra>'
             ))
 
     # Month labels for x-axis
@@ -307,13 +309,15 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
     for year in years_to_highlight:
         year_data = df[df['year'] == year].sort_values('day_of_year')
         if len(year_data) > 0:
+            dates = year_data['date'].dt.strftime('%b %-d')
             fig.add_trace(go.Scatter(
                 x=year_data['day_of_year'],
                 y=year_data['temperature'],
                 mode='lines',
                 name=str(year),
                 line=dict(color=theme['highlight_colors'][year], width=2.5),
-                hovertemplate=f'{year}<br>Day %{{x}}<br>Temp: %{{y:.2f}}°C<extra></extra>'
+                customdata=dates,
+                hovertemplate=f'{year}<br>%{{customdata}}<br>Temp: %{{y:.2f}}°C<extra></extra>'
             ))
 
     # Month labels for x-axis
@@ -527,18 +531,33 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
         column_to_use = 'anomaly'
         cbar_label = 'Temperature Anomaly (°C)'
         title = 'Daily Temperature Anomaly vs Preindustrial (1850-1900)'
-        hover_template = 'Year: %{x}<br>Day: %{y}<br>Anomaly: %{z:.2f}°C<extra></extra>'
+        hover_val_label = 'Anomaly'
         zmid = 1.0  # Center around ~1°C warming
     else:
         data = df.copy()
         column_to_use = 'temperature'
         cbar_label = 'Temperature (°C)'
         title = 'Daily Global Mean Temperature'
-        hover_template = 'Year: %{x}<br>Day: %{y}<br>Temp: %{z:.2f}°C<extra></extra>'
+        hover_val_label = 'Temp'
         zmid = 14.5  # Approximate global mean temperature
 
     # Pivot data: day_of_year as rows, year as columns
     heatmap_data = data.pivot(index='day_of_year', columns='year', values=column_to_use)
+
+    # Build date label matrix for hover (day_of_year → "Jan 1", "Jan 2", etc.)
+    import datetime
+    doy_to_date = {}
+    for doy in heatmap_data.index:
+        try:
+            d = datetime.datetime(2024, 1, 1) + datetime.timedelta(days=int(doy) - 1)  # 2024 is a leap year
+            doy_to_date[doy] = d.strftime('%b %-d')
+        except (ValueError, OverflowError):
+            doy_to_date[doy] = f'Day {doy}'
+
+    hover_text = [[f"Year: {col}<br>{doy_to_date.get(doy, f'Day {doy}')}<br>{hover_val_label}: {heatmap_data.loc[doy, col]:.2f}°C"
+                    if pd.notna(heatmap_data.loc[doy, col]) else ""
+                    for col in heatmap_data.columns]
+                   for doy in heatmap_data.index]
 
     # Month labels for y-axis
     month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
@@ -552,7 +571,8 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
         colorscale='RdBu_r',
         zmid=zmid,
         colorbar=dict(title=cbar_label, tickfont=dict(color=theme['text_color'])),
-        hovertemplate=hover_template
+        text=hover_text,
+        hoverinfo='text',
     ))
 
     fig.update_layout(
