@@ -389,7 +389,12 @@ def fetch_c3s(
 
 
 def save_c3s(force: bool = False) -> pd.DataFrame:
-    """Fetch and save C3S data."""
+    """Fetch and save C3S data.
+
+    Protects against regressions: a new fetch is only saved if it has at
+    least as many current-month-init models as the previous file.  This
+    prevents transient CDS API failures from overwriting a good file.
+    """
     today_str = date.today().isoformat()
     out_dir = FORECASTS_DIR / "C3S"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -403,6 +408,26 @@ def save_c3s(force: bool = False) -> pd.DataFrame:
     if df.empty:
         logger.warning("C3S fetch returned no data, keeping existing file")
         return df
+
+    # Guard: don't regress — compare with the best existing file
+    existing_csvs = sorted(out_dir.glob("*.csv"))
+    if existing_csvs:
+        prev = pd.read_csv(existing_csvs[-1])
+        if "init_date" in prev.columns and "init_date" in df.columns:
+            current_init = f"{date.today().strftime('%Y-%m')}-01"
+            prev_current = prev[prev["init_date"] >= current_init]["model"].nunique()
+            new_current = df[df["init_date"] >= current_init]["model"].nunique()
+            prev_models = prev["model"].nunique()
+            new_models = df["model"].nunique()
+            if new_current < prev_current or new_models < prev_models:
+                logger.warning(
+                    "C3S fetch regressed: %d/%d models on current init (was %d/%d) "
+                    "— keeping previous file %s",
+                    new_current, new_models, prev_current, prev_models,
+                    existing_csvs[-1].name,
+                )
+                return prev
+
     df.to_csv(out_path, index=False)
-    logger.info("Saved C3S data to %s", out_path)
+    logger.info("Saved C3S data to %s (%d models)", out_path, df["model"].nunique())
     return df
