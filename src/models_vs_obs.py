@@ -7,6 +7,7 @@ computes statistics, and creates Plotly visualizations for the dashboard.
 
 import re
 import ssl
+import calendar
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -230,9 +231,16 @@ def _import_copernicus() -> pd.DataFrame:
         df['year']  = df['date'].dt.year
         df['month'] = df['date'].dt.month
         df['ano_91-20'] = pd.to_numeric(df['ano_91-20'], errors='coerce')
-        monthly = df.groupby(['year', 'month'])['ano_91-20'].mean().reset_index()
-        monthly.rename(columns={'ano_91-20': 'copernicus'}, inplace=True)
-        return monthly[['year', 'month', 'copernicus']].dropna().reset_index(drop=True)
+        agg = df.groupby(['year', 'month']).agg(
+            copernicus=('ano_91-20', 'mean'),
+            days=('date', 'nunique'),
+        ).reset_index()
+        # Only keep months where every calendar day is present (no partial months).
+        expected = agg.apply(
+            lambda r: calendar.monthrange(int(r['year']), int(r['month']))[1], axis=1
+        )
+        complete = agg[agg['days'] >= expected].copy()
+        return complete[['year', 'month', 'copernicus']].dropna().reset_index(drop=True)
     except Exception as e:
         logger.warning(f"Copernicus/ERA5 daily import failed: {e}")
         return pd.DataFrame(columns=['year', 'month', 'copernicus'])
@@ -299,6 +307,22 @@ def load_obs_data(csv_path: Path = OBS_CACHE) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
     df['year']  = df['year'].astype(int)
     df['month'] = df['month'].astype(int)
+
+    # Guard against a stale cache that contains a partial-month copernicus value:
+    # if the daily ERA5 file's last date is before the end of its month, that
+    # month's copernicus mean is incomplete and must be dropped.
+    if 'copernicus' in df.columns:
+        era5_csv = DATA_DIR.parent / 'era5_daily_series_2t_global.csv'
+        try:
+            daily = pd.read_csv(era5_csv, comment='#', usecols=['date'])
+            last_day = pd.to_datetime(daily['date']).max()
+            month_end = (pd.Timestamp(last_day.year, last_day.month, 1)
+                         + pd.offsets.MonthEnd(0))
+            if last_day < month_end:
+                partial = (df['year'] == last_day.year) & (df['month'] == last_day.month)
+                df.loc[partial, 'copernicus'] = np.nan
+        except Exception as e:
+            logger.warning(f"Could not validate copernicus tail against daily ERA5: {e}")
 
     # Shift each series from 1981-2010 baseline to 1850-1900 baseline
     for col, offset in PREINDUSTRIAL_OFFSETS.items():
@@ -658,7 +682,9 @@ def create_models_vs_obs_timeseries(
     stats = stats[(stats['date'].dt.year >= 1900) & (stats['date'].dt.year <= 2040)]
 
     if rolling:
-        stats = stats.set_index('date').rolling(12, min_periods=6).mean().reset_index()
+        # Require a full 12 months in the window so the line never extends
+        # past available data for any series.
+        stats = stats.set_index('date').rolling(12, min_periods=12).mean().reset_index()
 
     # Rebaseline obs from 1850-1900 to the selected baseline
     obs_cols_ordered = ['hadcrut5','gistemp','noaa','berkeley','copernicus']
@@ -706,7 +732,7 @@ def create_models_vs_obs_timeseries(
     if rolling:
         for c in obs_cols_ordered:
             if c in obs_to_plot.columns:
-                obs_to_plot[c] = obs_to_plot[c].rolling(12, min_periods=6).mean()
+                obs_to_plot[c] = obs_to_plot[c].rolling(12, min_periods=12).mean()
 
     for col in obs_cols_ordered:
         if col not in obs_to_plot.columns:
