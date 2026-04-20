@@ -2,7 +2,7 @@
 
 ## Overview
 
-This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface temperature (SST) anomaly forecasts from three major operational forecasting systems, combines them into a unified dataset with consistent anomaly baselines, and produces a suite of comparison visualizations. The goal is to provide a comprehensive, multi-model view of the current ENSO forecast that accounts for structural uncertainty across independent modeling centers.
+This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface temperature (SST) anomaly forecasts from four major operational forecasting systems (CFSv2, NMME, C3S, and CanSIPS), combines them into a unified dataset with consistent anomaly baselines, and produces a suite of comparison visualizations. The goal is to provide a comprehensive, multi-model view of the current ENSO forecast that accounts for structural uncertainty across independent modeling centers.
 
 ## Data Sources
 
@@ -11,10 +11,10 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Provider**: NOAA Climate Prediction Center (CPC)
 - **URL**: `https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd3/nino34Mon.nc`
 - **Data type**: Pre-computed Nino3.4 SST anomaly index (no spatial processing needed)
-- **Ensemble**: 40 members from the latest 10-day initialization window (E3)
-- **Lead time**: 9 months from initialization
+- **Ensemble**: 41 members from the E3 (latest) rolling ensemble window. Empirical inspection of successive file snapshots indicates the window is ~8 days wide with ~5 new runs per day, and member indexing runs newest (index 1) → oldest (index ~40). Member 41 appears to be a stable control/reference slot that does not rotate.
+- **Lead time**: 9 months beyond the initialization month
 - **Anomaly baseline**: 1991-2020
-- **Update frequency**: Continuously (4 runs per day; we use the latest E3 file)
+- **Update frequency**: Continuously (4–5 runs per day; we use the latest E3 file)
 - **Initialization detection**: The NetCDF file contains both historical verification months (all members identical, zero spread) and true forecast months (members diverge). The effective initialization date is determined automatically as one month before the first month with non-zero ensemble standard deviation.
 
 ### 2. NMME (North American Multi-Model Ensemble)
@@ -22,15 +22,16 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Provider**: NOAA CPC, hosted at `ftp.cpc.ncep.noaa.gov`
 - **URL pattern**: `https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/{MODEL}/{YYYYMM}0800/{MODEL}.tmpsfc.{YYYYMM}.anom.nc`
 - **Data type**: Gridded SST anomaly fields (1-degree resolution); Nino3.4 index computed as a cosine-latitude-weighted spatial mean over 5S-5N, 190-240E
-- **Models and ensemble sizes**:
-  - CFSv2: 32 members
+- **Models and ensemble sizes** (current operational feed):
+  - NCEP-CFSv2: 32 members
   - ECCC-CanESM5: 20 members
   - ECCC-GEM5.2-NEMO: 20 members
   - NCAR-CESM1: 10 members
   - NCAR-CCSM4: 10 members
   - NASA-GEOS-S2S-2: 10 members
-  - Total: 102 members across 6 models
-- **Lead time**: 9 months from initialization
+  - Total: ~102 members across 6 models (before deduplication)
+  - After dedup, only the three NCAR/NASA models are retained from NMME (see Model Deduplication below). The CFSv2 and ECCC models are sourced elsewhere.
+- **Lead time**: 8–9 months beyond the initialization month
 - **Anomaly baseline**: Model-specific (each model's own hindcast climatology, nominally standardized by CPC)
 - **Update frequency**: Monthly (approximately the 8th of each month)
 - **Time coordinate handling**: NMME uses "months since 1960-01-01" units, which xarray cannot decode automatically. Times are decoded manually.
@@ -41,22 +42,40 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Dataset**: `seasonal-postprocessed-single-levels`
 - **API**: CDS API (`cdsapi` Python package) with user-provided API key
 - **Data type**: Gridded SST anomaly fields; Nino3.4 computed as cosine-latitude-weighted spatial mean over the requested sub-region (5N-5S, 170W-120W)
-- **Models and ensemble sizes** (for March 2026 initialization):
+- **Models and ensemble sizes** (April 2026 initialization):
   - ECMWF (system 51): 51 members
   - Meteo-France (system 9): 51 members
   - DWD (system 22): 50 members
   - CMCC (system 4): 50 members
   - ECCC (system 5): 20 members
-  - NCEP (system 2): 112 members
-  - BOM (system 2): 121 members
-  - Total: 455 members across 7 models
-  - Note: UKMO and JMA were unavailable for March 2026 at the time of retrieval
-- **Lead time**: 6 months from initialization
+  - NCEP (system 2): 124 members
+  - BOM (system 2): 110 members
+  - UKMO (system 604): 60 members
+  - JMA (system 503): 155 members
+  - Total: ~671 members across 9 models (before deduplication)
+- **Lead time**: 6 months beyond the initialization month
 - **Anomaly baseline**: 1993-2016 (C3S hindcast climatology period), adjusted to 1991-2020 (see below)
 - **Update frequency**: Monthly
-- **forecastMonth convention**: In C3S, `forecastMonth=1` corresponds to the initialization month itself (e.g., for a March 2026 initialization, forecastMonth=1 = March 2026, forecastMonth=2 = April 2026, etc.)
+- **forecastMonth convention**: In C3S, `forecastMonth=1` corresponds to the initialization month itself (e.g., for a April 2026 initialization, forecastMonth=1 = April 2026, forecastMonth=2 = May 2026, etc.)
+- **Availability**: UKMO and JMA are sometimes delayed relative to the other centers; they may be missing for the first few days of a new initialization cycle. When a model is absent for the current init date, it is simply excluded.
 
-### 4. Observed Nino3.4
+### 4. CanSIPS (Canadian Seasonal to Interannual Prediction System)
+
+- **Provider**: Environment and Climate Change Canada (ECCC), via the MSC Datamart
+- **Data type**: Gridded SST forecasts (GRIB2) distributed as per-lead-month files; a pre-computed Nino3.4 index CSV is also fetched for quality control
+- **URL pattern (GRIB2)**: `https://dd.weather.gc.ca/today/model_cansips/100km/forecast/{YYYY}/{MM}/{YYYYMM}_MSC_CanSIPS_WaterTemp_Sfc_LatLon1.0_P{LL}M.grib2`
+- **URL pattern (CSV)**: `https://dd.weather.gc.ca/today/ensemble/cansips/csv/indices/forecast/monthly/{YYYYMMDD}00_indices_month_{YYYYMM_START}_{YYYYMM_END}.csv`
+- **Initialization convention**: End-of-month (e.g., init_date = 2026-03-31 represents the April 2026 cycle). If the most recent end-of-month file is not yet posted, the previous month's file is used.
+- **Models and ensemble sizes**:
+  - CanSIPS-GEM-NEMO: 20 members (members 1-20 in the source file)
+  - CanSIPS-CanESM5: 20 members (members 21-40 in the source file)
+  - Total: 40 members across 2 models
+- **Lead time**: 12 months beyond the initialization month (longest in the aggregated dataset)
+- **Anomaly baseline**: 1991-2020 (matches reference baseline; no adjustment applied)
+- **Update frequency**: Monthly
+- **Role**: CanSIPS is fetched directly from ECCC as a standalone source and is used in place of the NMME ECCC-CanESM5 / ECCC-GEM5.2-NEMO streams, which originate from the same physical models but use an older initialization cadence in the NMME feed.
+
+### 5. Observed Nino3.4
 
 - **Provider**: NOAA CPC
 - **Monthly Nino3.4**: `https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices` (OISSTv2-based)
@@ -73,6 +92,7 @@ Different sources compute anomalies relative to different climatological base pe
 | CFS v2 | 1991-2020 | None (reference baseline) |
 | NMME | Model-specific | None (assumed approximately consistent) |
 | C3S | 1993-2016 | Adjusted to 1991-2020 |
+| CanSIPS | 1991-2020 | None (reference baseline) |
 | Observed | 1991-2020 | None (reference baseline) |
 
 ### C3S Baseline Adjustment Method
@@ -89,31 +109,45 @@ Residual baseline offsets of ~0.1 C may remain, particularly for NMME models who
 
 ## Model Deduplication
 
-Several physical models appear in multiple source databases. To avoid double-counting when computing multi-model statistics, the following deduplication rules are applied:
+Several physical models appear in multiple source databases. To avoid double-counting when computing multi-model statistics, the following deduplication rules are applied. These rules are implemented as the `MEGA_PLUME_DROP` set in `enso_forecast/visualize.py`:
 
 | Physical Model | Appears in | Kept version | Rationale |
 |---------------|-----------|-------------|-----------|
-| NCEP CFSv2 | CFS, NMME, C3S | CFS (E3, 40 members) | Most current initialization; direct Nino3.4 output |
-| ECCC GEM5.2-NEMO | NMME, C3S | NMME (20 members, 9 leads) | Longer lead time than C3S (6 leads) |
-| NMME overall mean | NMME | Dropped | Not an independent model; is a derived mean |
+| NCEP CFSv2 | CFS, NMME, C3S | **CFS** (E3, 41 members) | Most current initialization; direct Nino3.4 output |
+| ECCC CanESM5 | NMME, CanSIPS | **CanSIPS** (20 members, 12 leads) | Direct feed from ECCC; longer lead window (12 vs 8 months) |
+| ECCC GEM5.2-NEMO | NMME, C3S, CanSIPS | **CanSIPS** (20 members, 12 leads) | Same physical model; CanSIPS is the authoritative direct feed |
+| NMME overall mean | NMME | **Dropped** | Not an independent model; derived multi-model mean |
 
-After deduplication, 11 unique models remain with a total of 433 individual ensemble members.
+Specifically, the `MEGA_PLUME_DROP` set excludes these (source, model) pairs:
+
+- `("NMME", "NCEP-CFSv2")` — use CFS source instead
+- `("NMME", "NMME")` — derived mean, not a distinct model
+- `("NMME", "ECCC-CanESM5")` — replaced by CanSIPS direct source
+- `("NMME", "ECCC-GEM5.2-NEMO")` — replaced by CanSIPS direct source
+- `("C3S", "NCEP")` — duplicate of CFSv2
+- `("C3S", "ECCC")` — duplicate of CanSIPS-GEM-NEMO family
+
+After deduplication, **13 unique models** remain with a total of **~637 individual ensemble members**.
 
 ### Deduplicated Model Inventory
 
-| Model | Source | Members | Lead (months) |
-|-------|--------|---------|---------------|
-| CFSv2 | CFS | 40 | 9 |
+| Model | Source | Members | Lead (months beyond init) |
+|-------|--------|---------|---------------------------|
+| CFSv2 | CFS | 41 | 9 |
 | ECMWF | C3S | 51 | 6 |
 | Meteo-France | C3S | 51 | 6 |
 | DWD | C3S | 50 | 6 |
 | CMCC | C3S | 50 | 6 |
-| BOM | C3S | 121 | 6 |
-| ECCC-CanESM5 | NMME | 20 | 9 |
-| ECCC-GEM5.2-NEMO | NMME | 20 | 9 |
-| NCAR-CESM1 | NMME | 10 | 9 |
-| NCAR-CCSM4 | NMME | 10 | 9 |
-| NASA-GEOS-S2S-2 | NMME | 10 | 9 |
+| BOM | C3S | 110 | 6 |
+| UKMO | C3S | 60 | 6 |
+| JMA | C3S | 155 | 6 |
+| CanSIPS-CanESM5 | CanSIPS | 20 | 12 |
+| CanSIPS-GEM-NEMO | CanSIPS | 20 | 12 |
+| NCAR-CESM1 | NMME | 10 | 8 |
+| NCAR-CCSM4 | NMME | 10 | 8 |
+| NASA-GEOS-S2S-2 | NMME | 10 | 8 |
+
+Member counts reflect the April 2026 initialization cycle; they can vary month-to-month as models add or drop realizations.
 
 ## Equal-Weight Model Statistics
 
@@ -139,10 +173,10 @@ The CFS NetCDF files contain both historical verification months (where all ense
 Individual CFS ensemble members as thin semi-transparent lines, with two-tier shading (lighter for full min-max range, darker for 25th-75th percentile IQR), and the ensemble mean as a bold red line. Shows only true forecast months.
 
 ### 2. C3S Multi-System Forecast Plume (`c3s_plume.png`)
-All individual C3S ensemble members color-coded by originating center, with per-center ensemble means as thicker lines and the C3S multi-system mean as a dashed black line. Shows all 7 available C3S models (455 members).
+All individual C3S ensemble members color-coded by originating center, with per-center ensemble means as thicker lines and the C3S multi-system mean as a dashed black line. Shows all available C3S models for the current initialization (up to 9 models, ~670 members).
 
 ### 3. NMME Multi-Model Forecast Plume (`nmme_plume.png`)
-All individual NMME ensemble members color-coded by model, with per-model means and the NMME multi-model mean. Shows all 6 NMME models (102 members).
+All individual NMME ensemble members color-coded by model, with per-model means and the NMME multi-model mean. Shows all NMME models as delivered by the CPC feed (6 models, ~102 members); after deduplication, only NCAR-CESM1, NCAR-CCSM4, and NASA-GEOS-S2S-2 contribute to multi-source statistics.
 
 ### 4. Multi-Model Comparison (`model_comparison.png`)
 Ensemble mean from each unique model as a colored line (after deduplication), with the multi-model mean as a thick dashed black line. Shows the inter-model spread and identifies which models are outliers.
@@ -157,7 +191,7 @@ For a selected source (default: CFS), shows how successive monthly forecasts hav
 Box-and-whisker plot of deduplicated model means by target month, with individual model values as colored dots. Shows inter-model consensus and disagreement at each lead time.
 
 ### 8. Combined Forecast Plume (`mega_plume.png`)
-All ensemble members from all sources (deduplicated, 11 models, 433 members) in a single plume plot. Members are color-coded by model, with model means as thicker lines and the multi-model mean as a dashed black line. The most comprehensive view of the full forecast distribution.
+All ensemble members from all sources (deduplicated, 13 models, ~637 members) in a single plume plot. Members are color-coded by model, with model means as thicker lines and the multi-model median (model-weighted) as a dashed black line. The most comprehensive view of the full forecast distribution.
 
 ### 9. Member Distribution with Diamonds (`member_distribution.png`)
 Every ensemble member as a small colored dot, organized by target month, with bold diamond markers showing each model's ensemble mean. Models are spread horizontally within each month to reduce overlap.
@@ -182,9 +216,9 @@ Observed monthly Nino3.4 index since 1990, with red shading for El Nino episodes
 
 2. **Model independence**: Some models share components or heritage (e.g., NCAR-CESM1 and NCAR-CCSM4 share atmospheric components). Treating them as fully independent slightly overstates the effective number of independent forecasts.
 
-3. **Unequal lead times**: C3S models provide 6 months of lead time while NMME and CFS provide 9. At longer leads (months 7-9), only NMME and CFS contribute, reducing the model diversity.
+3. **Unequal lead times**: Lead coverage beyond the initialization month varies by source: C3S 6 months, NMME 8 months, CFSv2 9 months, CanSIPS 12 months. At leads 7-9 only CFSv2, NMME, and CanSIPS contribute; at leads 10-12 only CanSIPS (two models) contributes. Multi-model statistics at long leads are therefore based on fewer models, and plots filter to target months with ≥3 models reporting.
 
-4. **Missing C3S models**: UKMO and JMA were unavailable in the CDS archive for the March 2026 initialization. These models may become available with a delay after the initialization date.
+4. **Late-arriving C3S models**: UKMO and JMA can be delayed in the CDS archive by a few days after the monthly initialization date; if missing at fetch time they are simply excluded from that cycle.
 
 5. **No amplitude bias correction**: The NMME operationally applies an amplitude bias correction (dividing forecast anomalies by the ratio of model hindcast standard deviation to observed standard deviation, per model/lead/start-month). This correction is not applied here because hindcast data is not available for all current model versions. This means some NMME models may exhibit systematically too much or too little variability.
 
