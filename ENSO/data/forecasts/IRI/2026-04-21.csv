@@ -1,0 +1,200 @@
+source,model,model_type,init_date,target_month,lead_months,nino34_anom,member_id,temporal_resolution,anomaly_base_period
+IRI,AUS-ACCESS,dynamical,2026-04-01,2026-05,1,1.4,mean,seasonal_3mo,varies
+IRI,AUS-ACCESS,dynamical,2026-04-01,2026-06,2,1.83,mean,seasonal_3mo,varies
+IRI,AUS-ACCESS,dynamical,2026-04-01,2026-07,3,2.2,mean,seasonal_3mo,varies
+IRI,AUS-ACCESS,dynamical,2026-04-01,2026-08,4,2.57,mean,seasonal_3mo,varies
+IRI,AUS-RELATIVE,dynamical,2026-04-01,2026-05,1,1.0,mean,seasonal_3mo,varies
+IRI,AUS-RELATIVE,dynamical,2026-04-01,2026-06,2,1.37,mean,seasonal_3mo,varies
+IRI,AUS-RELATIVE,dynamical,2026-04-01,2026-07,3,1.67,mean,seasonal_3mo,varies
+IRI,AUS-RELATIVE,dynamical,2026-04-01,2026-08,4,2.03,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-05,1,0.4,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-06,2,0.76,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-07,3,1.05,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-08,4,1.32,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-09,5,1.55,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-10,6,1.72,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-11,7,1.89,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2026-12,8,1.98,mean,seasonal_3mo,varies
+IRI,BCC DIAP,unknown,2026-04-01,2027-01,9,1.91,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-05,1,0.86,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-06,2,1.18,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-07,3,1.35,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-08,4,1.38,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-09,5,1.38,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-10,6,1.44,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-11,7,1.53,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2026-12,8,1.6,mean,seasonal_3mo,varies
+IRI,CMC CANSIP,dynamical,2026-04-01,2027-01,9,1.6,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-05,1,1.28,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-06,2,1.72,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-07,3,2.11,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-08,4,2.4,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-09,5,2.53,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-10,6,2.6,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-11,7,2.57,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2026-12,8,2.45,mean,seasonal_3mo,varies
+IRI,COLA CCSM4,dynamical,2026-04-01,2027-01,9,2.26,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-05,1,0.56,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-06,2,0.83,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-07,3,1.1,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-08,4,1.4,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-09,5,1.75,mean,seasonal_3mo,varies
+IRI,CS-IRI-MM,dynamical,2026-04-01,2026-10,6,2.12,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-05,1,0.79,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-06,2,1.21,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-07,3,1.58,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-08,4,1.86,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-09,5,2.07,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-10,6,2.35,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-11,7,2.68,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2026-12,8,2.92,mean,seasonal_3mo,varies
+IRI,GFDL SPEAR,unknown,2026-04-01,2027-01,9,2.93,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-05,1,0.3,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-06,2,0.44,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-07,3,0.67,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-08,4,0.8,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-09,5,0.86,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-10,6,0.88,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-11,7,0.9,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2026-12,8,0.94,mean,seasonal_3mo,varies
+IRI,IOCAS ICM,dynamical,2026-04-01,2027-01,9,0.95,mean,seasonal_3mo,varies
+IRI,JMA,dynamical,2026-04-01,2026-05,1,0.53,mean,seasonal_3mo,varies
+IRI,JMA,dynamical,2026-04-01,2026-06,2,0.82,mean,seasonal_3mo,varies
+IRI,JMA,dynamical,2026-04-01,2026-07,3,1.1,mean,seasonal_3mo,varies
+IRI,JMA,dynamical,2026-04-01,2026-08,4,1.36,mean,seasonal_3mo,varies
+IRI,JMA,dynamical,2026-04-01,2026-09,5,1.66,mean,seasonal_3mo,varies
+IRI,KMA,dynamical,2026-04-01,2026-05,1,1.12,mean,seasonal_3mo,varies
+IRI,KMA,dynamical,2026-04-01,2026-06,2,1.58,mean,seasonal_3mo,varies
+IRI,KMA,dynamical,2026-04-01,2026-07,3,2.01,mean,seasonal_3mo,varies
+IRI,KMA,dynamical,2026-04-01,2026-08,4,2.37,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-05,1,0.3,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-06,2,0.41,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-07,3,0.42,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-08,4,0.41,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-09,5,0.52,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-10,6,0.73,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-11,7,0.91,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2026-12,8,1.03,mean,seasonal_3mo,varies
+IRI,LDEO,dynamical,2026-04-01,2027-01,9,1.0,mean,seasonal_3mo,varies
+IRI,MetFRANCE,dynamical,2026-04-01,2026-05,1,0.61,mean,seasonal_3mo,varies
+IRI,MetFRANCE,dynamical,2026-04-01,2026-06,2,0.96,mean,seasonal_3mo,varies
+IRI,MetFRANCE,dynamical,2026-04-01,2026-07,3,1.27,mean,seasonal_3mo,varies
+IRI,MetFRANCE,dynamical,2026-04-01,2026-08,4,1.55,mean,seasonal_3mo,varies
+IRI,MetFRANCE,dynamical,2026-04-01,2026-09,5,1.79,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-05,1,0.92,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-06,2,1.49,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-07,3,2.13,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-08,4,2.75,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-09,5,3.23,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-10,6,3.54,mean,seasonal_3mo,varies
+IRI,NASA GMAO,dynamical,2026-04-01,2026-11,7,3.73,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-05,1,0.69,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-06,2,1.15,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-07,3,1.51,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-08,4,1.78,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-09,5,1.99,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-10,6,2.22,mean,seasonal_3mo,varies
+IRI,NCEP CFSv2,dynamical,2026-04-01,2026-11,7,2.31,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-05,1,0.66,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-06,2,1.06,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-07,3,1.41,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-08,4,1.68,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-09,5,1.81,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-10,6,1.91,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-11,7,2.02,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2026-12,8,2.07,mean,seasonal_3mo,varies
+IRI,SINTEX-F,dynamical,2026-04-01,2027-01,9,2.03,mean,seasonal_3mo,varies
+IRI,UKMO,dynamical,2026-04-01,2026-05,1,0.8,mean,seasonal_3mo,varies
+IRI,UKMO,dynamical,2026-04-01,2026-06,2,1.13,mean,seasonal_3mo,varies
+IRI,UKMO,dynamical,2026-04-01,2026-07,3,1.43,mean,seasonal_3mo,varies
+IRI,UKMO,dynamical,2026-04-01,2026-08,4,1.7,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-05,1,0.41,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-06,2,0.53,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-07,3,0.63,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-08,4,0.69,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-09,5,0.81,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-10,6,0.94,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-11,7,1.06,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2026-12,8,1.07,mean,seasonal_3mo,varies
+IRI,BCC_RZDM,statistical,2026-04-01,2027-01,9,0.99,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-05,1,0.07,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-06,2,0.17,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-07,3,0.24,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-08,4,0.34,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-09,5,0.47,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-10,6,0.62,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-11,7,0.76,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2026-12,8,0.9,mean,seasonal_3mo,varies
+IRI,CPC MRKOV,statistical,2026-04-01,2027-01,9,0.99,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-05,1,0.21,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-06,2,0.33,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-07,3,0.44,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-08,4,0.56,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-09,5,0.73,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-10,6,0.91,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-11,7,1.08,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2026-12,8,0.99,mean,seasonal_3mo,varies
+IRI,CSU CLIPR,statistical,2026-04-01,2027-01,9,0.91,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-05,1,0.3,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-06,2,0.48,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-07,3,0.64,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-08,4,0.78,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-09,5,0.87,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-10,6,0.93,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-11,7,0.96,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2026-12,8,0.98,mean,seasonal_3mo,varies
+IRI,IAP-NN,unknown,2026-04-01,2027-01,9,0.98,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-05,1,0.39,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-06,2,0.56,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-07,3,0.75,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-08,4,0.89,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-09,5,0.99,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-10,6,1.17,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-11,7,1.25,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2026-12,8,1.24,mean,seasonal_3mo,varies
+IRI,NTU CODA,statistical,2026-04-01,2027-01,9,1.16,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-05,1,-0.11,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-06,2,0.2,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-07,3,0.52,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-08,4,0.69,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-09,5,0.63,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-10,6,0.46,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-11,7,0.32,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2026-12,8,0.44,mean,seasonal_3mo,varies
+IRI,TONGJI-ML,statistical,2026-04-01,2027-01,9,0.64,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-05,1,0.89,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-06,2,1.2,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-07,3,1.45,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-08,4,1.63,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-09,5,1.77,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-10,6,1.85,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-11,7,1.87,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2026-12,8,1.79,mean,seasonal_3mo,varies
+IRI,UCLA-TCD,statistical,2026-04-01,2027-01,9,1.62,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-05,1,0.78,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-06,2,1.12,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-07,3,1.33,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-08,4,1.49,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-09,5,1.65,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-10,6,1.82,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-11,7,1.95,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2026-12,8,1.97,mean,seasonal_3mo,varies
+IRI,UW PSL-CSLIM,statistical,2026-04-01,2027-01,9,1.84,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-05,1,0.73,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-06,2,1.1,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-07,3,1.41,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-08,4,1.62,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-09,5,1.73,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-10,6,1.75,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-11,7,1.7,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2026-12,8,1.61,mean,seasonal_3mo,varies
+IRI,UW PSL-LIM,statistical,2026-04-01,2027-01,9,1.48,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-05,1,0.29,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-06,2,0.51,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-07,3,0.74,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-08,4,0.97,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-09,5,1.22,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-10,6,1.51,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-11,7,1.79,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2026-12,8,1.99,mean,seasonal_3mo,varies
+IRI,XRO,statistical,2026-04-01,2027-01,9,2.05,mean,seasonal_3mo,varies
