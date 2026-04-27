@@ -19,6 +19,8 @@ from enso_forecast.config import (
     REQUEST_HEADERS,
     REQUEST_TIMEOUT,
     RETRY_DELAY,
+    RNINO34_E3_URL,
+    RNINO34_URLS,
 )
 
 logger = logging.getLogger(__name__)
@@ -193,8 +195,10 @@ def fetch_cfs(e3_only: bool = True) -> pd.DataFrame:
 
     if e3_only:
         urls = [("E3", CFS_E3_URL)]
+        rurls = [("E3", RNINO34_E3_URL)]
     else:
         urls = [(f"E{i}", url) for i, url in enumerate(CFS_URLS, start=1)]
+        rurls = [(f"E{i}", url) for i, url in enumerate(RNINO34_URLS, start=1)]
 
     for ensemble_label, url in urls:
         nc_path = cfs_raw / f"nino34Mon_{ensemble_label}.nc"
@@ -212,12 +216,38 @@ def fetch_cfs(e3_only: bool = True) -> pd.DataFrame:
         logger.warning("No CFS data extracted")
         return df
 
+    # Fetch published rONI (relative Niño 3.4) and merge by member/target_month.
+    # Same NetCDF schema as nino34Mon — the `anom` variable holds Niño 3.4 SSTA
+    # minus tropical-mean SSTA per ensemble member.
+    roni_records = []
+    for ensemble_label, rurl in rurls:
+        try:
+            rnc_path = cfs_raw / f"rnino34Mon_{ensemble_label}.nc"
+            _download_netcdf(rurl, rnc_path)
+            recs, _ = _process_cfs_file(rnc_path, ensemble_label)
+            roni_records.extend(recs)
+        except Exception as e:
+            logger.warning("Failed to fetch CFSv2 rONI for %s: %s", ensemble_label, e)
+
+    if roni_records:
+        rdf = pd.DataFrame(roni_records)[["member_id", "target_month", "nino34_anom"]]
+        rdf = rdf.rename(columns={"nino34_anom": "roni_anom"})
+        df = df.merge(rdf, on=["member_id", "target_month"], how="left")
+        df["tropical_mean_anom"] = df["nino34_anom"] - df["roni_anom"]
+    else:
+        df["roni_anom"] = np.nan
+        df["tropical_mean_anom"] = np.nan
+
     # Compute ensemble mean per target_month
     member_df = df[df["member_id"] != "mean"].copy()
     if len(member_df) > 0:
+        agg_spec = {"nino34_anom": "mean", "lead_months": "first"}
+        if "roni_anom" in member_df.columns:
+            agg_spec["roni_anom"] = "mean"
+            agg_spec["tropical_mean_anom"] = "mean"
         mean_df = (
             member_df.groupby("target_month", as_index=False)
-            .agg({"nino34_anom": "mean", "lead_months": "first"})
+            .agg(agg_spec)
         )
         mean_df["source"] = "CFS"
         mean_df["model"] = "CFSv2"

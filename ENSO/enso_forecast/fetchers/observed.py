@@ -9,6 +9,7 @@ import requests
 from enso_forecast.config import (
     OBSERVED_DIR,
     OBSERVED_ONI_URL,
+    OBSERVED_RONI_URL,
     OBSERVED_SSTOI_URL,
     REQUEST_HEADERS,
     REQUEST_TIMEOUT,
@@ -134,19 +135,76 @@ def fetch_oni() -> pd.DataFrame:
         if center_month is None:
             continue
 
-        # Handle cross-year: DJF center is January, but the row's year
-        # is the year the season starts. DJF starting in year Y has
-        # center month January of year Y+1.
-        if season == "DJF":
-            year_adj = year + 1
-        else:
-            year_adj = year
-
+        # NOAA labels each season with the year of its center month
+        # (e.g. DJF 1950 = Dec 1949-Feb 1950, centered on Jan 1950).
         records.append({
-            "year": year_adj,
+            "year": year,
             "month": center_month,
             "season": season,
             "oni": oni_value,
+        })
+
+    df = pd.DataFrame(records)
+    if len(df) > 0:
+        df["date"] = pd.to_datetime(
+            df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2) + "-01"
+        )
+    else:
+        df["date"] = pd.Series(dtype="datetime64[ns]")
+    return df
+
+
+def fetch_roni() -> pd.DataFrame:
+    """Download and parse NOAA CPC RONI (Relative Oceanic Nino Index).
+
+    Returns DataFrame with columns: year, month, season, roni, date.
+    RONI is the 3-month running mean of Nino3.4 SST anomalies minus the
+    tropical-mean (20S-20N) SST anomaly, on the 1991-2020 ERSSTv5 baseline.
+    Same SEAS YR ANOM format as ONI.
+    """
+    logger.info("Fetching RONI from %s", OBSERVED_RONI_URL)
+    resp = requests.get(
+        OBSERVED_RONI_URL, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT
+    )
+    resp.raise_for_status()
+
+    lines = resp.text.strip().split("\n")
+
+    records = []
+    for line in lines[1:]:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+
+        season_candidate = parts[0].strip()
+        if season_candidate in SEASON_TO_CENTER_MONTH:
+            season = season_candidate
+            try:
+                year = int(parts[1])
+                roni_value = float(parts[-1])
+            except (ValueError, IndexError):
+                continue
+        else:
+            try:
+                year = int(parts[0])
+                season = parts[1].strip()
+                roni_value = float(parts[-1])
+            except (ValueError, IndexError):
+                continue
+
+        if abs(roni_value) > 10:
+            continue
+
+        center_month = SEASON_TO_CENTER_MONTH.get(season)
+        if center_month is None:
+            continue
+
+        # NOAA labels each season with the year of its center month.
+        records.append({
+            "year": year,
+            "month": center_month,
+            "season": season,
+            "roni": roni_value,
         })
 
     df = pd.DataFrame(records)
@@ -165,8 +223,9 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
 
     monthly_path = OBSERVED_DIR / "nino34_monthly.csv"
     oni_path = OBSERVED_DIR / "oni.csv"
+    roni_path = OBSERVED_DIR / "roni.csv"
 
-    if not force and monthly_path.exists() and oni_path.exists():
+    if not force and monthly_path.exists() and oni_path.exists() and roni_path.exists():
         # Check if data is recent (within 35 days)
         existing = pd.read_csv(monthly_path)
         if len(existing) > 0:
@@ -175,6 +234,7 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
                 logger.info("Observed data is recent, skipping fetch (use --force to override)")
                 results["monthly"] = existing
                 results["oni"] = pd.read_csv(oni_path)
+                results["roni"] = pd.read_csv(roni_path)
                 return results
 
     monthly_df = fetch_monthly_nino34()
@@ -187,15 +247,27 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
     logger.info("Saved %d ONI records to %s", len(oni_df), oni_path)
     results["oni"] = oni_df
 
+    try:
+        roni_df = fetch_roni()
+        roni_df.to_csv(roni_path, index=False)
+        logger.info("Saved %d RONI records to %s", len(roni_df), roni_path)
+        results["roni"] = roni_df
+    except Exception as e:
+        logger.warning("Failed to fetch RONI: %s", e)
+        if roni_path.exists():
+            results["roni"] = pd.read_csv(roni_path)
+
     return results
 
 
 def get_recent_observed(n_months: int = 24) -> pd.DataFrame:
-    """Load recent observed monthly Nino3.4 for plotting context."""
+    """Load recent observed monthly Nino3.4 with rONI and tropical-mean columns."""
     monthly_path = OBSERVED_DIR / "nino34_monthly.csv"
     if not monthly_path.exists():
         save_observed()
     df = pd.read_csv(monthly_path)
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").tail(n_months).reset_index(drop=True)
-    return df
+    # Lazy import avoids a circular dependency between fetchers and normalize.
+    from enso_forecast.normalize import merge_observed_with_roni
+    return merge_observed_with_roni(df)

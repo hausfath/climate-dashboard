@@ -34,10 +34,19 @@ CFS_URLS = [
 # URL for E3 only (preferred for most current forecast)
 CFS_E3_URL = "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd3/nino34Mon.nc"
 
+# Relative Niño 3.4 (rONI) — same three rolling windows, member-level
+RNINO34_URLS = [
+    "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd1/rnino34Mon.nc",
+    "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd2/rnino34Mon.nc",
+    "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd3/rnino34Mon.nc",
+]
+RNINO34_E3_URL = "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd3/rnino34Mon.nc"
+
 NMME_BASE_URL = "https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/ENSMEAN/"
 
 OBSERVED_SSTOI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices"
 OBSERVED_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
+OBSERVED_RONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt"
 
 # --- CanSIPS (MSC Datamart) ---
 CANSIPS_GRIB_BASE = "https://dd.weather.gc.ca/today/model_cansips/100km/forecast"

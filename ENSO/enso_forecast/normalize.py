@@ -147,10 +147,38 @@ def compute_baseline_adjustment(
     return offsets
 
 
+def _compute_roni_baseline_adjustment(
+    source_period: tuple[int, int] = (1993, 2016),
+) -> dict[int, float]:
+    """Per-calendar-month rONI offset for shifting from source_period to 1991-2020.
+
+    NOAA's RONI is published seasonally (3-month) on the 1991-2020 baseline.
+    Here we interpolate to monthly (using the centred season's value as the
+    monthly value) and average per calendar month over ``source_period``.
+    """
+    roni_path = OBSERVED_DIR / "roni.csv"
+    if not roni_path.exists():
+        logger.warning("No observed RONI data; tropical-mean baseline adjustment skipped")
+        return {m: 0.0 for m in range(1, 13)}
+
+    roni = pd.read_csv(roni_path)
+    mask = (roni["year"] >= source_period[0]) & (roni["year"] <= source_period[1])
+    subset = roni[mask]
+    if len(subset) == 0:
+        return {m: 0.0 for m in range(1, 13)}
+
+    offsets = subset.groupby("month")["roni"].mean().to_dict()
+    for m in range(1, 13):
+        offsets.setdefault(m, 0.0)
+    return offsets
+
+
 def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
     """Adjust C3S anomalies from 1993-2016 to 1991-2020 baseline.
 
-    Only modifies rows where source == 'C3S' and anomaly_base_period == '1993-2016'.
+    Adjusts both ``nino34_anom`` and ``tropical_mean_anom`` (when present);
+    ``roni_anom`` is recomputed as nino34 − tropical_mean afterward so the
+    relationship is preserved.
     """
     if df.empty:
         return df
@@ -159,23 +187,32 @@ def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
     if not c3s_mask.any():
         return df
 
-    offsets = compute_baseline_adjustment(
+    n34_offsets = compute_baseline_adjustment(
         source_period=(1993, 2016),
         target_period=(1991, 2020),
     )
+    roni_offsets = _compute_roni_baseline_adjustment(source_period=(1993, 2016))
+    # tropical_mean offset = nino34 offset - roni offset (since roni = nino34 - tropical_mean)
+    trop_offsets = {m: n34_offsets.get(m, 0.0) - roni_offsets.get(m, 0.0) for m in range(1, 13)}
 
     df = df.copy()
+    has_tropical = "tropical_mean_anom" in df.columns
+    has_roni = "roni_anom" in df.columns
+
     for idx in df[c3s_mask].index:
         target_month_str = df.loc[idx, "target_month"]
         try:
             cal_month = int(target_month_str.split("-")[1])
         except (ValueError, IndexError):
             continue
-        df.loc[idx, "nino34_anom"] += offsets.get(cal_month, 0.0)
+        df.loc[idx, "nino34_anom"] += n34_offsets.get(cal_month, 0.0)
+        if has_tropical and pd.notna(df.loc[idx, "tropical_mean_anom"]):
+            df.loc[idx, "tropical_mean_anom"] += trop_offsets.get(cal_month, 0.0)
+        if has_roni and has_tropical and pd.notna(df.loc[idx, "tropical_mean_anom"]):
+            df.loc[idx, "roni_anom"] = df.loc[idx, "nino34_anom"] - df.loc[idx, "tropical_mean_anom"]
 
     df.loc[c3s_mask, "anomaly_base_period"] = "1991-2020 (adjusted)"
-    n_adjusted = c3s_mask.sum()
-    logger.info("Adjusted %d C3S records from 1993-2016 to 1991-2020 baseline", n_adjusted)
+    logger.info("Adjusted %d C3S records from 1993-2016 to 1991-2020 baseline", c3s_mask.sum())
     return df
 
 
@@ -257,6 +294,63 @@ def load_all_forecasts(
     combined = adjust_c3s_baseline(combined)
 
     return combined
+
+
+def load_observed_roni() -> pd.DataFrame:
+    """Load NOAA's observed RONI series, stamped at season center months.
+
+    Returns columns: year, month, season, roni, date. Empty DataFrame if the
+    RONI CSV is not yet present.
+    """
+    roni_path = OBSERVED_DIR / "roni.csv"
+    if not roni_path.exists():
+        return pd.DataFrame(columns=["year", "month", "season", "roni", "date"])
+    df = pd.read_csv(roni_path)
+    df["date"] = pd.to_datetime(df["date"])
+    return df.sort_values("date").reset_index(drop=True)
+
+
+def merge_observed_with_roni(
+    obs_nino34_df: pd.DataFrame,
+    roni_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Attach ``roni_anom`` and ``tropical_mean_anom`` to monthly observed Niño 3.4.
+
+    NOAA's RONI is published as 3-month seasonal values; we use the
+    season-centered monthly value as the rONI for that calendar month.
+    Months without a matching season are filled by linear time interpolation.
+
+    Returns a copy of ``obs_nino34_df`` with two added columns.
+    """
+    out = obs_nino34_df.copy()
+    if out.empty:
+        out["roni_anom"] = pd.Series(dtype="float64")
+        out["tropical_mean_anom"] = pd.Series(dtype="float64")
+        return out
+
+    if roni_df is None:
+        roni_df = load_observed_roni()
+
+    if roni_df.empty:
+        out["roni_anom"] = float("nan")
+        out["tropical_mean_anom"] = float("nan")
+        return out
+
+    out["date"] = pd.to_datetime(out["date"])
+    rdf = roni_df[["date", "roni"]].copy()
+    rdf["date"] = pd.to_datetime(rdf["date"])
+    merged = out.merge(rdf, on="date", how="left")
+
+    # Linear-time-interpolate any gaps between centered seasonal stamps.
+    merged = merged.sort_values("date").reset_index(drop=True)
+    merged["roni"] = (
+        merged.set_index("date")["roni"]
+        .interpolate(method="time")
+        .reset_index(drop=True)
+    )
+    merged = merged.rename(columns={"roni": "roni_anom"})
+    merged["tropical_mean_anom"] = merged["nino34_anom"] - merged["roni_anom"]
+    return merged
 
 
 def get_ensemble_means(df: pd.DataFrame) -> pd.DataFrame:

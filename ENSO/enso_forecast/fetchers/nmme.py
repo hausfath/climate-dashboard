@@ -87,10 +87,15 @@ def _download_file(url: str, dest: Path) -> bool:
     return False
 
 
-def _compute_nino34_mean(ds: xr.Dataset) -> xr.DataArray:
-    """Compute cosine-latitude-weighted Nino3.4 area mean from gridded NMME data.
+def _compute_area_mean(
+    ds: xr.Dataset,
+    lat_bounds: tuple[float, float],
+    lon_bounds: tuple[float, float] | None = None,
+) -> xr.DataArray:
+    """Cosine-latitude-weighted area mean over a lat/lon box.
 
-    Preserves all non-spatial dimensions (ensmem, target, etc.).
+    Preserves non-spatial dimensions (ensmem, target, etc.). When ``lon_bounds``
+    is None, averages over all longitudes (used for the tropical 20S-20N band).
     """
     var_name = None
     for v in ds.data_vars:
@@ -102,7 +107,6 @@ def _compute_nino34_mean(ds: xr.Dataset) -> xr.DataArray:
 
     data = ds[var_name]
 
-    # Identify lat/lon dims
     lat_name = lon_name = None
     for dim in data.dims:
         dl = dim.lower()
@@ -114,10 +118,8 @@ def _compute_nino34_mean(ds: xr.Dataset) -> xr.DataArray:
         raise ValueError(f"Cannot identify lat/lon dims from {data.dims}")
 
     lat = ds.coords[lat_name]
-    lon_min, lon_max = NINO34_LON_BOUNDS_360
-    lat_min, lat_max = NINO34_LAT_BOUNDS
+    lat_min, lat_max = lat_bounds
 
-    # Squeeze singleton dims (initial_time) but preserve ensmem/target
     squeeze_dims = [
         d for d in data.dims
         if d not in (lat_name, lon_name) and data.sizes[d] == 1
@@ -126,21 +128,32 @@ def _compute_nino34_mean(ds: xr.Dataset) -> xr.DataArray:
     if squeeze_dims:
         data = data.squeeze(dim=squeeze_dims, drop=True)
 
-    # Handle descending latitude
-    if float(lat[0]) > float(lat[-1]):
-        region = data.sel(
-            {lat_name: slice(lat_max, lat_min), lon_name: slice(lon_min, lon_max)}
-        )
-    else:
-        region = data.sel(
-            {lat_name: slice(lat_min, lat_max), lon_name: slice(lon_min, lon_max)}
-        )
+    lat_slice = slice(lat_max, lat_min) if float(lat[0]) > float(lat[-1]) else slice(lat_min, lat_max)
+    sel = {lat_name: lat_slice}
+    if lon_bounds is not None:
+        lon_min, lon_max = lon_bounds
+        sel[lon_name] = slice(lon_min, lon_max)
+    region = data.sel(sel)
 
     if region.sizes[lat_name] == 0 or region.sizes[lon_name] == 0:
-        raise ValueError("Empty Nino3.4 selection")
+        raise ValueError(f"Empty area selection for lat={lat_bounds} lon={lon_bounds}")
 
     weights = np.cos(np.deg2rad(region.coords[lat_name]))
     return region.weighted(weights).mean(dim=[lat_name, lon_name])
+
+
+def _compute_nino34_mean(ds: xr.Dataset) -> xr.DataArray:
+    """Cosine-latitude-weighted Niño 3.4 area mean from gridded NMME data."""
+    return _compute_area_mean(ds, NINO34_LAT_BOUNDS, NINO34_LON_BOUNDS_360)
+
+
+# Tropical band used for rONI denominator (L'Heureux et al. 2024)
+TROPICAL_LAT_BOUNDS = (-20.0, 20.0)
+
+
+def _compute_tropical_mean(ds: xr.Dataset) -> xr.DataArray:
+    """Cosine-latitude-weighted 20S-20N tropical-mean SSTA (all longitudes)."""
+    return _compute_area_mean(ds, TROPICAL_LAT_BOUNDS, lon_bounds=None)
 
 
 def _decode_target_times(ds: xr.Dataset, time_dim: str) -> list[pd.Timestamp]:
@@ -156,6 +169,11 @@ def _process_member_file(
     """Process an NMME file with individual ensemble members."""
     ds = xr.open_dataset(nc_path, decode_times=False)
     nino34 = _compute_nino34_mean(ds)
+    try:
+        tropical = _compute_tropical_mean(ds)
+    except Exception as e:
+        logger.warning("NMME %s: tropical-mean failed (%s); rONI will be NaN", display_name, e)
+        tropical = None
 
     # Find dims
     ens_dim = target_dim = None
@@ -170,7 +188,33 @@ def _process_member_file(
     target_dates = _decode_target_times(ds, target_dim) if target_dim else []
     init_dt = datetime.strptime(init_date, "%Y-%m-%d")
 
+    def _trop_val(member_idx, t_idx):
+        if tropical is None:
+            return float("nan")
+        if ens_dim and ens_dim in tropical.dims and member_idx is not None:
+            return float(tropical.isel({ens_dim: member_idx, target_dim: t_idx}).values)
+        return float(tropical.isel({target_dim: t_idx}).values)
+
     records = []
+
+    def _make_record(member_id, target_dt, n34_val, trop_val):
+        target_month = target_dt.strftime("%Y-%m")
+        lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
+        roni = n34_val - trop_val if not np.isnan(trop_val) else float("nan")
+        return {
+            "source": "NMME",
+            "model": display_name,
+            "model_type": "dynamical",
+            "init_date": init_date,
+            "target_month": target_month,
+            "lead_months": max(lead, 0),
+            "nino34_anom": round(n34_val, 4),
+            "tropical_mean_anom": round(trop_val, 4) if not np.isnan(trop_val) else float("nan"),
+            "roni_anom": round(roni, 4) if not np.isnan(roni) else float("nan"),
+            "member_id": member_id,
+            "temporal_resolution": "monthly",
+            "anomaly_base_period": "model-specific",
+        }
 
     if ens_dim:
         n_members = nino34.sizes[ens_dim]
@@ -178,71 +222,36 @@ def _process_member_file(
 
         for m_idx in range(n_members):
             member_id = f"ens_{int(ens_coords[m_idx]):03d}"
-            member_data = nino34.isel({ens_dim: m_idx})
+            member_n34 = nino34.isel({ens_dim: m_idx})
 
             for t_idx, target_dt in enumerate(target_dates):
-                val = float(member_data.isel({target_dim: t_idx}).values)
+                val = float(member_n34.isel({target_dim: t_idx}).values)
                 if np.isnan(val):
                     continue
+                trop = _trop_val(m_idx, t_idx)
+                records.append(_make_record(member_id, target_dt, val, trop))
 
-                target_month = target_dt.strftime("%Y-%m")
-                lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
-
-                records.append({
-                    "source": "NMME",
-                    "model": display_name,
-                    "model_type": "dynamical",
-                    "init_date": init_date,
-                    "target_month": target_month,
-                    "lead_months": max(lead, 0),
-                    "nino34_anom": round(val, 4),
-                    "member_id": member_id,
-                    "temporal_resolution": "monthly",
-                    "anomaly_base_period": "model-specific",
-                })
-
-        # Compute and store ensemble mean
-        ens_mean = nino34.mean(dim=ens_dim)
+        # Ensemble mean
+        ens_mean_n34 = nino34.mean(dim=ens_dim)
+        ens_mean_trop = tropical.mean(dim=ens_dim) if tropical is not None and ens_dim in tropical.dims else tropical
         for t_idx, target_dt in enumerate(target_dates):
-            val = float(ens_mean.isel({target_dim: t_idx}).values)
+            val = float(ens_mean_n34.isel({target_dim: t_idx}).values)
             if np.isnan(val):
                 continue
-            target_month = target_dt.strftime("%Y-%m")
-            lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
-            records.append({
-                "source": "NMME",
-                "model": display_name,
-                "model_type": "dynamical",
-                "init_date": init_date,
-                "target_month": target_month,
-                "lead_months": max(lead, 0),
-                "nino34_anom": round(val, 4),
-                "member_id": "mean",
-                "temporal_resolution": "monthly",
-                "anomaly_base_period": "model-specific",
-            })
+            if ens_mean_trop is None:
+                trop = float("nan")
+            else:
+                trop = float(ens_mean_trop.isel({target_dim: t_idx}).values)
+            records.append(_make_record("mean", target_dt, val, trop))
 
         logger.info("NMME %s: %d members x %d lead times", display_name, n_members, len(target_dates))
     else:
-        # No ensemble dim (ENSMEAN file or single member)
         for t_idx, target_dt in enumerate(target_dates):
             val = float(nino34.isel({target_dim: t_idx}).values)
             if np.isnan(val):
                 continue
-            target_month = target_dt.strftime("%Y-%m")
-            lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
-            records.append({
-                "source": "NMME",
-                "model": display_name,
-                "model_type": "dynamical",
-                "init_date": init_date,
-                "target_month": target_month,
-                "lead_months": max(lead, 0),
-                "nino34_anom": round(val, 4),
-                "member_id": "mean",
-                "temporal_resolution": "monthly",
-                "anomaly_base_period": "model-specific",
-            })
+            trop = _trop_val(None, t_idx)
+            records.append(_make_record("mean", target_dt, val, trop))
         logger.info("NMME %s: %d lead times (ensemble mean only)", display_name, len(target_dates))
 
     ds.close()

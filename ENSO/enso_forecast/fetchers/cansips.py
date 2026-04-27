@@ -18,11 +18,15 @@ from enso_forecast.config import (
     MAX_RETRIES,
     NINO34_LAT_BOUNDS,
     NINO34_LON_BOUNDS_360,
+    OBSERVED_DIR,
     RAW_DIR,
     REQUEST_HEADERS,
     REQUEST_TIMEOUT,
     RETRY_DELAY,
 )
+
+# Tropical band for rONI denominator (L'Heureux et al. 2024)
+TROPICAL_LAT_BOUNDS = (-20.0, 20.0)
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +117,16 @@ def _fetch_ensemble_mean_csv(init_dt: date) -> dict[int, float]:
     return anomalies
 
 
-def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
-    """Compute cosine-lat-weighted Nino3.4 area mean SST per ensemble member.
+def _compute_area_means_per_member(
+    grib_path: Path,
+) -> tuple[dict[int, float], dict[int, float]]:
+    """Compute per-member cosine-lat-weighted area-mean SST (Kelvin) for
+    Niño 3.4 and the 20S-20N tropical band.
 
-    Returns dict mapping perturbation number to Nino3.4 SST (Kelvin).
+    Returns (nino34_ssts, tropical_ssts) — each a dict {member_num: SST}.
     """
     ds = xr.open_dataset(grib_path, engine="cfgrib")
 
-    # Find SST variable
     var_name = None
     for v in ds.data_vars:
         vl = v.lower()
@@ -132,7 +138,6 @@ def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
 
     data = ds[var_name]
 
-    # Identify lat/lon dims
     lat_name = lon_name = member_dim = None
     for dim in data.dims:
         dl = dim.lower()
@@ -146,7 +151,6 @@ def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
     if lat_name is None or lon_name is None:
         raise ValueError(f"Cannot identify lat/lon dims from {data.dims}")
 
-    # Squeeze singleton dims (preserve member dim)
     squeeze_dims = [
         d for d in data.dims
         if d not in (lat_name, lon_name, member_dim) and data.sizes[d] == 1
@@ -154,41 +158,74 @@ def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
     if squeeze_dims:
         data = data.squeeze(dim=squeeze_dims, drop=True)
 
-    # Select Nino3.4 region
     lat = ds.coords[lat_name]
-    lon_min, lon_max = NINO34_LON_BOUNDS_360
-    lat_min, lat_max = NINO34_LAT_BOUNDS
+    descending = float(lat[0]) > float(lat[-1])
 
-    if float(lat[0]) > float(lat[-1]):
-        region = data.sel(
-            {lat_name: slice(lat_max, lat_min), lon_name: slice(lon_min, lon_max)}
-        )
-    else:
-        region = data.sel(
-            {lat_name: slice(lat_min, lat_max), lon_name: slice(lon_min, lon_max)}
-        )
+    def _area_mean(lat_bounds, lon_bounds):
+        lat_min, lat_max = lat_bounds
+        lat_slice = slice(lat_max, lat_min) if descending else slice(lat_min, lat_max)
+        sel = {lat_name: lat_slice}
+        if lon_bounds is not None:
+            sel[lon_name] = slice(lon_bounds[0], lon_bounds[1])
+        region = data.sel(sel)
+        if region.sizes[lat_name] == 0 or region.sizes[lon_name] == 0:
+            raise ValueError(f"Empty selection lat={lat_bounds} lon={lon_bounds}")
+        w = np.cos(np.deg2rad(region.coords[lat_name]))
+        return region.weighted(w).mean(dim=[lat_name, lon_name])
 
-    if region.sizes[lat_name] == 0 or region.sizes[lon_name] == 0:
-        raise ValueError("Empty Nino3.4 selection")
+    nino34_mean = _area_mean(NINO34_LAT_BOUNDS, NINO34_LON_BOUNDS_360)
+    tropical_mean = _area_mean(TROPICAL_LAT_BOUNDS, None)
 
-    # Cosine-latitude weighted area mean
-    weights = np.cos(np.deg2rad(region.coords[lat_name]))
-    area_mean = region.weighted(weights).mean(dim=[lat_name, lon_name])
+    def _to_dict(mean_arr):
+        out = {}
+        if member_dim is not None:
+            mc = ds.coords[member_dim].values
+            for m_idx in range(mean_arr.sizes[member_dim]):
+                v = float(mean_arr.isel({member_dim: m_idx}).values)
+                if not np.isnan(v):
+                    out[int(mc[m_idx])] = v
+        else:
+            out[0] = float(mean_arr.values)
+        return out
 
-    # Extract per-member values
-    results = {}
-    if member_dim is not None:
-        member_coords = ds.coords[member_dim].values
-        for m_idx in range(area_mean.sizes[member_dim]):
-            member_num = int(member_coords[m_idx])
-            val = float(area_mean.isel({member_dim: m_idx}).values)
-            if not np.isnan(val):
-                results[member_num] = val
-    else:
-        results[0] = float(area_mean.values)
-
+    n34_d, trop_d = _to_dict(nino34_mean), _to_dict(tropical_mean)
     ds.close()
-    return results
+    return n34_d, trop_d
+
+
+def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
+    """Backwards-compatible wrapper returning only the Niño 3.4 dict."""
+    n34, _ = _compute_area_means_per_member(grib_path)
+    return n34
+
+
+def _persisted_observed_tropical_anom(init_dt: date) -> float:
+    """Most recent observed tropical-mean SSTA (= obs Niño3.4 − obs RONI).
+
+    Used as a slowly-evolving baseline for CanSIPS ensemble-mean tropical
+    anomaly across all forecast leads (tropical SSTA evolves on multi-month
+    timescales, so persistence is a reasonable first guess).
+    """
+    nino_path = OBSERVED_DIR / "nino34_monthly.csv"
+    roni_path = OBSERVED_DIR / "roni.csv"
+    if not (nino_path.exists() and roni_path.exists()):
+        return 0.0
+    obs = pd.read_csv(nino_path)
+    roni = pd.read_csv(roni_path)
+    obs["date"] = pd.to_datetime(obs["date"])
+    roni["date"] = pd.to_datetime(roni["date"])
+    cutoff = pd.Timestamp(init_dt)
+    obs_recent = obs[obs["date"] <= cutoff].sort_values("date").tail(1)
+    if obs_recent.empty:
+        return 0.0
+    last_date = obs_recent.iloc[0]["date"]
+    last_n34 = float(obs_recent.iloc[0]["nino34_anom"])
+    rmatch = roni[roni["date"] == last_date]
+    if rmatch.empty:
+        rmatch = roni[roni["date"] <= last_date].sort_values("date").tail(1)
+    if rmatch.empty:
+        return 0.0
+    return last_n34 - float(rmatch.iloc[0]["roni"])
 
 
 def fetch_cansips(
@@ -234,7 +271,11 @@ def fetch_cansips(
     raw_dir = RAW_DIR / "cansips" / yyyymm
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 2: Download and process GRIB2 files for each lead month
+    # Persisted observed tropical-mean SSTA, used as the slowly-evolving
+    # baseline for the ensemble-mean tropical anomaly across forecast leads.
+    persisted_trop_anom = _persisted_observed_tropical_anom(init_dt)
+    logger.info("CanSIPS: persisted observed tropical-mean anomaly = %+.3f °C", persisted_trop_anom)
+
     all_records = []
 
     for lead_idx in range(12):
@@ -248,27 +289,36 @@ def fetch_cansips(
             continue
 
         try:
-            member_ssts = _compute_nino34_per_member(local_path)
+            member_n34_ssts, member_trop_ssts = _compute_area_means_per_member(local_path)
         except Exception as e:
             logger.warning("Error processing CanSIPS lead %d: %s", lead_idx, e)
             continue
 
-        if not member_ssts or lead_idx not in csv_anomalies:
+        if not member_n34_ssts or lead_idx not in csv_anomalies:
             logger.warning("Skipping lead %d: no data", lead_idx)
             continue
 
-        # Compute ensemble mean SST across all members
-        all_sst_vals = list(member_ssts.values())
-        ensemble_mean_sst = np.mean(all_sst_vals)
+        ensemble_mean_n34_sst = float(np.mean(list(member_n34_ssts.values())))
+        ensemble_mean_trop_sst = (
+            float(np.mean(list(member_trop_ssts.values()))) if member_trop_ssts else None
+        )
         csv_mean_anom = csv_anomalies[lead_idx]
 
-        # Target month for this lead
         target_dt = pd.Timestamp(f"{year}-{month:02d}-01") + pd.DateOffset(months=lead_idx + 1)
         target_month = target_dt.strftime("%Y-%m")
 
-        # Convert each member SST to anomaly and assign sub-model
-        for member_num, sst_val in member_ssts.items():
-            anomaly = (sst_val - ensemble_mean_sst) + csv_mean_anom
+        for member_num, sst_val in member_n34_ssts.items():
+            anomaly = (sst_val - ensemble_mean_n34_sst) + csv_mean_anom
+
+            if member_trop_ssts and ensemble_mean_trop_sst is not None and member_num in member_trop_ssts:
+                trop_anom = (
+                    (member_trop_ssts[member_num] - ensemble_mean_trop_sst)
+                    + persisted_trop_anom
+                )
+                roni = anomaly - trop_anom
+            else:
+                trop_anom = float("nan")
+                roni = float("nan")
 
             if member_num in _GEM_NEMO_MEMBERS:
                 model_name = "CanSIPS-GEM-NEMO"
@@ -285,6 +335,8 @@ def fetch_cansips(
                 "target_month": target_month,
                 "lead_months": lead_idx + 1,
                 "nino34_anom": round(anomaly, 4),
+                "tropical_mean_anom": round(trop_anom, 4) if not np.isnan(trop_anom) else float("nan"),
+                "roni_anom": round(roni, 4) if not np.isnan(roni) else float("nan"),
                 "member_id": f"ens_{member_num:03d}",
                 "temporal_resolution": "monthly",
                 "anomaly_base_period": "1991-2020",
@@ -304,9 +356,13 @@ def fetch_cansips(
         if model_members.empty:
             continue
 
+        agg_spec = {"nino34_anom": "mean", "lead_months": "first"}
+        if "tropical_mean_anom" in model_members.columns:
+            agg_spec["tropical_mean_anom"] = "mean"
+            agg_spec["roni_anom"] = "mean"
         model_mean = (
             model_members.groupby("target_month", as_index=False)
-            .agg({"nino34_anom": "mean", "lead_months": "first"})
+            .agg(agg_spec)
         )
         model_mean["source"] = "CanSIPS"
         model_mean["model"] = model_name

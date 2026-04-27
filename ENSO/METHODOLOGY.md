@@ -80,6 +80,7 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Provider**: NOAA CPC
 - **Monthly Nino3.4**: `https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices` (OISSTv2-based)
 - **ONI (Oceanic Nino Index)**: `https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt` (3-month running mean, ERSSTv5-based)
+- **RONI (Relative ONI)**: `https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt` (3-month running mean of Niño 3.4 SSTA minus tropical-mean (20°S-20°N) SSTA, ERSSTv5-based)
 - **Anomaly baseline**: 1991-2020 (centered 30-year base period)
 - **Note on file format**: The sstoi.indices file orders the Nino regions as NINO1+2, NINO3, NINO4, NINO3.4 (NINO4 comes before NINO3.4), with SST and anomaly as separate columns. The NINO3.4 anomaly is the 10th column (index 9).
 
@@ -106,6 +107,36 @@ The C3S anomalies are adjusted from the 1993-2016 baseline to 1991-2020 using th
 The adjustment is small (approximately -0.05 to -0.09 C for most months, annual mean -0.05 C), reflecting that the 1993-2016 period was slightly cooler than 1991-2020 in the Nino3.4 region. After adjustment, C3S and CFS ensemble means agree to within ~0.01-0.12 C at overlapping forecast months, consistent with expected inter-model variability.
 
 Residual baseline offsets of ~0.1 C may remain, particularly for NMME models whose exact baseline periods are model-specific and not independently adjusted.
+
+## Relative ONI (rONI)
+
+The dashboard supports a toggle between the standard Niño 3.4 anomaly (ONI) and the **Relative ONI (rONI)**, defined as
+
+```
+rONI = Niño 3.4 SST anomaly − tropical-mean (20°S–20°N) SST anomaly
+```
+
+Subtracting the tropical-mean SST anomaly removes background tropical warming so ENSO events from different decades can be compared on equal footing. As tropical mean SSTs continue to warm under climate change, ONI values are biased upward relative to the strength of the underlying ENSO event; rONI corrects for that bias and is the preferred index when judging the dynamical character of an event (see L'Heureux et al. 2024, J. Climate, DOI 10.1175/JCLI-D-23-0406; van Oldenborgh et al. 2021).
+
+Thresholds remain ±0.5 °C — the same numerical thresholds used for ONI — since rONI is in °C and uses the same 1991–2020 baseline.
+
+### Per-source rONI strategy
+
+Each forecast and observed record carries three columns: `nino34_anom`, `tropical_mean_anom`, and `roni_anom = nino34_anom − tropical_mean_anom`. The strategy for obtaining the tropical mean differs by source:
+
+| Source | rONI strategy |
+|--------|--------------|
+| **CFSv2** | Fetch the published rNino3.4 file `rnino34Mon.nc` from `dataInd{1,2,3}/`, parse with the same NetCDF reader as `nino34Mon.nc`, and merge by (member, target_month, init_date). Tropical mean back-computed as `nino34_anom − roni_anom`. |
+| **NMME** | Compute per-member tropical-mean SST anomaly from the cached gridded NetCDFs using a cosine-latitude-weighted mean over (20°S, 20°N) × all longitudes. |
+| **C3S** | Widen the CDS request from the Niño 3.4 box to the full tropical band `[20, -180, -20, 180]` and compute per-member tropical mean from the same gridded files. The 1993–2016 → 1991–2020 baseline adjustment is applied to the tropical-mean anomaly as well, using the observed tropical-mean climatology offset. |
+| **CanSIPS** | Compute per-member tropical-mean SST from the cached GRIB2 (already global 1°). Anomalies are derived using the persisted observed tropical anomaly as the climatology reference, since the GRIB files contain raw SST rather than anomalies. |
+| **Observed** | Use NOAA's published RONI series (ERSSTv5, 1991–2020 base) directly: `https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt`. Seasonal RONI is linearly time-interpolated to monthly to align with the monthly Niño 3.4 index. |
+
+### Verification
+
+- For CFSv2 the published rNino3.4 anomaly should match `nino34_anom − tropical_mean_anom` exactly to rounding.
+- Observed `roni_anom` should track NOAA's published RONI series within the interpolation noise.
+- For recent target months tropical-mean anomaly should be on the order of +0.4–0.6 °C, reflecting present-day tropical warming relative to the 1991–2020 base period.
 
 ## Model Deduplication
 

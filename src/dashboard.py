@@ -1779,6 +1779,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _enso_forecast_df = _enso_obs_df = _enso_oni_df = pd.DataFrame()
     _enso_combined_df = pd.DataFrame()
     _enso_cards = {}
+    _enso_cards_roni = {}
     try:
         from src.enso_plots import (
             load_enso_forecast_data, compute_enso_cards, build_enso_combined,
@@ -1788,6 +1789,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         )
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
         _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df)
+        _enso_cards_roni = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df, index_mode="roni")
         _enso_combined_df = build_enso_combined(_enso_oni_df, _enso_forecast_df, _enso_obs_df)
         _ENSO_AVAILABLE = not _enso_forecast_df.empty
         if _ENSO_AVAILABLE:
@@ -2063,6 +2065,20 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ]),  # end tab-content-global
 
         html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
+
+            # rONI toggle (relative to tropical mean)
+            dbc.Row([
+                dbc.Col([
+                    dbc.Switch(
+                        id='enso-index-toggle',
+                        label='Show as rONI (relative to tropical mean)',
+                        value=False,
+                        style={'fontSize': '0.95rem', 'display': 'flex',
+                               'alignItems': 'center', 'gap': '0.5rem'},
+                        input_style={'marginTop': '0', 'flexShrink': '0'},
+                    ),
+                ], xs=12, md={'size': 10, 'offset': 1}, className="mb-3"),
+            ]),
 
             # ENSO Summary Cards
             dbc.Row([
@@ -2653,10 +2669,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('models-trend-explorer-img', 'src'),
             Output('models-histograms-img', 'src'),
         ],
-        [Input('dark-mode-switch', 'value')]
+        [Input('dark-mode-switch', 'value'),
+         Input('enso-index-toggle', 'value')],
     )
-    def update_image_sources(dark_mode):
+    def update_image_sources(dark_mode, roni_on):
         mode = 'dark' if dark_mode else 'light'
+        enso_idx = 'roni_' if roni_on else ''
         return (
             f'/assets/images/timeseries_{mode}.png',
             f'/assets/images/daily_anomalies_{mode}.png',
@@ -2667,9 +2685,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/heatmap_anomaly_{mode}.png',
             f'/assets/images/heatmap_temp_{mode}.png',
             f'/assets/images/ridgeline_{mode}.png',
-            f'/assets/images/enso_mega_plume_{mode}.png',
-            f'/assets/images/enso_box_distribution_{mode}.png',
-            f'/assets/images/enso_historical_{mode}.png',
+            f'/assets/images/enso_mega_plume_{enso_idx}{mode}.png',
+            f'/assets/images/enso_box_distribution_{enso_idx}{mode}.png',
+            f'/assets/images/enso_historical_{enso_idx}{mode}.png',
             f'/assets/images/models_timeseries_{mode}.png',
             f'/assets/images/models_trend_explorer_{mode}.png',
             f'/assets/images/models_histograms_{mode}.png',
@@ -2942,7 +2960,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # ── ENSO Forecast callbacks ─────────────────────────────────────────────
 
-    # ENSO card styling (dark/light)
+    # ENSO card styling (dark/light) + rONI toggle label color
     @app.callback(
         [Output('enso-card-1', 'color'),
          Output('enso-card-2', 'color'),
@@ -2958,7 +2976,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-card-3-value', 'style'),
          Output('enso-card-1-sub', 'style'),
          Output('enso-card-2-sub', 'style'),
-         Output('enso-card-3-sub', 'style')],
+         Output('enso-card-3-sub', 'style'),
+         Output('enso-index-toggle', 'label_style')],
         [Input('dark-mode-switch', 'value')],
     )
     def update_enso_card_styles(dark_mode):
@@ -2968,28 +2987,47 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         title_style = {'fontSize': '1rem', 'color': theme['text_color']}
         value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
         sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
+        toggle_label_style = {'fontSize': '0.95rem', 'color': theme['text_color']}
         return (
             card_color, card_color, card_color,
             card_style, card_style, card_style,
             title_style, title_style, title_style,
             value_style, value_style, value_style,
             sub_style, sub_style, sub_style,
+            toggle_label_style,
+        )
+
+    # ENSO card values follow the rONI toggle
+    @app.callback(
+        [Output('enso-card-1-value', 'children'),
+         Output('enso-card-2-value', 'children'),
+         Output('enso-card-2-sub', 'children')],
+        [Input('enso-index-toggle', 'value')],
+    )
+    def update_enso_card_values(roni_on):
+        cards = _enso_cards_roni if roni_on else _enso_cards
+        return (
+            cards.get('current_state', 'N/A'),
+            cards.get('max_change_str', 'N/A'),
+            cards.get('max_change_range', 'N/A'),
         )
 
     # ENSO Graph 1: Mega Plume (triggered by interactive switch + dark mode)
     @app.callback(
         Output('enso-mega-plume-plot', 'figure'),
         [Input('interactive-switch', 'value'),
-         Input('dark-mode-switch', 'value')],
+         Input('dark-mode-switch', 'value'),
+         Input('enso-index-toggle', 'value')],
     )
-    def update_enso_mega_plume(interactive, dark_mode):
+    def update_enso_mega_plume(interactive, dark_mode, roni_on):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
         if not _ENSO_AVAILABLE:
             return go.Figure()
         try:
-            return _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode)
+            index_mode = 'roni' if roni_on else 'oni'
+            return _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode, index_mode=index_mode)
         except Exception as e:
             logger.error(f"ENSO mega plume error: {e}")
             return go.Figure()
@@ -2999,16 +3037,18 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         Output('enso-box-distribution-plot', 'figure'),
         [Input('enso-mega-plume-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
-         State('interactive-switch', 'value')],
+         State('interactive-switch', 'value'),
+         State('enso-index-toggle', 'value')],
     )
-    def update_enso_box_distribution(_, dark_mode, interactive):
+    def update_enso_box_distribution(_, dark_mode, interactive, roni_on):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
         if not _ENSO_AVAILABLE:
             return go.Figure()
         try:
-            return _create_enso_box_distribution(_enso_forecast_df, dark_mode)
+            index_mode = 'roni' if roni_on else 'oni'
+            return _create_enso_box_distribution(_enso_forecast_df, dark_mode, index_mode=index_mode)
         except Exception as e:
             logger.error(f"ENSO box distribution error: {e}")
             return go.Figure()
@@ -3018,16 +3058,18 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         Output('enso-historical-plot', 'figure'),
         [Input('enso-box-distribution-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
-         State('interactive-switch', 'value')],
+         State('interactive-switch', 'value'),
+         State('enso-index-toggle', 'value')],
     )
-    def update_enso_historical(_, dark_mode, interactive):
+    def update_enso_historical(_, dark_mode, interactive, roni_on):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
         if not _ENSO_AVAILABLE:
             return go.Figure()
         try:
-            return _create_enso_historical_context(_enso_forecast_df, dark_mode)
+            index_mode = 'roni' if roni_on else 'oni'
+            return _create_enso_historical_context(_enso_forecast_df, dark_mode, index_mode=index_mode)
         except Exception as e:
             logger.error(f"ENSO historical context error: {e}")
             return go.Figure()

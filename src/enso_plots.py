@@ -64,14 +64,59 @@ def load_enso_forecast_data():
 
 
 def load_full_observed(start_year=1990):
-    """Load the full observed Nino3.4 record from disk."""
+    """Load the full observed Niño 3.4 record with rONI columns merged in."""
     obs_path = OBSERVED_DIR / "nino34_monthly.csv"
     if not obs_path.exists():
         return pd.DataFrame()
     df = pd.read_csv(obs_path)
     df["date"] = pd.to_datetime(df["date"])
     df = df[df["date"] >= f"{start_year}-01-01"].sort_values("date").reset_index(drop=True)
-    return df
+    from enso_forecast.normalize import merge_observed_with_roni
+    return merge_observed_with_roni(df)
+
+
+# ---------------------------------------------------------------------------
+# Index-mode helpers (ONI vs rONI)
+# ---------------------------------------------------------------------------
+
+INDEX_MODES = ("oni", "roni")
+
+
+def _index_meta(index_mode: str) -> dict:
+    """Return label/column metadata for ONI vs rONI display modes."""
+    if index_mode == "roni":
+        return {
+            "col": "roni_anom",
+            "y_label": "Niño 3.4 minus tropical mean (rONI, \u00b0C)",
+            "short": "rONI",
+            "long": "Niño 3.4 Relative SST Anomaly (rONI)",
+        }
+    return {
+        "col": "nino34_anom",
+        "y_label": "Niño 3.4 SST Anomaly (\u00b0C)",
+        "short": "Niño 3.4",
+        "long": "Niño 3.4 SST Anomaly (ONI)",
+    }
+
+
+def _swap_to_nino34(df: pd.DataFrame, source_col: str) -> pd.DataFrame:
+    """Return a copy of ``df`` with ``source_col`` renamed to ``nino34_anom``.
+
+    Lets downstream plotting code reference a single column name regardless
+    of whether the active index is ONI or rONI. If ``source_col`` is missing
+    or all-NaN, returns the df unchanged so the caller can fall back.
+    """
+    if df is None or df.empty:
+        return df
+    if source_col == "nino34_anom":
+        return df
+    if source_col not in df.columns:
+        return df
+    out = df.copy()
+    if "nino34_anom" in out.columns:
+        out = out.drop(columns=["nino34_anom"])
+    out = out.rename(columns={source_col: "nino34_anom"})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +234,7 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None):
 # Card computation
 # ---------------------------------------------------------------------------
 
-def compute_enso_cards(forecast_df, oni_df, obs_df=None):
+def compute_enso_cards(forecast_df, oni_df, obs_df=None, index_mode="oni"):
     """Compute summary card values from forecast, ONI, and observed data.
 
     Returns dict with keys: current_state, update_date, max_change_str,
@@ -204,19 +249,24 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None):
         "n_members": 0,
     }
 
-    # Current ENSO state from latest observed monthly Nino3.4
-    # (more current than ONI, which is a 3-month running mean and lags)
-    if obs_df is not None and not obs_df.empty and "nino34_anom" in obs_df.columns:
-        latest = obs_df.sort_values("date").iloc[-1]
-        val = latest["nino34_anom"]
-        month_label = pd.Timestamp(latest["date"]).strftime("%b %Y")
-        if val >= 0.5:
-            cards["current_state"] = f"El Ni\u00f1o: {val:+.1f}\u00b0C ({month_label})"
-        elif val <= -0.5:
-            cards["current_state"] = f"La Ni\u00f1a: {val:.1f}\u00b0C ({month_label})"
-        else:
-            cards["current_state"] = f"Neutral: {val:+.1f}\u00b0C ({month_label})"
-    elif not oni_df.empty and "oni" in oni_df.columns:
+    fc_col = "roni_anom" if index_mode == "roni" else "nino34_anom"
+    obs_col = "roni_anom" if index_mode == "roni" else "nino34_anom"
+    label_short = "rONI" if index_mode == "roni" else "Niño 3.4"
+
+    # Current ENSO state from latest observed monthly value
+    if obs_df is not None and not obs_df.empty and obs_col in obs_df.columns:
+        obs_use = obs_df.dropna(subset=[obs_col]).sort_values("date")
+        if not obs_use.empty:
+            latest = obs_use.iloc[-1]
+            val = latest[obs_col]
+            month_label = pd.Timestamp(latest["date"]).strftime("%b %Y")
+            if val >= 0.5:
+                cards["current_state"] = f"El Ni\u00f1o: {val:+.1f}\u00b0C ({label_short}, {month_label})"
+            elif val <= -0.5:
+                cards["current_state"] = f"La Ni\u00f1a: {val:.1f}\u00b0C ({label_short}, {month_label})"
+            else:
+                cards["current_state"] = f"Neutral: {val:+.1f}\u00b0C ({label_short}, {month_label})"
+    elif index_mode == "oni" and not oni_df.empty and "oni" in oni_df.columns:
         latest = oni_df.sort_values("date").iloc[-1]
         val = latest["oni"]
         if val >= 0.5:
@@ -245,31 +295,30 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None):
                 for m in members["model"].unique()
             ) if not members.empty else 0
 
-            if not members.empty:
-                mm = _multimodel_weighted_median(members)
+            if not members.empty and fc_col in members.columns:
+                members_used = members.dropna(subset=[fc_col])
+                mm = _multimodel_weighted_median(members_used, value_col=fc_col)
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")
 
-                if not mm.empty:
-                    # Find month with largest absolute anomaly
-                    peak_idx = mm["nino34_anom"].abs().idxmax()
+                if not mm.empty and fc_col in mm.columns:
+                    peak_idx = mm[fc_col].abs().idxmax()
                     peak_row = mm.loc[peak_idx]
-                    peak_val = peak_row["nino34_anom"]
+                    peak_val = peak_row[fc_col]
                     peak_date = peak_row["date"]
                     cards["max_change_str"] = f"{peak_val:+.1f}\u00b0C in {peak_date.strftime('%b %Y')}"
 
-                    # 25-75th percentile for that month
                     peak_tm = peak_row["target_month"]
-                    tm_members = members[members["target_month"] == peak_tm]
+                    tm_members = members_used[members_used["target_month"] == peak_tm]
                     if not tm_members.empty:
                         model_counts = tm_members.groupby("model").size()
                         weights = tm_members["model"].map(lambda m: 1.0 / model_counts[m]).values
-                        vals = tm_members["nino34_anom"].values
+                        vals = tm_members[fc_col].values
                         valid = ~np.isnan(vals)
                         if valid.sum() > 0:
                             q25 = _weighted_quantile(vals[valid], weights[valid], 0.25)
                             q75 = _weighted_quantile(vals[valid], weights[valid], 0.75)
-                            cards["max_change_range"] = f"25th\u201375th: {q25:+.1f} to {q75:+.1f}\u00b0C"
+                            cards["max_change_range"] = f"25th\u201375th: {q25:+.1f} to {q75:+.1f}\u00b0C ({label_short})"
         except Exception as e:
             logger.warning(f"Error computing ENSO peak forecast: {e}")
 
@@ -304,11 +353,10 @@ def _enso_threshold_shapes(theme, y_range=(-4, 4)):
     return shapes, threshold_traces
 
 
-def _multimodel_weighted_median(members, target_months=None):
-    """Compute model-weighted median Nino3.4 anomaly per target month.
+def _multimodel_weighted_median(members, target_months=None, value_col="nino34_anom"):
+    """Compute model-weighted median per target month for ``value_col``.
 
     Each model gets equal weight regardless of ensemble size.
-    Returns DataFrame with columns: target_month, nino34_anom.
     """
     if target_months is None:
         target_months = sorted(members["target_month"].unique())
@@ -319,12 +367,12 @@ def _multimodel_weighted_median(members, target_months=None):
             continue
         model_counts = tm_members.groupby("model").size()
         weights = tm_members["model"].map(lambda m: 1.0 / model_counts[m]).values
-        vals = tm_members["nino34_anom"].values
+        vals = tm_members[value_col].values
         valid = ~np.isnan(vals)
         if valid.sum() == 0:
             continue
         median_val = _weighted_quantile(vals[valid], weights[valid], 0.50)
-        rows.append({"target_month": tm, "nino34_anom": median_val})
+        rows.append({"target_month": tm, value_col: median_val})
     return pd.DataFrame(rows)
 
 
@@ -332,12 +380,21 @@ def _multimodel_weighted_median(members, target_months=None):
 # Plot 1: Mega Plume
 # ---------------------------------------------------------------------------
 
-def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
-    """ENSO Nino3.4 combined forecast plume — all models, deduplicated."""
+def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni"):
+    """ENSO combined forecast plume — all models, deduplicated.
+
+    ``index_mode``: "oni" (default) plots ``nino34_anom``; "roni" plots
+    ``roni_anom`` (Niño 3.4 minus 20S-20N tropical-mean SSTA).
+    """
     theme = get_theme(dark_mode)
+    meta = _index_meta(index_mode)
     fig = go.Figure()
 
-    # Filter and deduplicate
+    # For rONI, swap the source column into nino34_anom so downstream plot
+    # logic stays unchanged.
+    forecast_df = _swap_to_nino34(forecast_df, meta["col"])
+    obs_df = _swap_to_nino34(obs_df, meta["col"])
+
     forecast_only = _get_forecast_only(forecast_df)
     mega = _build_mega_df(forecast_only)
 
@@ -406,7 +463,7 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
             x=mm["date"], y=mm["nino34_anom"],
             mode="lines",
             name="Multi-model median",
-            line=dict(color=mm_color, width=3, dash="dash"),
+            line=dict(color=mm_color, width=3, dash="dot"),
             hovertemplate="Multi-model median<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
         ))
 
@@ -435,7 +492,7 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
                         x=[last_obs_date, first_fcst["date"]],
                         y=[last_obs_row["nino34_anom"], first_fcst["nino34_anom"]],
                         mode="lines",
-                        line=dict(color=obs_color, width=2, dash="dash"),
+                        line=dict(color=obs_color, width=3, dash="dot"),
                         showlegend=False,
                         hoverinfo="skip",
                     ))
@@ -470,8 +527,8 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
                   fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
-        title=f"ENSO Nino3.4 Combined Forecast Plume ({n_models} models, {n_total} members)",
-        yaxis_title="Nino3.4 SST Anomaly (\u00b0C)",
+        title=f"ENSO {meta['short']} Combined Forecast Plume ({n_models} models, {n_total} members)",
+        yaxis_title=meta["y_label"],
         template=theme["template"],
         paper_bgcolor=theme["paper_color"],
         plot_bgcolor=theme["bg_color"],
@@ -496,11 +553,13 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False):
 # Plot 2: Box Distribution
 # ---------------------------------------------------------------------------
 
-def create_enso_box_distribution(forecast_df, dark_mode=False):
+def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni"):
     """Forecast distribution with ensemble member dots and model-weighted box plots."""
     theme = get_theme(dark_mode)
+    meta = _index_meta(index_mode)
     fig = go.Figure()
 
+    forecast_df = _swap_to_nino34(forecast_df, meta["col"])
     forecast_only = _get_forecast_only(forecast_df)
     mega = _build_mega_df(forecast_only)
 
@@ -633,8 +692,8 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
                   fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
-        title=f"Nino3.4 Forecast Distribution ({len(models)} models, model-weighted box plot)",
-        yaxis_title="Nino3.4 SST Anomaly (\u00b0C)",
+        title=f"{meta['short']} Forecast Distribution ({len(models)} models, model-weighted box plot)",
+        yaxis_title=meta["y_label"],
         xaxis=dict(
             tickvals=list(range(len(target_months))),
             ticktext=tick_labels,
@@ -661,14 +720,24 @@ def create_enso_box_distribution(forecast_df, dark_mode=False):
 # Plot 3: Historical Context
 # ---------------------------------------------------------------------------
 
-def create_enso_historical_context(forecast_df, dark_mode=False):
-    """Observed Nino3.4 since 1990 with El Nino/La Nina fills and forecast overlay."""
+def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni"):
+    """Observed Niño 3.4 (or rONI) since 1990 with threshold fills + forecast overlay."""
     theme = get_theme(dark_mode)
+    meta = _index_meta(index_mode)
     fig = go.Figure()
 
     obs_full = load_full_observed(start_year=1990)
+    obs_full = _swap_to_nino34(obs_full, meta["col"])
+    forecast_df = _swap_to_nino34(forecast_df, meta["col"])
     if obs_full.empty:
         fig.update_layout(title="No observed data available")
+        return fig
+
+    # Drop any leading rows where the active index has no data (early years
+    # of the rONI seasonal series may not cover the full nino34_monthly span).
+    obs_full = obs_full.dropna(subset=["nino34_anom"]).reset_index(drop=True)
+    if obs_full.empty:
+        fig.update_layout(title=f"No observed {meta['short']} data available")
         return fig
 
     dates = obs_full["date"]
@@ -773,7 +842,7 @@ def create_enso_historical_context(forecast_df, dark_mode=False):
                     x=fc_dates, y=forecast_mean,
                     mode="lines",
                     name="Multi-model median forecast",
-                    line=dict(color=mm_line_color, width=2.2, dash="dash"),
+                    line=dict(color=mm_line_color, width=2.2, dash="dot"),
                     hovertemplate="Forecast<br>%{x|%b %Y}: %{y:.2f}\u00b0C<extra></extra>",
                 ))
 
@@ -801,8 +870,8 @@ def create_enso_historical_context(forecast_df, dark_mode=False):
     ymax = max(3.0, max(all_vals) + 0.3)
 
     fig.update_layout(
-        title="ENSO Nino3.4 Index: Historical Record and Current Forecast",
-        yaxis_title="Nino3.4 SST Anomaly (\u00b0C)",
+        title=f"ENSO {meta['short']}: Historical Record and Current Forecast",
+        yaxis_title=meta["y_label"],
         template=theme["template"],
         paper_bgcolor=theme["paper_color"],
         plot_bgcolor=theme["bg_color"],
@@ -880,24 +949,37 @@ def _add_threshold_fills(fig, dates, anom, threshold, color, name, dark_mode, be
 # ---------------------------------------------------------------------------
 
 def generate_enso_static_images(forecast_df, obs_df, assets_dir):
-    """Render 6 static PNGs (3 plots x 2 modes) for ENSO tab."""
+    """Render 12 static PNGs: 3 plots × 2 themes × 2 indices (ONI / rONI)."""
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
     plot_configs = [
-        ("enso_mega_plume", lambda dm: create_enso_mega_plume(forecast_df, obs_df, dm), 550),
-        ("enso_box_distribution", lambda dm: create_enso_box_distribution(forecast_df, dm), 550),
-        ("enso_historical", lambda dm: create_enso_historical_context(forecast_df, dm), 450),
+        ("enso_mega_plume",
+         lambda dm, idx: create_enso_mega_plume(forecast_df, obs_df, dm, index_mode=idx),
+         550),
+        ("enso_box_distribution",
+         lambda dm, idx: create_enso_box_distribution(forecast_df, dm, index_mode=idx),
+         550),
+        ("enso_historical",
+         lambda dm, idx: create_enso_historical_context(forecast_df, dm, index_mode=idx),
+         450),
     ]
 
-    for dark_mode in [True, False]:
-        mode = "dark" if dark_mode else "light"
-        for name, create_func, height in plot_configs:
-            filename = f"{name}_{mode}.png"
-            filepath = assets_dir / filename
-            try:
-                logger.info(f"Generating {filename}...")
-                fig = create_func(dark_mode)
-                fig.write_image(str(filepath), width=1200, height=height, scale=2)
-            except Exception as e:
-                logger.error(f"Failed to generate {filename}: {e}")
+    for index_mode in INDEX_MODES:
+        for dark_mode in [True, False]:
+            mode = "dark" if dark_mode else "light"
+            for name, create_func, height in plot_configs:
+                # Backwards-compat filename for ONI: keep `{name}_{mode}.png`
+                # so the dashboard doesn't need to special-case the legacy
+                # default. rONI gets a `_roni_{mode}.png` suffix.
+                if index_mode == "oni":
+                    filename = f"{name}_{mode}.png"
+                else:
+                    filename = f"{name}_roni_{mode}.png"
+                filepath = assets_dir / filename
+                try:
+                    logger.info(f"Generating {filename}...")
+                    fig = create_func(dark_mode, index_mode)
+                    fig.write_image(str(filepath), width=1200, height=height, scale=2)
+                except Exception as e:
+                    logger.error(f"Failed to generate {filename}: {e}")

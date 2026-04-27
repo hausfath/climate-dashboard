@@ -74,14 +74,20 @@ def _resolve_system(centre: str, year: int, month: int, configured_system: str) 
     return configured_system
 
 
-def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
-    """Compute cosine-latitude-weighted Nino3.4 area mean from gridded C3S data.
+TROPICAL_LAT_BOUNDS = (-20.0, 20.0)
 
-    Preserves all non-spatial dimensions (number/member, forecastMonth, etc.).
-    Squeezes only singleton time dimensions like forecast_reference_time and
-    indexing_time.
+
+def _compute_area_mean(
+    ds: xr.Dataset,
+    lat_bounds: tuple[float, float],
+    lon_bounds: tuple[float, float] | None,
+) -> xr.DataArray:
+    """Cosine-latitude-weighted area mean over a lat/lon box.
+
+    Preserves non-spatial dimensions (number/member, forecastMonth, etc.).
+    When ``lon_bounds`` is None, averages over all longitudes (used for the
+    20S-20N tropical band).
     """
-    # Find the SST anomaly variable
     var_name = None
     for v in ds.data_vars:
         if "sst" in v.lower() or "anom" in v.lower() or "temperature" in v.lower():
@@ -92,7 +98,6 @@ def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
 
     data = ds[var_name]
 
-    # Identify lat/lon dims
     lat_name = lon_name = None
     for dim in data.dims:
         dl = dim.lower()
@@ -102,7 +107,6 @@ def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
             lon_name = dim
 
     if lat_name is None or lon_name is None:
-        # Fallback: average over everything that isn't a known non-spatial dim
         keep = {"number", "forecastmonth", "forecastMonth", "leadtime_month"}
         spatial = [d for d in data.dims if d.lower() not in {k.lower() for k in keep}]
         if spatial:
@@ -111,8 +115,6 @@ def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
 
     lat = ds.coords[lat_name]
 
-    # Squeeze singleton time dims (forecast_reference_time, indexing_time)
-    # but preserve number (ensemble member) and forecastMonth
     squeeze_dims = []
     for dim in data.dims:
         if dim in (lat_name, lon_name):
@@ -122,24 +124,40 @@ def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
     if squeeze_dims:
         data = data.squeeze(dim=squeeze_dims, drop=True)
 
-    # Cosine weighting and area mean
-    weights = np.cos(np.deg2rad(lat))
-    weighted = data.weighted(weights)
-    return weighted.mean(dim=[lat_name, lon_name])
+    lat_min, lat_max = lat_bounds
+    lat_slice = slice(lat_max, lat_min) if float(lat[0]) > float(lat[-1]) else slice(lat_min, lat_max)
+    sel = {lat_name: lat_slice}
+    if lon_bounds is not None:
+        lon_min, lon_max = lon_bounds
+        sel[lon_name] = slice(lon_min, lon_max)
+    region = data.sel(sel)
+
+    if region.sizes[lat_name] == 0 or region.sizes[lon_name] == 0:
+        raise ValueError(f"Empty area selection for lat={lat_bounds} lon={lon_bounds}")
+
+    weights = np.cos(np.deg2rad(region.coords[lat_name]))
+    return region.weighted(weights).mean(dim=[lat_name, lon_name])
+
+
+def _compute_nino34_area_mean(ds: xr.Dataset) -> xr.DataArray:
+    """Cosine-latitude-weighted Niño 3.4 area mean (back-compat wrapper)."""
+    return _compute_area_mean(ds, NINO34_LAT_BOUNDS, NINO34_LON_BOUNDS_180)
+
+
+def _compute_tropical_mean(ds: xr.Dataset) -> xr.DataArray:
+    """Cosine-latitude-weighted 20S-20N tropical mean (all longitudes)."""
+    return _compute_area_mean(ds, TROPICAL_LAT_BOUNDS, lon_bounds=None)
 
 
 def _extract_records(
     nino34: xr.DataArray,
     model_name: str,
     init_date: str,
+    tropical: xr.DataArray | None = None,
 ) -> list[dict]:
-    """Extract forecast records from a Nino3.4 DataArray.
-
-    Handles both ensemble-mean (no 'number' dim) and member-level data.
-    """
+    """Extract forecast records, attaching tropical-mean and rONI when available."""
     records = []
 
-    # Identify forecastMonth dim
     fm_dim = None
     for dim in nino34.dims:
         if "forecast" in dim.lower() or "lead" in dim.lower():
@@ -148,7 +166,6 @@ def _extract_records(
     if fm_dim is None and len(nino34.dims) == 1:
         fm_dim = nino34.dims[0]
 
-    # Identify member dim
     member_dim = None
     for dim in nino34.dims:
         if "number" in dim.lower() or "member" in dim.lower():
@@ -164,74 +181,79 @@ def _extract_records(
         n_members = 0
         member_coords = []
 
-    def _add_records(data_1d, member_id: str):
-        """Add records from a 1D (forecastMonth) array.
-
-        C3S forecastMonth convention: forecastMonth=1 is the init month itself
-        (e.g., init March 2026, forecastMonth=1 = March 2026).
-        So lead_months = forecastMonth - 1, and
-        target_month = init_date + (forecastMonth - 1) months.
-        """
+    def _add_records(n34_1d, trop_1d, member_id: str):
         if fm_dim is None:
-            val = float(data_1d.values)
-            if not np.isnan(val):
-                # Single value — assume it's forecastMonth=1 (the init month)
-                records.append({
-                    "source": "C3S",
-                    "model": model_name,
-                    "model_type": "dynamical",
-                    "init_date": init_date,
-                    "target_month": pd.Timestamp(init_date).strftime("%Y-%m"),
-                    "lead_months": 0,
-                    "nino34_anom": round(float(val), 4),
-                    "member_id": member_id,
-                    "temporal_resolution": "monthly",
-                    "anomaly_base_period": C3S_ANOMALY_BASE_PERIOD,
-                })
-            return
-
-        fm_coords = nino34.coords.get(fm_dim)
-        for t_idx in range(data_1d.sizes[fm_dim]):
-            val = float(data_1d.isel({fm_dim: t_idx}).values)
+            val = float(n34_1d.values)
             if np.isnan(val):
-                continue
-
-            # forecastMonth is 1-indexed: 1 = init month, 2 = init+1, etc.
-            if fm_coords is not None:
-                forecast_month_num = int(fm_coords.values[t_idx])
-            else:
-                forecast_month_num = t_idx + 1
-
-            lead = forecast_month_num - 1  # 0-based lead from init
-            target_dt = init_dt + pd.DateOffset(months=lead)
-            target_month = target_dt.strftime("%Y-%m")
+                return
+            trop_val = float(trop_1d.values) if trop_1d is not None else float("nan")
+            roni = val - trop_val if not np.isnan(trop_val) else float("nan")
             records.append({
                 "source": "C3S",
                 "model": model_name,
                 "model_type": "dynamical",
                 "init_date": init_date,
-                "target_month": target_month,
+                "target_month": pd.Timestamp(init_date).strftime("%Y-%m"),
+                "lead_months": 0,
+                "nino34_anom": round(val, 4),
+                "tropical_mean_anom": round(trop_val, 4) if not np.isnan(trop_val) else float("nan"),
+                "roni_anom": round(roni, 4) if not np.isnan(roni) else float("nan"),
+                "member_id": member_id,
+                "temporal_resolution": "monthly",
+                "anomaly_base_period": C3S_ANOMALY_BASE_PERIOD,
+            })
+            return
+
+        fm_coords = nino34.coords.get(fm_dim)
+        for t_idx in range(n34_1d.sizes[fm_dim]):
+            val = float(n34_1d.isel({fm_dim: t_idx}).values)
+            if np.isnan(val):
+                continue
+            trop_val = float(trop_1d.isel({fm_dim: t_idx}).values) if trop_1d is not None else float("nan")
+            roni = val - trop_val if not np.isnan(trop_val) else float("nan")
+
+            if fm_coords is not None:
+                forecast_month_num = int(fm_coords.values[t_idx])
+            else:
+                forecast_month_num = t_idx + 1
+
+            lead = forecast_month_num - 1
+            target_dt = init_dt + pd.DateOffset(months=lead)
+            records.append({
+                "source": "C3S",
+                "model": model_name,
+                "model_type": "dynamical",
+                "init_date": init_date,
+                "target_month": target_dt.strftime("%Y-%m"),
                 "lead_months": lead,
-                "nino34_anom": round(float(val), 4),
+                "nino34_anom": round(val, 4),
+                "tropical_mean_anom": round(trop_val, 4) if not np.isnan(trop_val) else float("nan"),
+                "roni_anom": round(roni, 4) if not np.isnan(roni) else float("nan"),
                 "member_id": member_id,
                 "temporal_resolution": "monthly",
                 "anomaly_base_period": C3S_ANOMALY_BASE_PERIOD,
             })
 
+    trop_member_dim = None
+    if tropical is not None:
+        for dim in tropical.dims:
+            if "number" in dim.lower() or "member" in dim.lower():
+                trop_member_dim = dim
+                break
+
     if member_dim is not None:
-        # Individual members
         for m_idx in range(n_members):
             m_num = int(member_coords[m_idx])
             member_id = f"ens_{m_num:03d}"
-            member_data = nino34.isel({member_dim: m_idx})
-            _add_records(member_data, member_id)
+            n34_m = nino34.isel({member_dim: m_idx})
+            trop_m = tropical.isel({trop_member_dim: m_idx}) if (tropical is not None and trop_member_dim) else tropical
+            _add_records(n34_m, trop_m, member_id)
 
-        # Also compute and store ensemble mean
-        ens_mean = nino34.mean(dim=member_dim)
-        _add_records(ens_mean, "mean")
+        ens_mean_n34 = nino34.mean(dim=member_dim)
+        ens_mean_trop = tropical.mean(dim=trop_member_dim) if (tropical is not None and trop_member_dim) else tropical
+        _add_records(ens_mean_n34, ens_mean_trop, "mean")
     else:
-        # Already ensemble mean
-        _add_records(nino34, "mean")
+        _add_records(nino34, tropical, "mean")
 
     return records
 
@@ -285,7 +307,7 @@ def _fetch_c3s_month(
                     "year": str(year),
                     "month": f"{month:02d}",
                     "leadtime_month": [str(i) for i in range(1, model_info.get("max_lead_months", 6) + 1)],
-                    "area": [5, -170, -5, -120],  # N, W, S, E
+                    "area": [20, -180, -20, 180],  # N, W, S, E — full tropical band for rONI
                     "data_format": "netcdf",
                 },
                 str(nc_path),
@@ -297,10 +319,15 @@ def _fetch_c3s_month(
         try:
             ds = xr.open_dataset(nc_path)
             nino34 = _compute_nino34_area_mean(ds)
+            try:
+                tropical = _compute_tropical_mean(ds)
+            except Exception as e:
+                logger.warning("C3S %s: tropical-mean failed (%s); rONI will be NaN", model_name, e)
+                tropical = None
             logger.info("C3S %s: Nino3.4 dims=%s, shape=%s",
                         model_name, nino34.dims, nino34.shape)
 
-            model_records = _extract_records(nino34, model_name, init_date)
+            model_records = _extract_records(nino34, model_name, init_date, tropical=tropical)
             all_records.extend(model_records)
             succeeded_models.add(model_name)
 
