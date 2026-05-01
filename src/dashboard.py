@@ -965,17 +965,43 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
                 X_pred_scaled = scaler.transform(X_pred)
                 pred = model.predict(X_pred_scaled)[0]
 
+                # Monte Carlo over ENSO ensemble members for the CI
+                lb, ub = pred - 2 * uncertainty, pred + 2 * uncertainty
+                try:
+                    from src.annual_prediction_mc import (
+                        load_enso_future_members, monte_carlo_ci,
+                    )
+                    members = load_enso_future_members(int(current_year), int(current_month))
+                    if not members.empty:
+                        mc = monte_carlo_ci(
+                            model, scaler,
+                            base_features={
+                                'year': current_year,
+                                'prior_year_anomaly': prior_year_anomaly,
+                                'enso_obs': enso_obs_val,
+                                'enso_future': enso_future_val,
+                                'trailing_anomaly': current_trailing_30d,
+                                'ytd_anomaly': current_ytd_anomaly,
+                            },
+                            members=members,
+                            resid_std=uncertainty,
+                            feature_order=feature_cols,
+                        )
+                        lb, ub = mc['lb'], mc['ub']
+                except Exception:
+                    pass  # fall back to analytic ±2σ
+
                 predictions.append({
                     'year': current_year,
                     'predicted': pred,
-                    'lb': pred - 2 * uncertainty,
-                    'ub': pred + 2 * uncertainty
+                    'lb': lb,
+                    'ub': ub,
                 })
 
                 prediction_2026 = {
                     'predicted': pred,
-                    'lb': pred - 2 * uncertainty,
-                    'ub': pred + 2 * uncertainty
+                    'lb': lb,
+                    'ub': ub,
                 }
 
     pred_df = pd.DataFrame(predictions) if predictions else pd.DataFrame()
@@ -1011,6 +1037,8 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
 
     # Add prediction with error bar for current year
     if prediction_2026:
+        up = prediction_2026['ub'] - prediction_2026['predicted']
+        down = prediction_2026['predicted'] - prediction_2026['lb']
         fig.add_trace(go.Scatter(
             x=[current_year],
             y=[prediction_2026['predicted']],
@@ -1019,13 +1047,15 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
-                array=[prediction_2026['ub'] - prediction_2026['predicted']],
+                symmetric=False,
+                array=[up],
+                arrayminus=[down],
                 visible=True,
                 color=theme['prediction_color'],
                 thickness=2,
                 width=6
             ),
-            hovertemplate=f'{current_year} Prediction<br>%{{y:.2f}}°C (±{prediction_2026["ub"] - prediction_2026["predicted"]:.2f}°C)<extra></extra>'
+            hovertemplate=f'{current_year} Prediction<br>%{{y:.2f}}°C (+{up:.2f}/-{down:.2f}°C)<extra></extra>'
         ))
 
     # Add 1.5°C reference line
@@ -1593,6 +1623,34 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                     X_pred = np.array([[current_year, prev_year_mean, enso_obs_val, enso_future_val, current_trailing_30d, current_ytd_anomaly]])
                     X_pred_scaled = scaler.transform(X_pred)
                     annual_pred = model.predict(X_pred_scaled)[0]
+
+                    # Monte Carlo over ENSO ensemble members → CI half-width
+                    try:
+                        from src.annual_prediction_mc import (
+                            load_enso_future_members, monte_carlo_ci,
+                        )
+                        members = load_enso_future_members(int(current_year), int(current_month))
+                        if not members.empty:
+                            mc = monte_carlo_ci(
+                                model, scaler,
+                                base_features={
+                                    'year': current_year,
+                                    'prior_year_anomaly': prev_year_mean,
+                                    'enso_obs': enso_obs_val,
+                                    'enso_future': enso_future_val,
+                                    'trailing_anomaly': current_trailing_30d,
+                                    'ytd_anomaly': current_ytd_anomaly,
+                                },
+                                members=members,
+                                resid_std=annual_err,
+                                feature_order=['year', 'prior_year_anomaly', 'enso_obs',
+                                               'enso_future', 'trailing_anomaly', 'ytd_anomaly'],
+                            )
+                            # Express the (possibly asymmetric) MC CI as a half-width
+                            # so existing ±-style display logic stays sensible.
+                            annual_err = max((mc['ub'] - mc['lb']) / 4.0, 0.02)
+                    except Exception:
+                        pass  # fall back to analytic residual std
     except Exception as e:
         pass  # Use default if prediction fails
 
