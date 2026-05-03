@@ -154,15 +154,19 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
 
 
 def get_recent_month_bounds(df: pd.DataFrame) -> tuple:
-    """Get the day-of-year bounds for the current month in the data."""
+    """Get the day-of-year bounds for the current month in the data.
+
+    Uses the latest date's own year so the vrect aligns with the actual
+    plotted day-of-year values for the current year (otherwise a leap-year
+    reference shifts non-leap-year months by one day past February).
+    """
     latest_date = df['date'].max()
+    year = latest_date.year
     month = latest_date.month
 
-    # Calculate day of year for month start and end
-    year = 2024  # Use a leap year for day-of-year calculation
     month_start = pd.Timestamp(f"{year}-{month:02d}-01").dayofyear
     if month == 12:
-        month_end = 366  # End of year
+        month_end = pd.Timestamp(f"{year}-12-31").dayofyear + 1
     else:
         month_end = pd.Timestamp(f"{year}-{month+1:02d}-01").dayofyear
 
