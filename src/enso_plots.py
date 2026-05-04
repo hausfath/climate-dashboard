@@ -945,11 +945,270 @@ def _add_threshold_fills(fig, dates, anom, threshold, color, name, dark_mode, be
 
 
 # ---------------------------------------------------------------------------
+# ENSO Strength Probabilities (NOAA-CPC style stacked bars)
+# ---------------------------------------------------------------------------
+
+# (label, lower_inclusive, upper_exclusive, group, range_str, fill_color)
+STRENGTH_BINS = [
+    ("Very Strong El Niño",  2.0,    np.inf, "el_nino", "index ≥ 2.0°C",           "#7A0000"),
+    ("Strong El Niño",       1.5,    2.0,    "el_nino", "1.5°C ≤ index < 2.0°C",   "#E60000"),
+    ("Moderate El Niño",     1.0,    1.5,    "el_nino", "1.0°C ≤ index < 1.5°C",   "#F89999"),
+    ("Weak El Niño",         0.5,    1.0,    "el_nino", "0.5°C ≤ index < 1.0°C",   "#FCDAD6"),
+    ("Neutral",             -0.5,    0.5,    "neutral", "−0.5°C < index < 0.5°C",  "#B5B5B5"),
+    ("Weak La Niña",        -1.0,   -0.5,    "la_nina", "−0.5°C ≥ index > −1.0°C", "#DCEAFA"),
+    ("Moderate La Niña",    -1.5,   -1.0,    "la_nina", "−1.0°C ≥ index > −1.5°C", "#9CBDDF"),
+    ("Strong La Niña",      -2.0,   -1.5,    "la_nina", "−1.5°C ≥ index > −2.0°C", "#3F71B0"),
+    ("Very Strong La Niña", -np.inf, -2.0,   "la_nina", "index ≤ −2.0°C",          "#0A1F5C"),
+]
+STRENGTH_GROUP_EDGE = {"el_nino": "#C00000", "neutral": "#7F7F7F", "la_nina": "#1F4E79"}
+# Stack order: lightest at bottom of each group, darkest on top.
+EL_NINO_STACK = [3, 2, 1, 0]   # Weak, Moderate, Strong, Very Strong
+LA_NINA_STACK = [5, 6, 7, 8]
+NEUTRAL_IDX   = 4
+
+SEASON_FOR_CENTER = {
+    1: "DJF", 2: "JFM", 3: "FMA", 4: "MAM", 5: "AMJ", 6: "MJJ",
+    7: "JJA", 8: "JAS", 9: "ASO", 10: "SON", 11: "OND", 12: "NDJ",
+}
+
+
+def _classify_strength(x: float) -> int:
+    """Return STRENGTH_BINS index for value x (matches src/enso.classify_enso_state)."""
+    if x >= 2.0:  return 0
+    if x >= 1.5:  return 1
+    if x >= 1.0:  return 2
+    if x >= 0.5:  return 3
+    if x >  -0.5: return 4
+    if x >  -1.0: return 5
+    if x >  -1.5: return 6
+    if x >  -2.0: return 7
+    return 8
+
+
+def _season_window(center: pd.Timestamp) -> list:
+    """Return the three monthly Timestamps composing a 3-month season."""
+    return [center - pd.DateOffset(months=1), center, center + pd.DateOffset(months=1)]
+
+
+def _season_label(center: pd.Timestamp) -> str:
+    return f"{SEASON_FOR_CENTER[center.month]} {center.year}"
+
+
+def _build_member_pivot(mem: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    """Pivot members → rows = (model, member_id), cols = month timestamp."""
+    df = mem.copy()
+    df["ym"] = pd.to_datetime(df["target_month"] + "-01")
+    return df.pivot_table(
+        index=["model", "member_id"],
+        columns="ym",
+        values=value_col,
+        aggfunc="first",
+    )
+
+
+def _seasonal_means(pivot: pd.DataFrame, centers, obs_monthly: dict) -> pd.DataFrame:
+    """For each (model, member, season center), compute the 3-month mean.
+
+    Forecast values take precedence; missing months fall back to obs_monthly
+    (keyed by pd.Timestamp). Cells where any month lacks both forecast and
+    obs come back as NaN and are dropped from the probability calculation.
+    """
+    out = pd.DataFrame(index=pivot.index)
+    for center in centers:
+        cols = []
+        for m in _season_window(center):
+            col = pivot[m].copy() if m in pivot.columns else pd.Series(np.nan, index=pivot.index)
+            obs_v = obs_monthly.get(m)
+            if obs_v is not None and not pd.isna(obs_v):
+                col = col.fillna(obs_v)
+            cols.append(col)
+        out[center] = pd.concat(cols, axis=1).mean(axis=1, skipna=False)
+    return out
+
+
+def _model_weighted_probs(season_col: pd.Series) -> np.ndarray:
+    """Return percent (length-9 array) per strength category, model-weighted.
+
+    Each model contributes total weight 1.0 regardless of ensemble size.
+    """
+    valid = season_col.dropna()
+    if valid.empty:
+        return np.zeros(len(STRENGTH_BINS))
+    df = valid.reset_index()
+    df.columns = ["model", "member_id", "value"]
+    counts = df.groupby("model").size()
+    df["weight"] = 1.0 / df["model"].map(counts)
+    df["cat"] = df["value"].map(_classify_strength)
+    total = df["weight"].sum()
+    by_cat = df.groupby("cat")["weight"].sum() / total * 100.0
+    return np.array([by_cat.get(i, 0.0) for i in range(len(STRENGTH_BINS))])
+
+
+def compute_strength_probabilities(forecast_df, dark_mode_unused=None,
+                                    index_mode="oni", n_seasons=9):
+    """Return (centers, probs, n_models_per_season) for the strength-probs plot.
+
+    Centers are 9 consecutive 3-month season midpoints starting at the latest
+    init_date's month. probs has shape (n_seasons, 9) — one row per season,
+    one column per STRENGTH_BINS entry. Members come from the canonical
+    deduplicated mega plume; CFSv2's control member 41 is excluded.
+    """
+    if forecast_df is None or forecast_df.empty:
+        return [], np.zeros((0, len(STRENGTH_BINS))), []
+
+    meta = _index_meta(index_mode)
+    value_col = meta["col"]
+
+    forecast_only = _get_forecast_only(forecast_df)
+    mega = _build_mega_df(forecast_only)
+    mem = mega[mega["member_id"] != "mean"].copy()
+    # CFSv2 ensemble window uses the latest 40 E3 runs; member 41 is the
+    # stable control slot and is excluded from weighted statistics.
+    mem = mem[~((mem["model"] == "CFSv2") & (mem["member_id"] == "ens_E3_041"))]
+    mem = mem.dropna(subset=[value_col])
+    if mem.empty:
+        return [], np.zeros((0, len(STRENGTH_BINS))), []
+
+    latest_init = pd.to_datetime(mem["init_date"]).max()
+    start_center = latest_init.replace(day=1)
+    centers = [start_center + pd.DateOffset(months=k) for k in range(n_seasons)]
+
+    obs_full = load_full_observed(start_year=2000)
+    if value_col in obs_full.columns:
+        obs_lookup = obs_full.set_index("date")[value_col].dropna().to_dict()
+    else:
+        obs_lookup = {}
+
+    pivot = _build_member_pivot(mem, value_col)
+    sm = _seasonal_means(pivot, centers, obs_lookup)
+    probs = np.vstack([_model_weighted_probs(sm[c]) for c in centers])
+    n_models = [int(sm[c].dropna().reset_index()["model"].nunique()) for c in centers]
+    return centers, probs, n_models
+
+
+def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
+    """NOAA-CPC-style ENSO strength-probability bars from the multi-model plume.
+
+    Three offset bars per season (La Niña / Neutral / El Niño), each
+    internally stacked from lightest (Weak) at the bottom to darkest
+    (Very Strong) on top.
+    """
+    theme = get_theme(dark_mode)
+    meta = _index_meta(index_mode)
+
+    fig = go.Figure()
+
+    centers, probs, n_models = compute_strength_probabilities(
+        forecast_df, index_mode=index_mode
+    )
+    if not centers:
+        fig.update_layout(title=f"No {meta['short']} forecast data available")
+        return fig
+
+    labels = [_season_label(c) for c in centers]
+    n_seasons = len(centers)
+
+    # Build per-bin traces in stack order (lightest first → bottom).
+    grid_color = theme.get("grid_color", "rgba(128,128,128,0.25)")
+    text_color = theme.get("text_color", "#222")
+    seen_legendgroups = set()
+
+    # Legend order mirrors NOAA-CPC: Very Strong El Niño at top → through
+    # weaker El Niño → Neutral → weakest La Niña → strongest La Niña at bottom.
+    LEGEND_RANK = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9}
+
+    def _add_bin_trace(bin_idx: int, group_key: str):
+        label, _, _, _, rng, fc = STRENGTH_BINS[bin_idx]
+        edge = STRENGTH_GROUP_EDGE[group_key]
+        y = probs[:, bin_idx]
+        # Two-line legend label (NOAA style): name + threshold range
+        legend_name = f"{label}<br><span style='font-size:0.85em'>{rng}</span>"
+        fig.add_trace(go.Bar(
+            x=labels,
+            y=y,
+            name=legend_name,
+            marker=dict(color=fc, line=dict(color=edge, width=0.9)),
+            offsetgroup=group_key,
+            legendgroup=group_key,
+            legendrank=LEGEND_RANK[bin_idx],
+            hovertemplate=(
+                f"<b>{label}</b><br>"
+                f"{rng}<br>"
+                "%{x}: %{y:.1f}%<extra></extra>"
+            ),
+            showlegend=True,
+        ))
+
+    # Order matters for stacking: bottom→top per group. Keep groups in the
+    # order la_nina → neutral → el_nino so legend reads cold→warm; Plotly
+    # arranges the bars left→right by trace order regardless.
+    for idx in LA_NINA_STACK:
+        _add_bin_trace(idx, "la_nina")
+    _add_bin_trace(NEUTRAL_IDX, "neutral")
+    for idx in EL_NINO_STACK:
+        _add_bin_trace(idx, "el_nino")
+
+    # n=N annotations under each season tick
+    n_annotations = [
+        dict(x=lbl, y=-0.09, xref="x", yref="paper",
+             text=f"n={n}", showarrow=False,
+             font=dict(size=10, color=theme.get("text_color", "#666")))
+        for lbl, n in zip(labels, n_models)
+    ]
+
+    latest_init = pd.to_datetime(forecast_df["init_date"]).max()
+    issued_str = latest_init.strftime("%B %Y") if pd.notna(latest_init) else ""
+
+    fig.update_layout(
+        barmode="stack",
+        bargap=0.2,
+        bargroupgap=0.05,
+        title=dict(
+            text=(f"Multi-Model ENSO Strength Probabilities — {meta['short']}"
+                  f"<br><span style='font-size:0.75em;font-weight:normal'>"
+                  f"based on {meta['long']}; issued {issued_str} forecast plume "
+                  f"(model-equal weighting)</span>"),
+            x=0.5, xanchor="center",
+            font=dict(size=18, color=text_color),
+        ),
+        xaxis=dict(
+            title="Season",
+            tickangle=0,
+            categoryorder="array",
+            categoryarray=labels,
+            color=text_color,
+        ),
+        yaxis=dict(
+            title="Percent Chance (%)",
+            range=[0, 100],
+            dtick=10,
+            gridcolor=grid_color,
+            color=text_color,
+        ),
+        legend=dict(
+            font=dict(size=11, color=text_color),
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor=grid_color,
+            itemsizing="constant",
+            tracegroupgap=4,
+            traceorder="normal",
+        ),
+        annotations=n_annotations,
+        margin=dict(l=70, r=160, t=90, b=70),
+        template=theme.get("template", "plotly_white"),
+        paper_bgcolor=theme.get("paper_color", "white"),
+        plot_bgcolor=theme.get("bg_color", "white"),
+        font=dict(color=text_color),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Static image generation
 # ---------------------------------------------------------------------------
 
 def generate_enso_static_images(forecast_df, obs_df, assets_dir):
-    """Render 12 static PNGs: 3 plots × 2 themes × 2 indices (ONI / rONI)."""
+    """Render 16 static PNGs: 4 plots × 2 themes × 2 indices (ONI / rONI)."""
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
@@ -963,6 +1222,9 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
         ("enso_historical",
          lambda dm, idx: create_enso_historical_context(forecast_df, dm, index_mode=idx),
          450),
+        ("enso_strength_probs",
+         lambda dm, idx: create_enso_strength_probs(forecast_df, dm, index_mode=idx),
+         500),
     ]
 
     for index_mode in INDEX_MODES:

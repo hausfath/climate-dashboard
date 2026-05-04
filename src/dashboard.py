@@ -1846,6 +1846,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             create_enso_mega_plume as _create_enso_mega_plume,
             create_enso_box_distribution as _create_enso_box_distribution,
             create_enso_historical_context as _create_enso_historical_context,
+            create_enso_strength_probs as _create_enso_strength_probs,
         )
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
         _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df)
@@ -2230,6 +2231,21 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         id="loading-enso-historical", type="circle",
                         children=[dcc.Graph(id='enso-historical-plot',
                                             style={'height': '450px', 'display': 'none'},
+                                            config={'toImageButtonOptions': {'scale': 3}})]
+                    ),
+                ], xs=12, md={'size': 10, 'offset': 1}),
+            ], className="mb-4"),
+
+            # Viz 4: Strength Probabilities (NOAA-CPC style)
+            dbc.Row([
+                dbc.Col([
+                    html.Img(id='enso-strength-probs-img',
+                             src='/assets/images/enso_strength_probs_dark.png',
+                             style={'width': '100%', 'height': 'auto'}),
+                    dcc.Loading(
+                        id="loading-enso-strength-probs", type="circle",
+                        children=[dcc.Graph(id='enso-strength-probs-plot',
+                                            style={'height': '500px', 'display': 'none'},
                                             config={'toImageButtonOptions': {'scale': 3}})]
                     ),
                 ], xs=12, md={'size': 10, 'offset': 1}),
@@ -2627,14 +2643,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             # Toggle icons
             Output('static-icon', 'style'),
             Output('interactive-icon', 'style'),
-            # Image visibility — ENSO tab (3)
+            # Image visibility — ENSO tab (4)
             Output('enso-mega-plume-img', 'style'),
             Output('enso-box-distribution-img', 'style'),
             Output('enso-historical-img', 'style'),
-            # Graph visibility — ENSO tab (3)
+            Output('enso-strength-probs-img', 'style'),
+            # Graph visibility — ENSO tab (4)
             Output('enso-mega-plume-plot', 'style'),
             Output('enso-box-distribution-plot', 'style'),
             Output('enso-historical-plot', 'style'),
+            Output('enso-strength-probs-plot', 'style'),
             # Image visibility — Models tab (3)
             Output('models-timeseries-img', 'style'),
             Output('models-trend-explorer-img', 'style'),
@@ -2675,12 +2693,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
                 # Icons (static inactive, interactive active)
                 icon_inactive, icon_active,
-                # Hide images — ENSO (3)
-                img_style_hide, img_style_hide, img_style_hide,
-                # Show graphs — ENSO (3)
+                # Hide images — ENSO (4)
+                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
+                # Show graphs — ENSO (4)
                 {'height': '550px', 'display': 'block'},
                 {'height': '550px', 'display': 'block'},
                 {'height': '450px', 'display': 'block'},
+                {'height': '500px', 'display': 'block'},
                 # Hide images — Models (3)
                 img_style_hide, img_style_hide, img_style_hide,
                 # Show graphs — Models (3), with per-plot heights
@@ -2698,10 +2717,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 # Icons (static active, interactive inactive)
                 icon_active, icon_inactive,
-                # Show images — ENSO (3)
-                img_style_show, img_style_show, img_style_show,
-                # Hide graphs — ENSO (3)
-                graph_style_hide, graph_style_hide, graph_style_hide,
+                # Show images — ENSO (4)
+                img_style_show, img_style_show, img_style_show, img_style_show,
+                # Hide graphs — ENSO (4)
+                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 # Show images — Models (3)
                 img_style_show, img_style_show, img_style_show,
                 # Hide graphs — Models (3)
@@ -2724,6 +2743,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('enso-mega-plume-img', 'src'),
             Output('enso-box-distribution-img', 'src'),
             Output('enso-historical-img', 'src'),
+            Output('enso-strength-probs-img', 'src'),
             # Models tab images
             Output('models-timeseries-img', 'src'),
             Output('models-trend-explorer-img', 'src'),
@@ -2748,6 +2768,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/enso_mega_plume_{enso_idx}{mode}.png',
             f'/assets/images/enso_box_distribution_{enso_idx}{mode}.png',
             f'/assets/images/enso_historical_{enso_idx}{mode}.png',
+            f'/assets/images/enso_strength_probs_{enso_idx}{mode}.png',
             f'/assets/images/models_timeseries_{mode}.png',
             f'/assets/images/models_trend_explorer_{mode}.png',
             f'/assets/images/models_histograms_{mode}.png',
@@ -3132,6 +3153,27 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return _create_enso_historical_context(_enso_forecast_df, dark_mode, index_mode=index_mode)
         except Exception as e:
             logger.error(f"ENSO historical context error: {e}")
+            return go.Figure()
+
+    # ENSO Graph 4: Strength Probabilities (chained from historical context)
+    @app.callback(
+        Output('enso-strength-probs-plot', 'figure'),
+        [Input('enso-historical-plot', 'figure')],
+        [State('dark-mode-switch', 'value'),
+         State('interactive-switch', 'value'),
+         State('enso-index-toggle', 'value')],
+    )
+    def update_enso_strength_probs(_, dark_mode, interactive, roni_on):
+        from dash.exceptions import PreventUpdate
+        if not interactive:
+            raise PreventUpdate
+        if not _ENSO_AVAILABLE:
+            return go.Figure()
+        try:
+            index_mode = 'roni' if roni_on else 'oni'
+            return _create_enso_strength_probs(_enso_forecast_df, dark_mode, index_mode=index_mode)
+        except Exception as e:
+            logger.error(f"ENSO strength probs error: {e}")
             return go.Figure()
 
     return app
