@@ -39,13 +39,24 @@ HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.1.0.
 BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/global/Global_TAVG_monthly.txt'
 
 # ── Rebaseline offsets: shift from 1981-2010 baseline to 1850-1900 ────────────
-# Computed from existing combined_obs_1981_2010.csv (mean of 1850-1900 period)
+# Computed from existing combined_obs_1981_2010.csv (mean of 1850-1900 period).
+# Copernicus/ERA5 is intentionally absent: it has no pre-1940 data, so we apply
+# MONTHLY_PREINDUSTRIAL_OFFSETS directly when aggregating the daily series in
+# _import_copernicus (matching the Global Temperature tab's calculation).
 PREINDUSTRIAL_OFFSETS = {
     'hadcrut5': -0.7021,
     'gistemp':  -0.6398,
     'noaa':     -0.5991,
     'berkeley': -0.6903,
-    'copernicus': -0.6611,  # Average of HadCRUT5/Berkeley/NOAA (records extending to 1850)
+}
+
+# Per-month offsets to convert ERA5 anomalies from a 1991-2020 baseline to the
+# 1850-1900 preindustrial baseline. Shared by the Global Temperature tab
+# (applied at the daily level) and the Models vs Obs tab (applied to monthly
+# means in _import_copernicus) so monthly ERA5 values agree across tabs.
+MONTHLY_PREINDUSTRIAL_OFFSETS = {
+    1: 0.96, 2: 0.96, 3: 0.95, 4: 0.91, 5: 0.87, 6: 0.83,
+    7: 0.80, 8: 0.80, 9: 0.81, 10: 0.85, 11: 0.89, 12: 0.93,
 }
 
 # ── Theme colors for this tab ─────────────────────────────────────────────────
@@ -218,11 +229,15 @@ def _import_berkeley() -> pd.DataFrame:
 
 
 def _import_copernicus() -> pd.DataFrame:
-    """Derive monthly Copernicus/ERA5 anomalies from the local ERA5 daily CSV.
+    """Derive monthly Copernicus/ERA5 anomalies on the 1850-1900 baseline.
 
-    The daily file (1991-2020 baseline, back to 1940) is already fetched for the
-    Global Temperature tab, so we aggregate to monthly means instead of scraping
-    the Copernicus website.
+    Aggregates the local daily ERA5 CSV (1991-2020 baseline, back to 1940) to
+    monthly means and applies MONTHLY_PREINDUSTRIAL_OFFSETS so the result is on
+    the same 1850-1900 baseline used elsewhere. This matches the Global
+    Temperature tab's calculation (which adds the same per-month offset to each
+    daily value before averaging) and skips the 1981-2010 intermediate baseline
+    used for the other obs records — ERA5 has no data before 1940 to compute
+    its own 1850-1900 mean from.
     """
     era5_csv = DATA_DIR.parent / 'era5_daily_series_2t_global.csv'
     try:
@@ -240,6 +255,9 @@ def _import_copernicus() -> pd.DataFrame:
             lambda r: calendar.monthrange(int(r['year']), int(r['month']))[1], axis=1
         )
         complete = agg[agg['days'] >= expected].copy()
+        complete['copernicus'] = complete['copernicus'] + complete['month'].map(
+            MONTHLY_PREINDUSTRIAL_OFFSETS
+        )
         return complete[['year', 'month', 'copernicus']].dropna().reset_index(drop=True)
     except Exception as e:
         logger.warning(f"Copernicus/ERA5 daily import failed: {e}")
@@ -278,7 +296,7 @@ def fetch_obs_data(cache_path: Path = OBS_CACHE, force: bool = False) -> pd.Data
             _rebaseline(_import_gistemp(),  'gistemp'),
             _rebaseline(_import_noaa(),     'noaa'),
             _rebaseline(_import_berkeley(), 'berkeley'),
-            _rebaseline(_import_copernicus(), 'copernicus'),
+            _import_copernicus(),  # Already on 1850-1900 baseline (see function docstring)
         ]
         merged = reduce(
             lambda l, r: pd.merge(l, r, on=['year','month'], how='outer'), dfs
@@ -297,7 +315,11 @@ def fetch_obs_data(cache_path: Path = OBS_CACHE, force: bool = False) -> pd.Data
 
 def load_obs_data(csv_path: Path = OBS_CACHE) -> pd.DataFrame:
     """
-    Load cached observational CSV and shift baseline from 1981-2010 to 1850-1900.
+    Load cached observational CSV and shift each series to the 1850-1900 baseline.
+
+    HadCRUT5/GISTEMP/NOAA/Berkeley are stored on a 1981-2010 baseline and shifted
+    via PREINDUSTRIAL_OFFSETS. Copernicus/ERA5 is already stored on the 1850-1900
+    baseline (see _import_copernicus) and passes through unchanged.
 
     Returns DataFrame with columns: date, hadcrut5, gistemp, noaa, berkeley, copernicus
     All values are anomalies relative to the 1850-1900 preindustrial mean.

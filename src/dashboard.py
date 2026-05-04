@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.linear_model import LinearRegression
 
+from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
+
 
 # Theme configurations for light and dark modes
 THEME_CONFIG = {
@@ -83,16 +85,12 @@ def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
     Returns:
     - DataFrame: DataFrame with adjusted temperature anomalies.
     """
-    # Monthly adjustment values (1991-2020 baseline to preindustrial)
-    monthly_adjustments = {
-        1: 0.96, 2: 0.96, 3: 0.95, 4: 0.91, 5: 0.87, 6: 0.83,
-        7: 0.80, 8: 0.80, 9: 0.81, 10: 0.85, 11: 0.89, 12: 0.93
-    }
-
-    # Adjusting the anomalies
+    # Adjusting the anomalies (1991-2020 baseline → 1850-1900 preindustrial).
+    # Source of truth lives in src/models_vs_obs.MONTHLY_PREINDUSTRIAL_OFFSETS so
+    # the Models vs Obs tab applies the same per-month shift to ERA5.
     df_adjusted = df.copy()
     df_adjusted[anomaly_col] = df.apply(
-        lambda row: row[anomaly_col] + monthly_adjustments[row[date_col].month], axis=1
+        lambda row: row[anomaly_col] + MONTHLY_PREINDUSTRIAL_OFFSETS[row[date_col].month], axis=1
     )
 
     return df_adjusted
