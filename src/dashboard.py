@@ -2799,18 +2799,23 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def switch_tab(n_global, n_enso, n_models, url_hash, _ts, current_tab):
         triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
+        # An explicit nav click always wins.
         if triggered == 'nav-global':
             tab = 'global'
         elif triggered == 'nav-enso':
             tab = 'enso'
         elif triggered == 'nav-models':
             tab = 'models'
-        elif triggered == 'url':
-            # Parse hash from URL (e.g. #enso -> enso)
-            h = (url_hash or '').lstrip('#').lower()
-            tab = h if h in _VALID_TABS else (current_tab or 'global')
         else:
-            tab = current_tab or 'global'
+            # URL hash drives both the 'url'-triggered case and the page-load
+            # tick (where active-tab-store fires first because of session
+            # storage). Without this, an external #enso link is ignored when
+            # the visitor has previously landed on a different tab.
+            h = (url_hash or '').lstrip('#').lower()
+            if h in _VALID_TABS:
+                tab = h
+            else:
+                tab = current_tab or 'global'
         return (
             {} if tab == 'global' else {'display': 'none'},
             {} if tab == 'enso' else {'display': 'none'},
