@@ -96,6 +96,12 @@ def _compute_area_mean(
 
     Preserves non-spatial dimensions (ensmem, target, etc.). When ``lon_bounds``
     is None, averages over all longitudes (used for the tropical 20S-20N band).
+
+    Some NMME files (e.g. NCAR-CCSM4 Oct 2026) carry land/missing cells as
+    huge sentinel values (~1.86e+34) without a declared ``_FillValue``, so
+    xarray's weighted mean silently averages them in and detonates rONI.
+    Mask any cell whose magnitude exceeds a physical sanity bound before
+    averaging.
     """
     var_name = None
     for v in ds.data_vars:
@@ -106,6 +112,8 @@ def _compute_area_mean(
         var_name = list(ds.data_vars)[0]
 
     data = ds[var_name]
+    # SST anomalies in K never exceed ~10; 100 is a generous sanity bound.
+    data = data.where(np.abs(data) < 100.0)
 
     lat_name = lon_name = None
     for dim in data.dims:
