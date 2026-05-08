@@ -49,13 +49,41 @@ def _download_netcdf(url: str, dest: Path) -> Path:
     return dest  # unreachable but satisfies type checker
 
 
+def _parse_initial_time_attr(ds: xr.Dataset) -> str | None:
+    """Parse the earliest member init date from the `initial_time` attr.
+
+    CFSv2 NetCDFs from CPC carry this on the `anom` variable, formatted as
+    "YYYYMMDD - YYYYMMDD" (earliest – latest run). The first date is the
+    earliest of the rolling member init timestamps in the file.
+    """
+    for source in (ds["anom"].attrs if "anom" in ds.data_vars else {}, ds.attrs):
+        raw = source.get("initial_time")
+        if not raw:
+            continue
+        first_token = str(raw).split("-")[0].strip()
+        try:
+            return pd.to_datetime(first_token, format="%Y%m%d").strftime("%Y-%m-%d")
+        except Exception:
+            continue
+    return None
+
+
 def _detect_init_date(ds: xr.Dataset) -> str:
     """Detect the effective initialization date from CFS data.
 
-    The CFS NetCDF includes historical verification months (all members identical,
-    std=0) followed by actual forecast months (members diverge). The init date
-    is the month before the first month with ensemble spread.
+    Preferred: the earliest member init timestamp from the file's
+    ``initial_time`` attribute (e.g. "20260423 - 20260502" → "2026-04-23"),
+    which reflects the oldest of the rolling 40 4×daily runs in the E3 file.
+
+    Fallback: ensemble-spread detection. The CFS NetCDF includes historical
+    verification months (members identical, std=0) followed by forecast
+    months (members diverge). Init is then the month before the first month
+    with ensemble spread — month-resolution only.
     """
+    earliest = _parse_initial_time_attr(ds)
+    if earliest is not None:
+        return earliest
+
     data = ds["anom"].squeeze(drop=True)
 
     # Find ensemble and time dims
