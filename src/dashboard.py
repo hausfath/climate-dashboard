@@ -1520,6 +1520,10 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
     # Annual prediction using trailing 30-day anomaly as predictor
     annual_pred = None
     annual_err = 0.086  # Default uncertainty
+    # Full MC draw distribution for the annual prediction. Populated when the
+    # ENSO ensemble Monte Carlo runs successfully; used downstream to compute
+    # rank probabilities against the historical record.
+    mc_draws = None
     try:
         # Calculate annual stats for model
         annual = df_adj.groupby('year')['anomaly'].mean().reset_index()
@@ -1651,6 +1655,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                             # Express the (possibly asymmetric) MC CI as a half-width
                             # so existing ±-style display logic stays sensible.
                             annual_err = max((mc['ub'] - mc['lb']) / 4.0, 0.02)
+                            mc_draws = np.asarray(mc['draws'])
                     except Exception:
                         pass  # fall back to analytic residual std
     except Exception as e:
@@ -1678,6 +1683,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
     # Annual ranking vs historical years
     annual_rank_str = None
     annual_rank_range_str = None
+    annual_rank_probs = []
     if annual_pred is not None:
         try:
             hist_annual_means = df_adj[df_adj['year'] < current_year].groupby('year')['anomaly'].mean()
@@ -1688,6 +1694,47 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
             annual_rank_str = ordinal(annual_rank)
             annual_rank_range_str = (ordinal(rank_best) if rank_best == rank_worst
                                      else f"{ordinal(rank_best)}–{ordinal(rank_worst)}")
+
+            # Rank probabilities from the full MC distribution. For each draw,
+            # rank = (# historical years warmer than the draw) + 1, so rank 1
+            # is "warmest on record". We tabulate up to RANK_TABLE_DEPTH ranks
+            # individually, then bundle anything cooler into a single bucket.
+            if mc_draws is not None and len(mc_draws) > 0 and len(hist_annual_means) > 0:
+                hist_sorted = np.sort(hist_annual_means.values)  # ascending
+                # # historical years above each draw
+                n_above = len(hist_sorted) - np.searchsorted(
+                    hist_sorted, mc_draws, side='right')
+                ranks = (n_above + 1).astype(int)
+                n_draws = len(ranks)
+
+                RANK_TABLE_DEPTH = 5
+                hist_sorted_desc = np.sort(hist_annual_means.values)[::-1]
+                hist_years_desc = hist_annual_means.sort_values(ascending=False).index.tolist()
+                for k in range(1, RANK_TABLE_DEPTH + 1):
+                    prob = float((ranks == k).mean())
+                    if k - 1 < len(hist_years_desc):
+                        holder_year = int(hist_years_desc[k - 1])
+                        holder_val = float(hist_sorted_desc[k - 1])
+                    else:
+                        holder_year = None
+                        holder_val = None
+                    annual_rank_probs.append({
+                        'rank': k,
+                        'rank_label': "Warmest on record" if k == 1
+                                      else f"{ordinal(k)} warmest",
+                        'prob': prob,
+                        'holder_year': holder_year,
+                        'holder_value': holder_val,
+                    })
+                cooler = float((ranks > RANK_TABLE_DEPTH).mean())
+                if cooler > 0.005:
+                    annual_rank_probs.append({
+                        'rank': RANK_TABLE_DEPTH + 1,
+                        'rank_label': f"{ordinal(RANK_TABLE_DEPTH + 1)} or cooler",
+                        'prob': cooler,
+                        'holder_year': None,
+                        'holder_value': None,
+                    })
         except Exception:
             pass
 
@@ -1720,8 +1767,130 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         'annual_error': f"±{2*annual_err:.2f}°C",
         'annual_rank': annual_rank_str,
         'annual_rank_range': annual_rank_range_str,
+        'annual_rank_probs': annual_rank_probs,
         'data_status': latest_row['status']
     }
+
+
+def _build_rank_probability_table(stats: dict, dark_mode: bool = False) -> html.Div:
+    """Render the per-rank probability table for the annual prediction.
+
+    Reads ``stats['annual_rank_probs']`` (populated from the ENSO ensemble
+    Monte Carlo). The most-likely rank gets a tinted row + bold weight; each
+    row carries an inline horizontal bar proportional to its probability.
+    Re-rendered on dark-mode toggle via callback so the colour palette stays
+    consistent with the rest of the dashboard.
+    """
+    rows = stats.get('annual_rank_probs') or []
+    if not rows:
+        return html.P(
+            "Rank probabilities unavailable — ENSO ensemble Monte Carlo "
+            "did not run for this update.",
+            className="text-muted", style={'margin': 0},
+        )
+
+    max_prob = max((r.get('prob', 0.0) for r in rows), default=0.0)
+
+    if dark_mode:
+        text_color = '#e8e8e8'
+        muted_color = 'rgba(232,232,232,0.65)'
+        bar_track = 'rgba(255,255,255,0.08)'
+        bar_color = '#ff8c5a'
+        highlight_bg = 'rgba(255,140,90,0.12)'
+        border_color = 'rgba(255,255,255,0.10)'
+        header_border = 'rgba(255,255,255,0.18)'
+    else:
+        text_color = '#1a1a1a'
+        muted_color = 'rgba(26,26,26,0.55)'
+        bar_track = 'rgba(0,0,0,0.06)'
+        bar_color = '#cc4422'
+        highlight_bg = 'rgba(204,68,34,0.07)'
+        border_color = 'rgba(0,0,0,0.06)'
+        header_border = 'rgba(0,0,0,0.18)'
+
+    header_cell = {
+        'color': muted_color, 'fontSize': '0.72rem', 'fontWeight': '600',
+        'textTransform': 'uppercase', 'letterSpacing': '0.05em',
+        'borderBottom': f'1.5px solid {header_border}',
+        'padding': '0.5rem 0.6rem',
+    }
+
+    body_rows = []
+    for entry in rows:
+        prob = entry.get('prob', 0.0)
+        prob_pct = prob * 100
+        prob_str = f"{prob_pct:.1f}%" if prob_pct >= 0.1 else "<0.1%"
+        is_max = prob == max_prob and max_prob > 0
+
+        holder_year = entry.get('holder_year')
+        if holder_year is not None:
+            holder_text = (f"{holder_year} "
+                           f"({entry['holder_value']:+.2f}°C)")
+        else:
+            holder_text = "—"
+
+        bar_fill = html.Div(style={
+            'width': f'{max(prob_pct, 0.4)}%' if prob > 0 else '0',
+            'height': '6px',
+            'backgroundColor': bar_color,
+            'borderRadius': '3px',
+            'opacity': 1.0 if is_max else 0.7,
+            'transition': 'width 0.25s ease',
+        })
+        bar_track_div = html.Div([bar_fill], style={
+            'width': '100%', 'height': '6px',
+            'backgroundColor': bar_track, 'borderRadius': '3px',
+        })
+
+        weight = '600' if is_max else '400'
+        cell_pad = '0.55rem 0.6rem'
+        body_rows.append(html.Tr([
+            html.Td(entry['rank_label'], style={
+                'color': text_color, 'fontWeight': weight, 'padding': cell_pad,
+                'borderBottom': f'1px solid {border_color}',
+            }),
+            html.Td(prob_str, style={
+                'fontFamily': 'SFMono-Regular, Menlo, Consolas, monospace',
+                'color': text_color, 'textAlign': 'right',
+                'fontWeight': weight, 'whiteSpace': 'nowrap',
+                'padding': cell_pad,
+                'borderBottom': f'1px solid {border_color}',
+            }),
+            html.Td(bar_track_div, style={
+                'verticalAlign': 'middle', 'minWidth': '90px',
+                'padding': f'{cell_pad}',
+                'borderBottom': f'1px solid {border_color}',
+            }),
+            html.Td(holder_text, style={
+                'color': muted_color, 'fontSize': '0.86rem',
+                'whiteSpace': 'nowrap', 'padding': cell_pad,
+                'borderBottom': f'1px solid {border_color}',
+            }),
+        ], style={'backgroundColor': highlight_bg if is_max else 'transparent'}))
+
+    # Drop the bottom border on the last row for a cleaner edge.
+    if body_rows:
+        last = body_rows[-1]
+        for cell in last.children:
+            cell.style['borderBottom'] = 'none'
+
+    header = html.Thead(html.Tr([
+        html.Th("Rank", style=header_cell),
+        html.Th("Probability",
+                style={**header_cell, 'textAlign': 'right'}),
+        html.Th("", style=header_cell),
+        html.Th("Currently held by", style=header_cell),
+    ]))
+
+    return html.Table(
+        [header, html.Tbody(body_rows)],
+        style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'tableLayout': 'auto',
+            'margin': 0,
+        },
+    )
 
 
 def create_dashboard(df: pd.DataFrame) -> Dash:
@@ -1806,6 +1975,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         logger.info("Using existing static plot images")
 
     stats = create_statistics_cards(df)
+
+    # Closure-captured stats so the dark-mode rerender callback for the rank
+    # probability table doesn't have to recompute the Monte Carlo.
+    _stats_cache = stats
 
     # Store dataframe reference for callbacks (using closure)
     _df = df.copy()
@@ -2068,6 +2241,34 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                        config={'toImageButtonOptions': {'scale': 3}})]
                 )
             ], xs=12, md={'size': 10, 'offset': 1})
+        ], className="mb-4"),
+
+        # Annual rank probability table — refreshed daily with the ERA5 update.
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5(
+                            f"{stats['current_year']} ranking probabilities",
+                            id='annual-rank-table-title',
+                            style={'fontSize': '1rem', 'fontWeight': '600',
+                                   'marginBottom': '0.25rem'},
+                        ),
+                        html.Small(
+                            f"Likelihood that {stats['current_year']} ends up "
+                            f"at each rank against the historical record. "
+                            f"Monte Carlo over the ENSO multi-model ensemble "
+                            f"plus regression residuals; refreshed daily.",
+                            id='annual-rank-table-subtitle',
+                        ),
+                        html.Div(
+                            _build_rank_probability_table(stats),
+                            id='annual-rank-table-body',
+                            style={'marginTop': '0.85rem'},
+                        ),
+                    ], style={'padding': '1rem 1.25rem'}),
+                ], id='annual-rank-card', className='mb-2'),
+            ], xs=12, md={'size': 6, 'offset': 3})
         ], className="mb-4"),
 
         # Annual projection evolution plot
@@ -2499,6 +2700,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('card-2-sub', 'style'),
             Output('card-3-sub', 'style'),
             Output('card-4-sub', 'style'),
+            Output('annual-rank-card', 'color'),
+            Output('annual-rank-card', 'style'),
+            Output('annual-rank-table-title', 'style'),
+            Output('annual-rank-table-subtitle', 'style'),
             Output('footer-text', 'style'),
             Output('sun-icon', 'style'),
             Output('moon-icon', 'style'),
@@ -2531,6 +2736,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             'opacity': 1 if dark_mode else 0.4,
             'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
         }
+        # Rank-card title gets a slightly tighter weighting than the cards above
+        # but reuses the same colour palette.
+        rank_title_style = {
+            'fontSize': '1rem', 'fontWeight': '600',
+            'marginBottom': '0.25rem', 'color': theme['text_color'],
+        }
+        rank_subtitle_style = {
+            'color': theme['text_color'], 'opacity': '0.65',
+        }
         return (
             container_style, title_style, subtitle_style,
             card_color, card_color, card_color, card_color,
@@ -2538,8 +2752,19 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             card_title_style, card_title_style, card_title_style, card_title_style,
             card_value_style, card_value_style, card_value_style, card_value_style,
             card_sub_style, card_sub_style, card_sub_style, card_sub_style,
+            card_color, card_style, rank_title_style, rank_subtitle_style,
             footer_style, sun_style, moon_style,
         )
+
+    # Re-render the rank-probability table itself when the user toggles dark
+    # mode so the bar colour, row highlight, and text contrast all stay in sync
+    # with the rest of the page.
+    @app.callback(
+        Output('annual-rank-table-body', 'children'),
+        [Input('dark-mode-switch', 'value')],
+    )
+    def _rerender_rank_table(dark_mode):
+        return _build_rank_probability_table(_stats_cache, dark_mode=bool(dark_mode))
 
     # Tab titles and subtitles
     _TAB_TITLES = {
