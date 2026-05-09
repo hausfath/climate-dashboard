@@ -844,7 +844,8 @@ def generate_ridgeline_plot(df: pd.DataFrame, output_dir: Path, dark_mode: bool 
 
     ax_cbar.set_yticks([])
     ax_cbar.set_xlim(data_min, data_max)
-    ax_cbar.set_xlabel('Temperature Anomaly (°C)', fontsize=12, color=text_color)
+    ax_cbar.set_xlabel('Temperature anomaly (°C) relative to 1850–1900',
+                       fontsize=12, color=text_color)
     ax_cbar.tick_params(colors=text_color)
 
     ax_cbar.spines['top'].set_visible(False)
