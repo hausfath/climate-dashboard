@@ -22,6 +22,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def update_ec46_forecast(force: bool = False) -> None:
+    """Fetch ECMWF EC46 (extended-range) global-mean 2m temperature forecast.
+
+    Skips quietly on failure so a transient Open-Meteo outage doesn't
+    crash the daily cron — the dashboard already degrades gracefully if
+    the forecast CSV is missing.
+    """
+    enso_root = str(Path(__file__).parent / "ENSO")
+    if enso_root not in sys.path:
+        sys.path.insert(0, enso_root)
+
+    try:
+        from enso_forecast.fetchers.ec46 import save_ec46
+        save_ec46(force=force)
+    except Exception as e:
+        logger.error(f"Failed to fetch EC46 forecast: {e}")
+
+
 def update_enso_forecasts(force: bool = False) -> None:
     """Fetch multi-model ENSO forecasts (CFS, NMME, C3S, IRI) and observed data."""
     enso_root = str(Path(__file__).parent / "ENSO")
@@ -115,6 +133,11 @@ def update_data(force: bool = False) -> None:
         update_enso_forecasts(force=force)
     except Exception as e:
         logger.error(f"ENSO forecast fetch failed: {e}")
+
+    # Fetch ECMWF EC46 global-mean GSAT forecast (drives the daily-anomaly
+    # plot's 46-day forecast tail). Cheap and idempotent on cron repeats.
+    logger.info("Fetching ECMWF EC46 GSAT forecast...")
+    update_ec46_forecast(force=force)
 
     # Update ENSO data
     logger.info("Updating ENSO data...")

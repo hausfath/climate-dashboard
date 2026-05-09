@@ -96,6 +96,93 @@ def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
     return df_adjusted
 
 
+# ---------------------------------------------------------------------------
+# ECMWF EC46 forecast tail (loaded once per render; used by Figures 1 & 2)
+# ---------------------------------------------------------------------------
+
+EC46_ANCHOR_DAYS = 7
+
+
+def _load_ec46_forecast() -> pd.DataFrame | None:
+    """Read the latest EC46 percentile-summary CSV under ``data/``.
+    Returns None if no forecast file is present (graceful fallback)."""
+    import glob
+    pattern = str(Path(__file__).resolve().parent.parent
+                  / "data" / "era5_forecast_ec46_*.csv")
+    matches = sorted(glob.glob(pattern))
+    if not matches:
+        return None
+    df = pd.read_csv(matches[-1])
+    df["date"] = pd.to_datetime(df["date"])
+    if "init_date" in df.columns:
+        df["init_date"] = pd.to_datetime(df["init_date"])
+    return df
+
+
+def _ec46_anomalize_and_anchor(
+    fcst: pd.DataFrame, obs_adj: pd.DataFrame
+) -> tuple[pd.DataFrame, float] | None:
+    """Convert EC46 absolute t2m to preindustrial anomaly + anchor to
+    last-7-day observed mean.
+
+    obs_adj must already have its anomaly column preindustrial-adjusted
+    (i.e. produced by adjust_anomalies_to_preindustrial). Returns
+    (anchored DataFrame with same percentile cols, residual offset)
+    or None if alignment is impossible.
+    """
+    if fcst is None or fcst.empty or obs_adj is None or obs_adj.empty:
+        return None
+    obs = obs_adj.copy()
+    if "day_of_year" not in obs.columns:
+        obs["day_of_year"] = obs["date"].dt.dayofyear
+    # Day-of-year climatology (per-DOY 1991–2020 mean) — average across
+    # years to smooth leap-day noise. The production data flow renames
+    # `clim_91-20` → `climatology` (src/scraper.py:parse_era5_data); accept
+    # either so this helper works whether obs_adj came through that loader
+    # or was read raw from disk.
+    clim_col = next((c for c in ("climatology", "clim_91-20")
+                     if c in obs.columns), None)
+    if clim_col is None:
+        return None
+    doy_clim = obs.groupby("day_of_year")[clim_col].mean()
+
+    out = fcst.copy()
+    out["day_of_year"] = out["date"].dt.dayofyear
+    out["clim_C"] = out["day_of_year"].map(doy_clim)
+    out["pi_offset"] = out["date"].apply(
+        lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
+    cols = ["t2m_mean", "t2m_p5", "t2m_p25", "t2m_p50", "t2m_p75", "t2m_p95"]
+    for c in cols:
+        out[c] = out[c] - out["clim_C"] + out["pi_offset"]
+
+    # Anchor: shift trajectory so day 0 matches the recent observed mean.
+    fc_start = out["date"].iloc[0]
+    obs_recent = obs[obs["date"] < fc_start].tail(EC46_ANCHOR_DAYS)
+    if obs_recent.empty:
+        return None
+    anchor_value = float(obs_recent["anomaly"].mean())
+    delta = anchor_value - float(out["t2m_mean"].iloc[0])
+    for c in cols:
+        out[c] = out[c] + delta
+    return out.drop(columns=["clim_C", "pi_offset"]), delta
+
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert a #RRGGBB or rgba() / rgb() string to a Plotly rgba(...) string
+    with the given alpha override."""
+    s = hex_color.strip()
+    if s.startswith("#") and len(s) == 7:
+        r, g, b = int(s[1:3], 16), int(s[3:5], 16), int(s[5:7], 16)
+        return f"rgba({r}, {g}, {b}, {alpha})"
+    if s.startswith("rgba(") and s.endswith(")"):
+        parts = [p.strip() for p in s[5:-1].split(",")]
+        return f"rgba({parts[0]}, {parts[1]}, {parts[2]}, {alpha})"
+    if s.startswith("rgb(") and s.endswith(")"):
+        parts = [p.strip() for p in s[4:-1].split(",")]
+        return f"rgba({parts[0]}, {parts[1]}, {parts[2]}, {alpha})"
+    return s  # fall back to whatever we got
+
+
 def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Figure:
     """Create a time series plot of global temperature anomalies relative to preindustrial."""
     theme = get_theme(dark_mode)
@@ -231,6 +318,55 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
                 line=dict(color=theme['highlight_colors'][year], width=2.5),
                 customdata=dates,
                 hovertemplate=f'{year}<br>%{{customdata}}<br>Anomaly: %{{y:.2f}}°C<extra></extra>'
+            ))
+
+    # ECMWF EC46 forecast tail layered onto the current-year trace
+    ec46 = _load_ec46_forecast()
+    if ec46 is not None and not ec46.empty:
+        result = _ec46_anomalize_and_anchor(ec46, df_adj)
+        if result is not None:
+            anchored, _ = result
+            current_year = int(anchored['date'].iloc[0].year)
+            color = theme['highlight_colors'].get(
+                current_year, theme['rolling_color'])
+            band_outer = _hex_to_rgba(color, 0.10)
+            band_inner = _hex_to_rgba(color, 0.22)
+            fc_doy = anchored['date'].dt.dayofyear
+
+            fig.add_trace(go.Scatter(
+                x=list(fc_doy) + list(fc_doy[::-1]),
+                y=list(anchored['t2m_p95']) + list(anchored['t2m_p5'][::-1]),
+                fill='toself', fillcolor=band_outer,
+                line=dict(width=0), hoverinfo='skip',
+                name=f'EC46 5–95th %ile', showlegend=False,
+            ))
+            fig.add_trace(go.Scatter(
+                x=list(fc_doy) + list(fc_doy[::-1]),
+                y=list(anchored['t2m_p75']) + list(anchored['t2m_p25'][::-1]),
+                fill='toself', fillcolor=band_inner,
+                line=dict(width=0), hoverinfo='skip',
+                name=f'EC46 25–75th %ile', showlegend=False,
+            ))
+            # Bridge segment from last observed day to forecast day 0
+            cy_obs = df_adj[df_adj['year'] == current_year].sort_values('date')
+            if not cy_obs.empty:
+                last_obs = cy_obs.iloc[-1]
+                fig.add_trace(go.Scatter(
+                    x=[last_obs['day_of_year'], int(fc_doy.iloc[0])],
+                    y=[last_obs['anomaly'], anchored['t2m_mean'].iloc[0]],
+                    mode='lines',
+                    line=dict(color=color, width=2.5, dash='dot'),
+                    showlegend=False, hoverinfo='skip',
+                ))
+            fc_dates = anchored['date'].dt.strftime('%b %-d')
+            fig.add_trace(go.Scatter(
+                x=fc_doy, y=anchored['t2m_mean'],
+                mode='lines',
+                name=f'{current_year} forecast (EC46)',
+                line=dict(color=color, width=2.5, dash='dash'),
+                customdata=fc_dates,
+                hovertemplate=(f'{current_year} forecast<br>%{{customdata}}'
+                               '<br>Mean: %{y:.2f}°C<extra></extra>'),
             ))
 
     # Month labels for x-axis
