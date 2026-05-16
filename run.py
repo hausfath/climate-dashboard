@@ -139,6 +139,16 @@ def update_data(force: bool = False) -> None:
     logger.info("Fetching ECMWF EC46 GSAT forecast...")
     update_ec46_forecast(force=force)
 
+    # Refresh the EC46 skill-tracking plot (past forecasts vs. observed).
+    # Output lives under forecast_skill/ and is committed by the daily
+    # cron; not surfaced in the dashboard layout.
+    logger.info("Rebuilding EC46 forecast-skill plot...")
+    try:
+        from src.ec46_skill import make_plot as make_ec46_skill_plot
+        make_ec46_skill_plot()
+    except Exception as e:
+        logger.error(f"EC46 skill plot failed: {e}")
+
     # Update ENSO data
     logger.info("Updating ENSO data...")
     try:

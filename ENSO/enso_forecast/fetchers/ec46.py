@@ -218,7 +218,17 @@ def save_ec46(force: bool = False) -> pd.DataFrame:
     df.to_csv(out_path, index=False)
     logger.info("EC46: saved %s", out_path)
 
-    # Cleanup older files — keep only the most recent.
+    # Archive this init so we can compare past forecasts to obs over time.
+    # The archive is the long-term store; ``data/`` keeps only the current
+    # init so the dashboard's glob picks up the latest cleanly.
+    archive_dir = DASHBOARD_ROOT / "forecast_skill" / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = archive_dir / f"era5_forecast_ec46_{init_date}.csv"
+    if not archive_path.exists():
+        df.to_csv(archive_path, index=False)
+        logger.info("EC46: archived %s", archive_path)
+
+    # Cleanup older files in data/ — keep only the most recent there.
     for old in existing:
         if old != out_path:
             try:

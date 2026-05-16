@@ -38,6 +38,8 @@ Thumbs.db
 *.png
 # But keep static plot images for deployment
 !assets/images/*.png
+# Keep the EC46 forecast-skill tracking plot (committed by daily cron)
+!forecast_skill/ec46_skill.png
 
 # ERA5 large binary data (re-downloadable via era5_api.py / CDS API)
 data/era5/*.nc
