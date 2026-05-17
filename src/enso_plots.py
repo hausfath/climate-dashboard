@@ -864,10 +864,12 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         except Exception as e:
             logger.warning(f"Error adding forecast overlay: {e}")
 
-    # Y-axis range
+    # Y-axis range: pad the top to 3.5 °C so the current forecast median
+    # has headroom, but keep tick labels stopping at 3 so the scale still
+    # reads as a standard ONI-style chart.
     all_vals = list(anom)
     ymin = min(-3.0, min(all_vals) - 0.3)
-    ymax = max(3.0, max(all_vals) + 0.3)
+    ymax = max(3.5, max(all_vals) + 0.3)
 
     fig.update_layout(
         title=f"ENSO {meta['short']}: Historical Record and Current Forecast",
@@ -883,7 +885,12 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
             font=dict(size=10),
         ),
         xaxis=dict(gridcolor=theme["grid_color"]),
-        yaxis=dict(range=[ymin, ymax], gridcolor=theme["grid_color"]),
+        yaxis=dict(
+            range=[ymin, ymax],
+            tickmode="array",
+            tickvals=list(range(int(np.floor(ymin)), 4)),
+            gridcolor=theme["grid_color"],
+        ),
         margin=dict(l=60, r=30, t=50, b=50),
     )
 
