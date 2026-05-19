@@ -59,6 +59,21 @@ MONTHLY_PREINDUSTRIAL_OFFSETS = {
     7: 0.80, 8: 0.80, 9: 0.81, 10: 0.85, 11: 0.89, 12: 0.93,
 }
 
+# Forcing scenarios used to splice the historical period to a future
+# extension for each CMIP generation. These come from the source ensemble
+# files under data/cmip/ (see header line of each .txt file).
+SCENARIO_LABELS = {
+    'cmip3': 'SRES A1B',
+    'cmip5': 'RCP4.5',
+    'cmip6': 'SSP2-4.5',
+}
+
+
+def scenario_for(gen: str) -> str:
+    """Return the future-extension scenario label for a CMIP generation
+    (lowercase 'cmip3' / 'cmip5' / 'cmip6')."""
+    return SCENARIO_LABELS.get(gen.lower(), '')
+
 # ── Theme colors for this tab ─────────────────────────────────────────────────
 OBS_COLORS = {
     'light': {
@@ -685,6 +700,7 @@ def create_models_vs_obs_timeseries(
     dark_mode: bool = False,
     gen_label: str = 'CMIP6',
     baseline: str = '1850-1900',
+    scenario: str = 'SSP2-4.5',
 ) -> go.Figure:
     """
     Visualization 1: Model envelope vs. all observational datasets, 1900-2040.
@@ -776,7 +792,8 @@ def create_models_vs_obs_timeseries(
                       annotation_font_color=theme['text_color'])
 
     bl_label = f'{bl_start}\u2013{bl_end}'
-    layout = _base_layout(theme, f'Climate Models vs. Observations ({gen_label})', height=520)
+    gen_title = f'{gen_label} \u2014 {scenario}' if scenario else gen_label
+    layout = _base_layout(theme, f'Climate Models vs. Observations ({gen_title})', height=520)
     layout.update(
         yaxis_title=f'Temperature anomaly (\u00b0C, rel. {bl_label})',
         xaxis=dict(
@@ -793,6 +810,7 @@ def create_trend_explorer(
     obs_df: pd.DataFrame,
     dark_mode: bool = False,
     gen_label: str = 'CMIP6',
+    scenario: str = 'SSP2-4.5',
 ) -> go.Figure:
     """
     Visualization 2: Warming trends by start year.
@@ -850,7 +868,10 @@ def create_trend_explorer(
             hovertemplate='%{y:.3f}°C/dec<extra>' + label + '</extra>',
         ))
 
-    layout = _base_layout(theme, 'Warming Trend by Start Year (to present)', height=500)
+    gen_title = f'{gen_label} — {scenario}' if scenario else gen_label
+    layout = _base_layout(theme,
+                          f'Warming Trend by Start Year (to present) — {gen_title}',
+                          height=500)
     layout.update(
         xaxis_title='Start Year of Trend',
         yaxis_title='Warming Trend (°C/decade)',
@@ -866,6 +887,7 @@ def create_trend_histogram_grid(
     obs_df: pd.DataFrame,
     dark_mode: bool = False,
     gen_label: str = 'CMIP6',
+    scenario: str = 'SSP2-4.5',
 ) -> go.Figure:
     """
     Visualization 3: 1×3 grid of trend histograms.
@@ -931,7 +953,8 @@ def create_trend_histogram_grid(
         showlegend=False,
         margin=dict(l=50, r=30, t=60, b=60),
         title=dict(
-            text=f'{gen_label} Warming Trends vs. Observations',
+            text=(f'{gen_label} — {scenario} Warming Trends vs. Observations'
+                  if scenario else f'{gen_label} Warming Trends vs. Observations'),
             font=dict(size=14, color=theme['text_color']),
         ),
     )

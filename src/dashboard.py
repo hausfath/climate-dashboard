@@ -2600,9 +2600,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         dbc.Col([
                             dbc.Card([
                                 dbc.CardBody([
-                                    html.H4(f"{_models_cards.get('cmip_label', 'CMIP6')} vs Observed",
-                                            className="card-title",
-                                            id='models-card-1-title', style={'fontSize': '1rem'}),
+                                    html.H4(
+                                        f"{_models_cards.get('cmip_label', 'CMIP6')} "
+                                        f"(SSP2-4.5) vs Observed",
+                                        className="card-title",
+                                        id='models-card-1-title', style={'fontSize': '1rem'}),
                                     html.P(_models_cards.get('obs_warming', 'N/A'),
                                            className="card-text", id='models-card-1-value',
                                            style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
@@ -2677,9 +2679,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                     dbc.Select(
                                         id='models-cmip-gen',
                                         options=[
-                                            {'label': 'CMIP6 (2014–)', 'value': 'cmip6'},
-                                            {'label': 'CMIP5 (2008–)', 'value': 'cmip5'},
-                                            {'label': 'CMIP3 (2001–)', 'value': 'cmip3'},
+                                            {'label': 'CMIP6 — SSP2-4.5 (2014–)', 'value': 'cmip6'},
+                                            {'label': 'CMIP5 — RCP4.5 (2008–)', 'value': 'cmip5'},
+                                            {'label': 'CMIP3 — SRES A1B (2001–)', 'value': 'cmip3'},
                                         ],
                                         value='cmip6',
                                         style={'color': '#000'},
@@ -3248,6 +3250,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def update_models_timeseries(interactive, cmip_gen, smoothing, baseline, dark_mode):
         from dash.exceptions import PreventUpdate
+        from src.models_vs_obs import scenario_for
         if not interactive:
             raise PreventUpdate
         if not _MODELS_AVAILABLE or _cmip6.empty:
@@ -3258,7 +3261,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             rolling = (smoothing == 'rolling')
             bl = baseline or '1850-1900'
-            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode, gen_label, bl)
+            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode,
+                                             gen_label, bl, scenario=scenario_for(gen))
         except Exception as e:
             logger.error(f"Models timeseries error: {e}")
             return go.Figure()
@@ -3273,6 +3277,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def update_models_trend_explorer(_, cmip_gen, dark_mode, interactive):
         from dash.exceptions import PreventUpdate
+        from src.models_vs_obs import scenario_for
         if not interactive:
             raise PreventUpdate
         if not _MODELS_AVAILABLE or _cmip6.empty:
@@ -3281,7 +3286,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label)
+            return _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label,
+                                          scenario=scenario_for(gen))
         except Exception as e:
             logger.error(f"Models trend explorer error: {e}")
             return go.Figure()
@@ -3296,6 +3302,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def update_models_histograms(_, dark_mode, interactive, cmip_gen):
         from dash.exceptions import PreventUpdate
+        from src.models_vs_obs import scenario_for
         if not interactive:
             raise PreventUpdate
         if not _MODELS_AVAILABLE or _cmip6.empty:
@@ -3304,7 +3311,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label)
+            return _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label,
+                                     scenario=scenario_for(gen))
         except Exception as e:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
@@ -3385,12 +3393,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         if not _MODELS_AVAILABLE:
             raise PreventUpdate
         try:
+            from src.models_vs_obs import scenario_for
             gen = cmip_gen or 'cmip6'
             label = gen.upper()
+            scenario = scenario_for(gen)
             cmip_df = _get_cmip(gen)
             cards = compute_model_obs_cards(cmip_df, _obs_models, cmip_label=label)
             return (
-                f"{label} vs Observed",
+                f"{label} ({scenario}) vs Observed",
                 cards.get('obs_warming', 'N/A'),
                 f"Models: {cards.get('model_warming', 'N/A')} ({cards.get('model_warming_range', 'N/A')})",
                 cards.get('obs_trend_1970', 'N/A'),
