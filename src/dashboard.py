@@ -1875,13 +1875,19 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         except Exception:
             pass
 
-    # Daily anomaly rank vs same day-of-year in all historical years
+    # Daily anomaly rank vs the same *calendar* day in all historical years.
+    # Compare by (month, day) rather than day-of-year so leap years line up
+    # correctly — DOY 136 is May 15 in a leap year but May 16 otherwise,
+    # which lets the per-day climatology shift flip the ranking between
+    # absolute and anomaly cards.
     daily_rank_str = None
     try:
-        doy = latest_date.dayofyear
-        hist_doy = df_adj[(df_adj['day_of_year'] == doy) & (df_adj['year'] < current_year)]
-        if len(hist_doy) > 0:
-            daily_rank = int((hist_doy['anomaly'] > latest_row['anomaly']).sum()) + 1
+        m, d = latest_date.month, latest_date.day
+        hist_md = df_adj[(df_adj['date'].dt.month == m)
+                         & (df_adj['date'].dt.day == d)
+                         & (df_adj['year'] < current_year)]
+        if len(hist_md) > 0:
+            daily_rank = int((hist_md['anomaly'] > latest_row['anomaly']).sum()) + 1
             daily_rank_str = "Record warmest" if daily_rank == 1 else f"{ordinal(daily_rank)} warmest"
     except Exception:
         pass
