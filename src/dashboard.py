@@ -122,8 +122,18 @@ def _load_ec46_forecast() -> pd.DataFrame | None:
 def _ec46_anomalize_and_anchor(
     fcst: pd.DataFrame, obs_adj: pd.DataFrame
 ) -> tuple[pd.DataFrame, float] | None:
-    """Convert EC46 absolute t2m to preindustrial anomaly + anchor to
+    """Convert EC46 absolute t2m to preindustrial anomaly + apply a
+    data-driven model bias correction + anchor the residual to the
     last-7-day observed mean.
+
+    The bias correction comes from src.ec46_skill (mean of ERA5 obs −
+    forecast t2m at lead-day-0 across all archived inits) and removes
+    the ~0.2 °C cold offset between ECMWF's operational analysis (used
+    to initialise EC46) and ERA5 reanalysis. The remaining 7-day anchor
+    only has to smooth the small residual synoptic noise on the
+    boundary day, so the forecast tail stays visually continuous with
+    the observed trace without yanking the whole trajectory by a large
+    per-init delta.
 
     obs_adj must already have its anomaly column preindustrial-adjusted
     (i.e. produced by adjust_anomalies_to_preindustrial). Returns
@@ -146,6 +156,14 @@ def _ec46_anomalize_and_anchor(
         return None
     doy_clim = obs.groupby("day_of_year")[clim_col].mean()
 
+    # Data-driven IFS-vs-ERA5 bias from the EC46 archive (0.0 on first
+    # run before the archive has any pairings).
+    try:
+        from src.ec46_skill import estimate_archive_bias
+        bias = estimate_archive_bias()
+    except Exception:
+        bias = 0.0
+
     out = fcst.copy()
     out["day_of_year"] = out["date"].dt.dayofyear
     out["clim_C"] = out["day_of_year"].map(doy_clim)
@@ -153,9 +171,10 @@ def _ec46_anomalize_and_anchor(
         lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
     cols = ["t2m_mean", "t2m_p5", "t2m_p25", "t2m_p50", "t2m_p75", "t2m_p95"]
     for c in cols:
-        out[c] = out[c] - out["clim_C"] + out["pi_offset"]
+        out[c] = out[c] + bias - out["clim_C"] + out["pi_offset"]
 
     # Anchor: shift trajectory so day 0 matches the recent observed mean.
+    # After the bias correction this delta should be small (~0.05 °C).
     fc_start = out["date"].iloc[0]
     obs_recent = obs[obs["date"] < fc_start].tail(EC46_ANCHOR_DAYS)
     if obs_recent.empty:

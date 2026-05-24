@@ -127,6 +127,22 @@ def _estimate_bias_correction(
     return bias
 
 
+def estimate_archive_bias() -> float:
+    """Public helper used by the dashboard's daily-anomaly plot. Loads
+    archived EC46 inits + ERA5 obs and returns the data-driven bias
+    correction (°C) to add to forecast t2m so the model lines up with
+    ERA5 reanalysis on a global-mean basis. Returns 0.0 if the archive
+    is empty (first-run / missing data)."""
+    try:
+        archive = _load_archive()
+        if not archive:
+            return 0.0
+        return _estimate_bias_correction(archive, _load_obs())
+    except Exception as e:  # noqa: BLE001
+        logger.warning("EC46 skill: bias estimate failed: %s", e)
+        return 0.0
+
+
 def make_plot(output_path: Path = OUTPUT_PNG) -> Path | None:
     """Generate the EC46 forecast-vs-obs PNG. Returns the output path on
     success, None if there is nothing to plot."""
