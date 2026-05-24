@@ -35,9 +35,6 @@ ARCHIVE_DIR = ROOT / "forecast_skill" / "archive"
 OUTPUT_PNG = ROOT / "forecast_skill" / "ec46_skill.png"
 ERA5_CSV = ROOT / "data" / "era5_daily_series_2t_global.csv"
 
-ANCHOR_DAYS = 7  # match dashboard's EC46_ANCHOR_DAYS
-
-
 def _load_obs() -> pd.DataFrame:
     """Load ERA5 daily series with anomaly already on the preindustrial
     baseline."""
@@ -50,9 +47,15 @@ def _load_obs() -> pd.DataFrame:
 
 
 def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame) -> pd.DataFrame | None:
-    """Convert an EC46 init's absolute t2m mean to preindustrial anomaly
-    and anchor to the 7-day observed mean immediately preceding the init.
-    Returns None if anchoring is impossible (no obs window)."""
+    """Convert an EC46 init's absolute t2m mean to preindustrial anomaly.
+
+    Unlike the dashboard's daily-anomaly plot (which anchors the forecast
+    to the trailing 7-day observed mean for visual continuity), the skill
+    plot intentionally does *not* anchor. Anchoring would lift each
+    forecast trajectory by a different per-init delta and make any
+    plotted spread reflect the moving obs anchor rather than actual
+    differences between model forecasts.
+    """
     if fcst.empty:
         return None
     f = fcst.copy()
@@ -63,14 +66,6 @@ def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame) -> pd.DataFrame |
     f["clim_C"] = f["day_of_year"].map(doy_clim)
     f["pi_offset"] = f["date"].apply(lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
     f["forecast_anom"] = f["t2m_mean"] - f["clim_C"] + f["pi_offset"]
-
-    fc_start = f["date"].iloc[0]
-    obs_recent = obs[obs["date"] < fc_start].tail(ANCHOR_DAYS)
-    if obs_recent.empty:
-        return None
-    anchor = float(obs_recent["anomaly"].mean())
-    delta = anchor - float(f["forecast_anom"].iloc[0])
-    f["forecast_anom"] = f["forecast_anom"] + delta
     return f[["date", "forecast_anom"]]
 
 
