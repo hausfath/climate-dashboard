@@ -9,6 +9,7 @@ import requests
 from enso_forecast.config import (
     OBSERVED_DIR,
     OBSERVED_ONI_URL,
+    OBSERVED_RNINO_MONTHLY_URL,
     OBSERVED_RONI_URL,
     OBSERVED_SSTOI_URL,
     REQUEST_HEADERS,
@@ -217,6 +218,63 @@ def fetch_roni() -> pd.DataFrame:
     return df
 
 
+def fetch_rnino_monthly() -> pd.DataFrame:
+    """Download NOAA CPC's monthly relative-Niño SST file
+    (``rel_mthsst9120.txt``) and return a long monthly series.
+
+    The file contains four columns of relative Niño anomalies — each
+    region's anomaly minus the 20°S-20°N tropical mean SST anomaly —
+    on the 1991-2020 ERSSTv5 baseline. We expose all four for
+    downstream use; the dashboard primarily wants rNINO3.4 (= monthly
+    rONI by NOAA's definition).
+
+    Returns DataFrame columns: year, month, rnino12, rnino3, rnino4,
+    rnino34, date.
+    """
+    logger.info("Fetching monthly rNINO from %s", OBSERVED_RNINO_MONTHLY_URL)
+    resp = requests.get(
+        OBSERVED_RNINO_MONTHLY_URL,
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
+    resp.raise_for_status()
+
+    records: list[dict] = []
+    for line in resp.text.strip().splitlines():
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        # Skip header / non-numeric lines
+        try:
+            year = int(parts[0])
+            month = int(parts[1])
+        except ValueError:
+            continue
+        try:
+            rn12, rn3, rn4, rn34 = (float(p) for p in parts[2:6])
+        except ValueError:
+            continue
+        records.append({
+            "year": year,
+            "month": month,
+            "rnino12": rn12,
+            "rnino3": rn3,
+            "rnino4": rn4,
+            "rnino34": rn34,
+        })
+
+    df = pd.DataFrame(records)
+    if len(df) > 0:
+        df["date"] = pd.to_datetime(
+            df["year"].astype(str) + "-"
+            + df["month"].astype(str).str.zfill(2) + "-01"
+        )
+        df = df.sort_values("date").reset_index(drop=True)
+    else:
+        df["date"] = pd.Series(dtype="datetime64[ns]")
+    return df
+
+
 def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
     """Fetch and save both observed datasets. Returns dict of DataFrames."""
     results = {}
@@ -224,8 +282,10 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
     monthly_path = OBSERVED_DIR / "nino34_monthly.csv"
     oni_path = OBSERVED_DIR / "oni.csv"
     roni_path = OBSERVED_DIR / "roni.csv"
+    rnino_monthly_path = OBSERVED_DIR / "rnino_monthly.csv"
 
-    if not force and monthly_path.exists() and oni_path.exists() and roni_path.exists():
+    if (not force and monthly_path.exists() and oni_path.exists()
+            and roni_path.exists() and rnino_monthly_path.exists()):
         # Check if data is recent (within 35 days)
         existing = pd.read_csv(monthly_path)
         if len(existing) > 0:
@@ -235,6 +295,7 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
                 results["monthly"] = existing
                 results["oni"] = pd.read_csv(oni_path)
                 results["roni"] = pd.read_csv(roni_path)
+                results["rnino_monthly"] = pd.read_csv(rnino_monthly_path)
                 return results
 
     monthly_df = fetch_monthly_nino34()
@@ -256,6 +317,17 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
         logger.warning("Failed to fetch RONI: %s", e)
         if roni_path.exists():
             results["roni"] = pd.read_csv(roni_path)
+
+    try:
+        rnino_df = fetch_rnino_monthly()
+        rnino_df.to_csv(rnino_monthly_path, index=False)
+        logger.info("Saved %d monthly rNINO records to %s",
+                    len(rnino_df), rnino_monthly_path)
+        results["rnino_monthly"] = rnino_df
+    except Exception as e:
+        logger.warning("Failed to fetch monthly rNINO: %s", e)
+        if rnino_monthly_path.exists():
+            results["rnino_monthly"] = pd.read_csv(rnino_monthly_path)
 
     return results
 

@@ -47,6 +47,13 @@ NMME_BASE_URL = "https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/ENSMEAN/"
 OBSERVED_SSTOI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices"
 OBSERVED_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 OBSERVED_RONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt"
+# Monthly *relative* Niño SST anomalies (rNINO1+2, rNINO3, rNINO4, rNINO3.4)
+# computed by NOAA CPC = Niño anomaly − 20°S-20°N tropical mean SST anomaly,
+# 1991-2020 baseline (ERSSTv5). The rNINO3.4 column is monthly rONI, lagging
+# Niño 3.4 itself by ~0 months (vs the seasonal RONI file, which lags by 1).
+OBSERVED_RNINO_MONTHLY_URL = (
+    "https://www.cpc.ncep.noaa.gov/data/indices/rel_mthsst9120.txt"
+)
 
 # --- CanSIPS (MSC Datamart) ---
 CANSIPS_GRIB_BASE = "https://dd.weather.gc.ca/today/model_cansips/100km/forecast"

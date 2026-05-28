@@ -310,15 +310,32 @@ def load_observed_roni() -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
+def load_observed_rnino_monthly() -> pd.DataFrame:
+    """Load NOAA CPC's monthly rNINO series (rel_mthsst9120.txt). Returns
+    DataFrame with columns: date, rnino34 (and rnino12/3/4). Empty if the
+    file hasn't been downloaded yet."""
+    path = OBSERVED_DIR / "rnino_monthly.csv"
+    if not path.exists():
+        return pd.DataFrame(columns=["date", "rnino34"])
+    df = pd.read_csv(path)
+    df["date"] = pd.to_datetime(df["date"])
+    return df.sort_values("date").reset_index(drop=True)
+
+
 def merge_observed_with_roni(
     obs_nino34_df: pd.DataFrame,
     roni_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Attach ``roni_anom`` and ``tropical_mean_anom`` to monthly observed Niño 3.4.
+    """Attach ``roni_anom`` and ``tropical_mean_anom`` to monthly observed
+    Niño 3.4.
 
-    NOAA's RONI is published as 3-month seasonal values; we use the
-    season-centered monthly value as the rONI for that calendar month.
-    Months without a matching season are filled by linear time interpolation.
+    Prefers NOAA CPC's monthly rNINO3.4 (``rel_mthsst9120.txt``) when
+    available — it's published monthly with the same publication cadence as
+    the Niño 3.4 itself, so it doesn't lag. Falls back to the seasonal
+    RONI series (3-month running mean centered on each month) for older
+    months when monthly data is unavailable, with linear-time interpolation
+    restricted to the inside of the published range so unpublished trailing
+    months stay NaN rather than being forward-filled.
 
     Returns a copy of ``obs_nino34_df`` with two added columns.
     """
@@ -328,26 +345,39 @@ def merge_observed_with_roni(
         out["tropical_mean_anom"] = pd.Series(dtype="float64")
         return out
 
+    out["date"] = pd.to_datetime(out["date"])
+
+    monthly_rnino = load_observed_rnino_monthly()
+
     if roni_df is None:
         roni_df = load_observed_roni()
 
-    if roni_df.empty:
+    if monthly_rnino.empty and (roni_df is None or roni_df.empty):
         out["roni_anom"] = float("nan")
         out["tropical_mean_anom"] = float("nan")
         return out
 
-    out["date"] = pd.to_datetime(out["date"])
-    rdf = roni_df[["date", "roni"]].copy()
-    rdf["date"] = pd.to_datetime(rdf["date"])
-    merged = out.merge(rdf, on="date", how="left")
+    # Start from monthly rNINO3.4 (preferred) — it lines up exactly with
+    # monthly Niño 3.4 so no interpolation needed.
+    if not monthly_rnino.empty:
+        mdf = monthly_rnino[["date", "rnino34"]].rename(columns={"rnino34": "roni"})
+        merged = out.merge(mdf, on="date", how="left")
+    else:
+        merged = out.copy()
+        merged["roni"] = float("nan")
 
-    # Linear-time-interpolate any gaps between centered seasonal stamps,
-    # but only INSIDE the published range — NOAA RONI typically lags Niño
-    # 3.4 by 1–2 months, and pandas' default interpolate forward-fills the
-    # last known value into trailing NaNs, which would silently freeze
-    # rONI at its last published value and inflate the implied tropical
-    # mean. ``limit_area="inside"`` leaves leading/trailing NaN untouched
-    # so callers can correctly observe "rONI not yet published".
+    # Backfill any remaining NaN from the seasonal RONI source. This
+    # only matters before the monthly file's earliest date (currently
+    # 1981-09) or for months the monthly file is missing.
+    if roni_df is not None and not roni_df.empty:
+        rdf = roni_df[["date", "roni"]].rename(columns={"roni": "roni_seasonal"})
+        rdf["date"] = pd.to_datetime(rdf["date"])
+        merged = merged.merge(rdf, on="date", how="left")
+        merged["roni"] = merged["roni"].fillna(merged["roni_seasonal"])
+        merged = merged.drop(columns=["roni_seasonal"])
+
+    # Linear-time-interpolate gaps INSIDE the published range only — see
+    # comment below. Leading/trailing NaN stays NaN.
     merged = merged.sort_values("date").reset_index(drop=True)
     merged["roni"] = (
         merged.set_index("date")["roni"]
