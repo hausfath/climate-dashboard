@@ -341,11 +341,17 @@ def merge_observed_with_roni(
     rdf["date"] = pd.to_datetime(rdf["date"])
     merged = out.merge(rdf, on="date", how="left")
 
-    # Linear-time-interpolate any gaps between centered seasonal stamps.
+    # Linear-time-interpolate any gaps between centered seasonal stamps,
+    # but only INSIDE the published range — NOAA RONI typically lags Niño
+    # 3.4 by 1–2 months, and pandas' default interpolate forward-fills the
+    # last known value into trailing NaNs, which would silently freeze
+    # rONI at its last published value and inflate the implied tropical
+    # mean. ``limit_area="inside"`` leaves leading/trailing NaN untouched
+    # so callers can correctly observe "rONI not yet published".
     merged = merged.sort_values("date").reset_index(drop=True)
     merged["roni"] = (
         merged.set_index("date")["roni"]
-        .interpolate(method="time")
+        .interpolate(method="time", limit_area="inside")
         .reset_index(drop=True)
     )
     merged = merged.rename(columns={"roni": "roni_anom"})
