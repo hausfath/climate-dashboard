@@ -123,55 +123,83 @@ def _swap_to_nino34(df: pd.DataFrame, source_col: str) -> pd.DataFrame:
 # Combined ENSO DataFrame (for annual prediction model)
 # ---------------------------------------------------------------------------
 
-def build_enso_combined(oni_df, forecast_df, obs_df=None):
+def build_enso_combined(oni_df, forecast_df, obs_df=None, index_mode="oni"):
     """Build a combined observed + forecast ENSO DataFrame.
 
-    Returns DataFrame with columns: date, year, month, oni, is_forecast.
-    Observed data comes from ONI + monthly Nino3.4; forecast uses the
-    multi-model weighted median from the combined forecast plume.
+    Returns DataFrame with columns: date, year, month, <value>, is_forecast
+    where <value> is ``oni`` for index_mode="oni" or ``roni`` for "roni".
+    Observed data comes from NOAA's seasonal ONI / monthly Niño 3.4 (for
+    ONI mode) or directly from ``obs_df.roni_anom`` (for rONI mode, which
+    already merges NOAA's monthly rNINO3.4 with the seasonal RONI as
+    fallback in ``merge_observed_with_roni``). Forecast portion uses the
+    multi-model weighted median across the combined ensemble plume.
     """
+    fc_value_col = "roni_anom" if index_mode == "roni" else "nino34_anom"
+    out_col = "roni" if index_mode == "roni" else "oni"
+
     rows = []
     obs_dates = set()
 
-    # Observed from ONI
-    if not oni_df.empty and "oni" in oni_df.columns:
-        for _, r in oni_df.iterrows():
-            rows.append({
-                "date": r["date"],
-                "year": int(r["year"]),
-                "month": int(r["month"]),
-                "oni": r["oni"],
-                "is_forecast": False,
-            })
-            obs_dates.add(str(pd.Timestamp(r["date"]).to_period("M")))
+    if index_mode == "oni":
+        # Observed from NOAA's published ONI (3-month running mean)
+        if not oni_df.empty and "oni" in oni_df.columns:
+            for _, r in oni_df.iterrows():
+                rows.append({
+                    "date": r["date"],
+                    "year": int(r["year"]),
+                    "month": int(r["month"]),
+                    out_col: r["oni"],
+                    "is_forecast": False,
+                })
+                obs_dates.add(str(pd.Timestamp(r["date"]).to_period("M")))
 
-    # Fill in any months with observed Nino3.4 not yet covered by ONI
-    if obs_df is not None and not obs_df.empty and "nino34_anom" in obs_df.columns:
-        for _, r in obs_df.iterrows():
-            period = str(pd.Timestamp(r["date"]).to_period("M"))
-            if period not in obs_dates:
+        # Fill in any months with observed monthly Niño 3.4 not yet
+        # covered by ONI (the seasonal ONI publication usually lags
+        # monthly Niño 3.4 by 1-2 months).
+        if obs_df is not None and not obs_df.empty and "nino34_anom" in obs_df.columns:
+            for _, r in obs_df.iterrows():
+                period = str(pd.Timestamp(r["date"]).to_period("M"))
+                if period not in obs_dates:
+                    rows.append({
+                        "date": pd.Timestamp(r["date"]),
+                        "year": int(r["year"]),
+                        "month": int(r["month"]),
+                        out_col: r["nino34_anom"],
+                        "is_forecast": False,
+                    })
+                    obs_dates.add(period)
+    else:
+        # rONI mode: ``obs_df.roni_anom`` already merges monthly rNINO3.4
+        # (preferred) with seasonal NOAA RONI (fallback for older months
+        # — see ``merge_observed_with_roni``), so it's the single source
+        # of truth for observed rONI.
+        if obs_df is not None and not obs_df.empty and "roni_anom" in obs_df.columns:
+            roni_obs = obs_df.dropna(subset=["roni_anom"]).sort_values("date")
+            for _, r in roni_obs.iterrows():
+                period = str(pd.Timestamp(r["date"]).to_period("M"))
                 rows.append({
                     "date": pd.Timestamp(r["date"]),
                     "year": int(r["year"]),
                     "month": int(r["month"]),
-                    "oni": r["nino34_anom"],
+                    out_col: r["roni_anom"],
                     "is_forecast": False,
                 })
                 obs_dates.add(period)
 
-    # Forecast from multi-model weighted median (deduplicated)
+    # Forecast portion: multi-model weighted median (deduplicated)
     if not forecast_df.empty:
         try:
             forecast_only = _get_forecast_only(forecast_df)
             mega = _build_mega_df(forecast_only)
             members = mega[mega["member_id"] != "mean"].copy()
-            if not members.empty:
+            if not members.empty and fc_value_col in members.columns:
+                members = members.dropna(subset=[fc_value_col])
                 # Only include months with ≥3 models reporting
                 models_per_month = members.groupby("target_month")["model"].nunique()
                 valid_months = models_per_month[models_per_month >= 3].index
                 members = members[members["target_month"].isin(valid_months)]
 
-                mm = _multimodel_weighted_median(members)
+                mm = _multimodel_weighted_median(members, value_col=fc_value_col)
                 mm["date"] = mm["target_month"].apply(_target_month_to_date)
                 mm = mm.sort_values("date")
 
@@ -182,14 +210,14 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None):
                             "date": r["date"],
                             "year": r["date"].year,
                             "month": r["date"].month,
-                            "oni": r["nino34_anom"],
+                            out_col: r[fc_value_col],
                             "is_forecast": True,
                         })
         except Exception as e:
             logger.warning(f"Error building forecast portion of ENSO combined: {e}")
 
     if not rows:
-        return pd.DataFrame(columns=["date", "year", "month", "oni", "is_forecast"])
+        return pd.DataFrame(columns=["date", "year", "month", out_col, "is_forecast"])
 
     result = pd.DataFrame(rows)
     result["date"] = pd.to_datetime(result["date"])
@@ -219,7 +247,7 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None):
                         "date": mid_period.to_timestamp(),
                         "year": mid_period.year,
                         "month": mid_period.month,
-                        "oni": cur["oni"] + frac * (nxt["oni"] - cur["oni"]),
+                        out_col: cur[out_col] + frac * (nxt[out_col] - cur[out_col]),
                         "is_forecast": True,
                     })
     if len(filled) > len(result):

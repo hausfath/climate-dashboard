@@ -155,18 +155,24 @@ def update_data(force: bool = False) -> None:
         import pandas as pd
         enso_file = DATA_DIR / "enso_combined.csv"
         snapshot_file = DATA_DIR / "last_enso_forecast_snapshot.csv"
+        snapshot_file_roni = DATA_DIR / "last_enso_forecast_snapshot_roni.csv"
 
         create_combined_enso_dataset(enso_file)
 
         # Build multi-model mean forecast (same data the prediction model uses)
         from src.enso_plots import load_enso_forecast_data, build_enso_combined
-        ef, _, oni = load_enso_forecast_data()
-        enso_combined = build_enso_combined(oni, ef)
+        ef, eo, oni = load_enso_forecast_data()
+        enso_combined = build_enso_combined(oni, ef, eo)
+        enso_combined_roni = build_enso_combined(oni, ef, eo, index_mode="roni")
 
-        # Extract forecast-only rows as the snapshot
+        # Extract forecast-only rows as the snapshot for each index
         new_forecast = enso_combined[enso_combined['is_forecast']][['year', 'month', 'oni']].copy()
         new_forecast['oni'] = new_forecast['oni'].round(3)
         new_forecast = new_forecast.sort_values(['year', 'month']).reset_index(drop=True)
+
+        new_forecast_roni = enso_combined_roni[enso_combined_roni['is_forecast']][['year', 'month', 'roni']].copy()
+        new_forecast_roni['roni'] = new_forecast_roni['roni'].round(3)
+        new_forecast_roni = new_forecast_roni.sort_values(['year', 'month']).reset_index(drop=True)
 
         # Guard: don't save empty snapshots (fetch failure)
         if new_forecast.empty:
@@ -218,6 +224,16 @@ def update_data(force: bool = False) -> None:
                         logger.info(f"ENSO multi-model forecast changed — recorded update on {today_str}")
                 else:
                     logger.info("Multi-model ENSO forecast unchanged")
+
+        # rONI snapshot: unconditionally refresh each cron run (no
+        # change-detection logic — that lives on the ONI snapshot since
+        # the dashboard's "forecast updated" indicator is driven there).
+        if new_forecast_roni.empty:
+            logger.warning("rONI ENSO forecast snapshot is empty — skipping")
+        else:
+            new_forecast_roni.to_csv(snapshot_file_roni, index=False)
+            logger.info("Multi-model rONI ENSO forecast snapshot saved (%d rows)",
+                        len(new_forecast_roni))
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 

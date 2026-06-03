@@ -68,6 +68,26 @@ def _parse_initial_time_attr(ds: xr.Dataset) -> str | None:
     return None
 
 
+def _parse_initial_time_window(ds: xr.Dataset) -> tuple[str, str] | None:
+    """Return (earliest_init, latest_init) as YYYY-MM-DD from the
+    ``initial_time`` attribute "YYYYMMDD - YYYYMMDD", or None if absent.
+    """
+    for source in (ds["anom"].attrs if "anom" in ds.data_vars else {}, ds.attrs):
+        raw = source.get("initial_time")
+        if not raw:
+            continue
+        parts = [p.strip() for p in str(raw).split("-")]
+        if len(parts) < 2:
+            continue
+        try:
+            earliest = pd.to_datetime(parts[0], format="%Y%m%d")
+            latest = pd.to_datetime(parts[1], format="%Y%m%d")
+            return earliest.strftime("%Y-%m-%d"), latest.strftime("%Y-%m-%d")
+        except Exception:
+            continue
+    return None
+
+
 def _detect_init_date(ds: xr.Dataset) -> str:
     """Detect the effective initialization date from CFS data.
 
@@ -132,7 +152,15 @@ def _process_cfs_file(
     """
     ds = xr.open_dataset(nc_path)
     init_date = _detect_init_date(ds)
-    logger.info("CFS %s: detected init_date = %s", ensemble_label, init_date)
+    # CPC's CFSv2 NetCDF tags the 40-member rolling window with a date
+    # range on the ``initial_time`` attribute. The notes attribute clarifies
+    # member ordering: "ENS=1 to 40 forecast members from the latest to
+    # earliest initial times; ENS=41 is observation". We use that ordering
+    # to assign a per-member init_date evenly spaced across the window
+    # rather than labelling all 40 members with the same earliest date.
+    init_window = _parse_initial_time_window(ds)
+    logger.info("CFS %s: detected init_date = %s, window = %s",
+                ensemble_label, init_date, init_window)
 
     # Find variable
     var_name = None
@@ -171,9 +199,27 @@ def _process_cfs_file(
 
     if ens_dim and time_dim:
         n_members = data.sizes[ens_dim]
+
+        # Build per-member init dates. Members 1..40 are rolling forecast
+        # runs from latest → earliest across the ``initial_time`` window;
+        # member 41 is the observation row (kept tagged with the latest
+        # init for compatibility with downstream filters).
+        def _member_init_date(m_idx: int) -> str:
+            if init_window is None or m_idx >= 40:
+                return init_date
+            earliest = pd.Timestamp(init_window[0])
+            latest = pd.Timestamp(init_window[1])
+            span_days = (latest - earliest).days
+            if span_days <= 0:
+                return latest.strftime("%Y-%m-%d")
+            # ENS=1 (m_idx=0) → latest, ENS=40 (m_idx=39) → earliest.
+            offset_days = round(span_days * m_idx / 39)
+            return (latest - pd.Timedelta(days=offset_days)).strftime("%Y-%m-%d")
+
         for m_idx in range(n_members):
             member_id = f"ens_{ensemble_label}_{m_idx + 1:03d}"
             member_data = data.isel({ens_dim: m_idx})
+            member_init = _member_init_date(m_idx)
 
             for t_idx in range(len(time_values)):
                 val = float(member_data.isel({time_dim: t_idx}).values)
@@ -186,14 +232,14 @@ def _process_cfs_file(
                     continue
                 target_month = target_dt.strftime("%Y-%m")
 
-                init_dt = pd.Timestamp(init_date)
+                init_dt = pd.Timestamp(member_init)
                 lead = (target_dt.year - init_dt.year) * 12 + (target_dt.month - init_dt.month)
 
                 records.append({
                     "source": "CFS",
                     "model": "CFSv2",
                     "model_type": "dynamical",
-                    "init_date": init_date,
+                    "init_date": member_init,
                     "target_month": target_month,
                     "nino34_anom": val,
                     "member_id": member_id,
