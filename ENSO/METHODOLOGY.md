@@ -122,7 +122,7 @@ Thresholds remain ±0.5 °C — the same numerical thresholds used for ONI — s
 
 ### Per-source rONI strategy
 
-Each forecast and observed record carries three columns: `nino34_anom`, `tropical_mean_anom`, and `roni_anom = nino34_anom − tropical_mean_anom`. The strategy for obtaining the tropical mean differs by source:
+Each forecast and observed record carries three columns: `nino34_anom`, `tropical_mean_anom`, and `roni_anom`. Following L'Heureux et al. (2024, *J. Climate*), `roni_anom = (nino34_anom − tropical_mean_anom) × a(m)`, where `a(m) = σ(ONI) / σ(ONI − TropAve)` is computed from ERSSTv5 over 1950–2020 and stratified by target calendar month (monthly indices) or season-center month (3-month running means). The scaling restores the variance of the relative index to match that of ONI, so the same ±0.5/±1.5 °C classification thresholds apply. CFSv2's published `rnino34Mon.nc` is already scaled upstream by NOAA and is passed through unchanged. The strategy for obtaining the tropical mean differs by source:
 
 | Source | rONI strategy |
 |--------|--------------|
@@ -134,7 +134,7 @@ Each forecast and observed record carries three columns: `nino34_anom`, `tropica
 
 ### Verification
 
-- For CFSv2 the published rNino3.4 anomaly should match `nino34_anom − tropical_mean_anom` exactly to rounding.
+- For CFSv2 the published rNino3.4 anomaly is the L'Heureux-scaled value, so `roni_anom ≈ (nino34_anom − tropical_mean_anom) × a(m)` to rounding; the equality without `a(m)` no longer holds.
 - Observed `roni_anom` should track NOAA's published RONI series within the interpolation noise.
 - For recent target months tropical-mean anomaly should be on the order of +0.4–0.6 °C, reflecting present-day tropical warming relative to the 1991–2020 base period.
 

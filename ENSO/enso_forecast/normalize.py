@@ -32,6 +32,27 @@ REQUIRED_COLUMNS = [
     "anomaly_base_period",
 ]
 
+# L'Heureux et al. (2024) variance-restoration factor a(m) for rONI:
+#   Relative ONI = (ONI − TropAve) × σ_ONI / σ_(ONI − TropAve)
+# Computed from ERSSTv5 monthly SSTA (1991-2020 base) over the 1950-2020
+# reference period; see temp_files/compute_roni_scaling.py for derivation.
+# Stratified by calendar month for monthly indices, by season-center for
+# 3-month running means.
+RONI_SCALING_MONTHLY: dict[int, float] = {
+    1:  1.2371, 2:  1.2773, 3:  1.3364, 4:  1.3894,
+    5:  1.3084, 6:  1.2479, 7:  1.1654, 8:  1.1563,
+    9:  1.1887, 10: 1.2186, 11: 1.2168, 12: 1.2389,
+}
+RONI_SCALING_SEASONAL: dict[int, float] = {
+    1:  1.2523, 2:  1.2825, 3:  1.3433, 4:  1.3653,
+    5:  1.3321, 6:  1.2406, 7:  1.1842, 8:  1.1720,
+    9:  1.1919, 10: 1.2121, 11: 1.2278, 12: 1.2390,
+}
+
+# Sources whose ``roni_anom`` is already published in L'Heureux-scaled form
+# (i.e. NOAA CPC's pre-computed rNINO3.4 products); these must NOT be re-scaled.
+RONI_PRESCALED_SOURCES: frozenset[str] = frozenset({"CFS"})
+
 
 def validate_forecast_df(df: pd.DataFrame) -> list[str]:
     """Validate a forecast DataFrame against the schema.
@@ -216,6 +237,45 @@ def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def apply_roni_scaling(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply the L'Heureux et al. (2024) variance-restoration scaling to
+    ``roni_anom`` for sources where rONI is computed as the bare difference
+    (Niño 3.4 anom − 20°S-20°N tropical-mean anom).
+
+    Skips rows whose ``source`` is in RONI_PRESCALED_SOURCES (CFSv2's
+    rnino34Mon.nc is already scaled upstream) and rows with missing
+    ``roni_anom`` or unparseable ``target_month``.
+
+    The factor a(m) is keyed by the *target* calendar month: monthly indices
+    use RONI_SCALING_MONTHLY, 3-month running means use RONI_SCALING_SEASONAL.
+    """
+    if df.empty or "roni_anom" not in df.columns:
+        return df
+
+    df = df.copy()
+
+    target_month = pd.to_datetime(df["target_month"] + "-01", errors="coerce")
+    cal_month = target_month.dt.month
+
+    is_seasonal = df.get("temporal_resolution", pd.Series(dtype=object)).eq("seasonal_3mo")
+    a_month  = cal_month.map(RONI_SCALING_MONTHLY)
+    a_season = cal_month.map(RONI_SCALING_SEASONAL)
+    a = a_month.where(~is_seasonal, a_season)
+
+    scale_mask = (
+        ~df["source"].isin(RONI_PRESCALED_SOURCES)
+        & df["roni_anom"].notna()
+        & a.notna()
+    )
+    df.loc[scale_mask, "roni_anom"] = df.loc[scale_mask, "roni_anom"] * a[scale_mask]
+
+    if scale_mask.any():
+        by_src = df.loc[scale_mask, "source"].value_counts().to_dict()
+        logger.info("Applied L'Heureux rONI scaling to %d rows: %s",
+                    int(scale_mask.sum()), by_src)
+    return df
+
+
 def load_source_forecasts(source: str, fetch_date: str | None = None) -> pd.DataFrame:
     """Load forecast CSV for a specific source and date.
 
@@ -292,6 +352,11 @@ def load_all_forecasts(
 
     # Adjust C3S baseline from 1993-2016 to 1991-2020
     combined = adjust_c3s_baseline(combined)
+
+    # Apply L'Heureux variance-restoration scaling to rONI for sources where
+    # we computed it from (n34 − tropical_mean); CFSv2 ships rNINO3.4
+    # pre-scaled and is excluded.
+    combined = apply_roni_scaling(combined)
 
     return combined
 
