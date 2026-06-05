@@ -1,5 +1,6 @@
 """Fetch C3S/Copernicus seasonal SST anomaly forecasts via CDS API."""
 
+import concurrent.futures
 import logging
 import time
 from datetime import date, datetime
@@ -27,6 +28,30 @@ logger = logging.getLogger(__name__)
 
 # Cache for resolved system versions {(centre, year, month): system}
 _system_cache: dict[tuple[str, int, int], str] = {}
+
+# Per-retrieve timeout. cdsapi.Client.retrieve has no timeout of its own and
+# blocks until the CDS job completes; when MARS is restricted or backed up a
+# single call can sit in the queue for hours, eating the workflow timeout.
+C3S_RETRIEVE_TIMEOUT_SEC = 900  # 15 minutes
+
+
+def _retrieve_with_timeout(client, dataset, request, target, timeout_sec):
+    """Call client.retrieve in a worker thread, abandoning it after timeout_sec.
+
+    The CDS request keeps running server-side; the thread is left dangling
+    (cdsapi exposes no cancel hook). That's fine for the daily cron, which
+    exits at the end of the run.
+    """
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        fut = ex.submit(client.retrieve, dataset, request, target)
+        return fut.result(timeout=timeout_sec)
+    except concurrent.futures.TimeoutError as e:
+        raise TimeoutError(
+            f"CDS retrieve exceeded {timeout_sec}s for {dataset}"
+        ) from e
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
 
 
 def _resolve_system(centre: str, year: int, month: int, configured_system: str) -> str:
@@ -297,7 +322,8 @@ def _fetch_c3s_month(
         nc_path = c3s_raw / f"{centre}_{year}{month:02d}_{suffix}.nc"
 
         try:
-            client.retrieve(
+            _retrieve_with_timeout(
+                client,
                 C3S_DATASET,
                 {
                     "originating_centre": centre,
@@ -311,6 +337,7 @@ def _fetch_c3s_month(
                     "data_format": "netcdf",
                 },
                 str(nc_path),
+                C3S_RETRIEVE_TIMEOUT_SEC,
             )
         except Exception as e:
             logger.warning("Failed to fetch C3S %s: %s", model_name, e)
