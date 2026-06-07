@@ -47,11 +47,17 @@ NMME_BASE_URL = "https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/ENSMEAN/"
 OBSERVED_SSTOI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices"
 OBSERVED_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 OBSERVED_RONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt"
-# Monthly *relative* Niño SST anomalies (rNINO1+2, rNINO3, rNINO4, rNINO3.4)
-# computed by NOAA CPC = Niño anomaly − 20°S-20°N tropical mean SST anomaly,
-# 1991-2020 baseline (ERSSTv5). The rNINO3.4 column is monthly rONI, lagging
-# Niño 3.4 itself by ~0 months (vs the seasonal RONI file, which lags by 1).
-OBSERVED_RNINO_MONTHLY_URL = (
+# Monthly *relative* Niño 3.4 SST anomaly (Niño 3.4 − 20°S-20°N tropical mean),
+# 1991-2020 baseline. Two NOAA CPC products are available with the same
+# definition but different SST inputs:
+#   - ERSSTv5 (canonical, matches ONI / seasonal RONI / L'Heureux et al. 2024)
+#   - OISSTv2.1 (high-resolution real-time analysis, sometimes updates earlier)
+# We prefer ERSST and use OISST only as a one-month fallback when ERSST has
+# not yet published the latest month.
+OBSERVED_RNINO_MONTHLY_ERSST_URL = (
+    "https://www.cpc.ncep.noaa.gov/data/indices/Rnino34.ascii.txt"
+)
+OBSERVED_RNINO_MONTHLY_OISST_URL = (
     "https://www.cpc.ncep.noaa.gov/data/indices/rel_mthsst9120.txt"
 )
 

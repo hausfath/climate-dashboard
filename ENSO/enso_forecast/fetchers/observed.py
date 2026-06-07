@@ -9,7 +9,8 @@ import requests
 from enso_forecast.config import (
     OBSERVED_DIR,
     OBSERVED_ONI_URL,
-    OBSERVED_RNINO_MONTHLY_URL,
+    OBSERVED_RNINO_MONTHLY_ERSST_URL,
+    OBSERVED_RNINO_MONTHLY_OISST_URL,
     OBSERVED_RONI_URL,
     OBSERVED_SSTOI_URL,
     REQUEST_HEADERS,
@@ -218,61 +219,115 @@ def fetch_roni() -> pd.DataFrame:
     return df
 
 
-def fetch_rnino_monthly() -> pd.DataFrame:
-    """Download NOAA CPC's monthly relative-Niño SST file
-    (``rel_mthsst9120.txt``) and return a long monthly series.
+def _parse_ersst_rnino34(text: str) -> pd.DataFrame:
+    """Parse NOAA's ``Rnino34.ascii.txt`` (ERSSTv5 monthly rNINO3.4).
 
-    The file contains four columns of relative Niño anomalies — each
-    region's anomaly minus the 20°S-20°N tropical mean SST anomaly —
-    on the 1991-2020 ERSSTv5 baseline. We expose all four for
-    downstream use; the dashboard primarily wants rNINO3.4 (= monthly
-    rONI by NOAA's definition).
-
-    Returns DataFrame columns: year, month, rnino12, rnino3, rnino4,
-    rnino34, date.
+    Format: ``YR  MTH  ANOM`` (header + numeric rows from 1949-12 onward).
     """
-    logger.info("Fetching monthly rNINO from %s", OBSERVED_RNINO_MONTHLY_URL)
-    resp = requests.get(
-        OBSERVED_RNINO_MONTHLY_URL,
-        headers=REQUEST_HEADERS,
-        timeout=REQUEST_TIMEOUT,
-    )
-    resp.raise_for_status()
-
     records: list[dict] = []
-    for line in resp.text.strip().splitlines():
+    for line in text.strip().splitlines():
         parts = line.split()
-        if len(parts) < 6:
+        if len(parts) < 3:
             continue
-        # Skip header / non-numeric lines
         try:
             year = int(parts[0])
             month = int(parts[1])
+            rn34 = float(parts[2])
         except ValueError:
+            continue
+        records.append({"year": year, "month": month, "rnino34": rn34})
+    return pd.DataFrame(records)
+
+
+def _parse_oisst_rel_mthsst(text: str) -> pd.DataFrame:
+    """Parse NOAA's ``rel_mthsst9120.txt`` (OISSTv2.1, four Niño regions).
+
+    We only keep rNINO3.4 (last column) for the hybrid series.
+    """
+    records: list[dict] = []
+    for line in text.strip().splitlines():
+        parts = line.split()
+        if len(parts) < 6:
             continue
         try:
-            rn12, rn3, rn4, rn34 = (float(p) for p in parts[2:6])
+            year = int(parts[0])
+            month = int(parts[1])
+            rn34 = float(parts[5])  # rN1+2, rN3, rN4, rN3.4
         except ValueError:
             continue
-        records.append({
-            "year": year,
-            "month": month,
-            "rnino12": rn12,
-            "rnino3": rn3,
-            "rnino4": rn4,
-            "rnino34": rn34,
-        })
+        records.append({"year": year, "month": month, "rnino34": rn34})
+    return pd.DataFrame(records)
 
-    df = pd.DataFrame(records)
-    if len(df) > 0:
-        df["date"] = pd.to_datetime(
-            df["year"].astype(str) + "-"
-            + df["month"].astype(str).str.zfill(2) + "-01"
+
+def fetch_rnino_monthly() -> pd.DataFrame:
+    """Return NOAA CPC's monthly rNINO3.4 series with an ERSST-primary,
+    OISST-fallback strategy.
+
+    NOAA publishes the same conceptual index (Niño 3.4 − 20°S-20°N tropical
+    mean, 1991-2020 base) through two pipelines:
+      - ``Rnino34.ascii.txt``     — ERSSTv5 (canonical, matches L'Heureux et
+        al. 2024 and our scaling / ONI / seasonal RONI series). Updates with
+        the same monthly cadence as ERSSTv5 (typically by the 5th-8th).
+      - ``rel_mthsst9120.txt``    — OISSTv2.1 (real-time, occasionally
+        publishes the most-recent month a few days before ERSST does).
+
+    Strategy: take ERSSTv5 for every month it covers; for any month present
+    only in OISSTv2.1 (i.e. ERSST hasn't yet caught up), backfill with the
+    OISST value. A ``source`` column records the provenance per row.
+
+    Returns DataFrame columns: year, month, rnino34, date, source.
+    """
+    logger.info("Fetching ERSST monthly rNINO from %s", OBSERVED_RNINO_MONTHLY_ERSST_URL)
+    ersst_resp = requests.get(
+        OBSERVED_RNINO_MONTHLY_ERSST_URL,
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
+    ersst_resp.raise_for_status()
+    ersst = _parse_ersst_rnino34(ersst_resp.text)
+    ersst["source"] = "ERSSTv5"
+
+    # OISST is the fallback for any latest month ERSST hasn't yet posted.
+    try:
+        logger.info("Fetching OISST monthly rNINO from %s", OBSERVED_RNINO_MONTHLY_OISST_URL)
+        oisst_resp = requests.get(
+            OBSERVED_RNINO_MONTHLY_OISST_URL,
+            headers=REQUEST_HEADERS,
+            timeout=REQUEST_TIMEOUT,
         )
-        df = df.sort_values("date").reset_index(drop=True)
-    else:
+        oisst_resp.raise_for_status()
+        oisst = _parse_oisst_rel_mthsst(oisst_resp.text)
+        oisst["source"] = "OISSTv2.1"
+    except requests.RequestException as e:
+        logger.warning("OISST monthly rNINO fetch failed (%s); proceeding with ERSST only", e)
+        oisst = pd.DataFrame(columns=["year", "month", "rnino34", "source"])
+
+    # Keep all ERSST rows; append OISST rows for (year, month) pairs ERSST lacks.
+    ersst_keys = set(zip(ersst["year"], ersst["month"])) if not ersst.empty else set()
+    oisst_extra = oisst[~oisst.apply(
+        lambda r: (int(r["year"]), int(r["month"])) in ersst_keys, axis=1
+    )] if not oisst.empty else oisst
+
+    df = pd.concat([ersst, oisst_extra], ignore_index=True)
+    if df.empty:
         df["date"] = pd.Series(dtype="datetime64[ns]")
-    return df
+        return df[["year", "month", "rnino34", "date", "source"]]
+
+    df["date"] = pd.to_datetime(
+        df["year"].astype(str) + "-"
+        + df["month"].astype(str).str.zfill(2) + "-01"
+    )
+    df = df.sort_values("date").reset_index(drop=True)
+
+    n_oisst = (df["source"] == "OISSTv2.1").sum()
+    if n_oisst:
+        latest_oisst_dates = df.loc[df["source"] == "OISSTv2.1", "date"].dt.strftime("%Y-%m").tolist()
+        logger.info("Hybrid monthly rNINO: %d rows from ERSSTv5 + %d OISST fallback (%s)",
+                    (df["source"] == "ERSSTv5").sum(), n_oisst, ", ".join(latest_oisst_dates))
+    else:
+        logger.info("Hybrid monthly rNINO: %d rows from ERSSTv5 (no OISST fallback needed)",
+                    len(df))
+    return df[["year", "month", "rnino34", "date", "source"]]
 
 
 def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:

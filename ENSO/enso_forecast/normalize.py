@@ -376,9 +376,13 @@ def load_observed_roni() -> pd.DataFrame:
 
 
 def load_observed_rnino_monthly() -> pd.DataFrame:
-    """Load NOAA CPC's monthly rNINO series (rel_mthsst9120.txt). Returns
-    DataFrame with columns: date, rnino34 (and rnino12/3/4). Empty if the
-    file hasn't been downloaded yet."""
+    """Load NOAA CPC's monthly rNINO3.4 hybrid series.
+
+    Produced by ``fetch_rnino_monthly`` with ERSSTv5 primary + OISSTv2.1
+    fallback for any latest month ERSST hasn't yet posted. Columns:
+    year, month, rnino34, date, source. Empty if the file hasn't been
+    downloaded yet.
+    """
     path = OBSERVED_DIR / "rnino_monthly.csv"
     if not path.exists():
         return pd.DataFrame(columns=["date", "rnino34"])
