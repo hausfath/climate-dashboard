@@ -65,38 +65,45 @@ def update_enso_forecasts(force: bool = False) -> None:
 
     for name, fetch_fn in sources:
         try:
-            # Monthly sources: skip if we already have a file from the current month
-            # (C3S in particular takes ~30 min via CDS API)
+            # Monthly sources: skip only if the data we already have is on the
+            # CURRENT month's initialization. We key off the init_date INSIDE
+            # the latest CSV, not its fetch-date filename. Keying off the
+            # filename is wrong: a file fetched this calendar month but holding
+            # last month's run (because the new run wasn't posted yet when the
+            # cron last ran) would suppress fetching for the rest of the month,
+            # so we'd never pick up the new run once it appears.
+            #
+            # Re-fetching is cheap relative to missing a whole month's update;
+            # C3S (~30 min via CDS) is the slow one, and this still skips it
+            # once all its models are current. Init conventions differ
+            # (NMME/C3S/IRI use YYYY-MM-01, CanSIPS uses end-of-month
+            # YYYY-MM-DD), but the previous month's run is always < the first
+            # day of the current month, so one comparison works for all four.
+            # C3S models trickle in over ~10 days, so "any model still on a
+            # prior-month init" keeps re-fetching until the whole panel is current.
             if name in ("NMME", "C3S", "CanSIPS", "IRI") and not force:
                 src_dir = FORECASTS_DIR / name
-                if src_dir.exists():
-                    current_month_prefix = date.today().strftime("%Y-%m")
-                    existing = sorted(src_dir.glob("*.csv"))
-                    has_current = any(
-                        f.stem.startswith(current_month_prefix) for f in existing
-                    )
-                    if has_current:
-                        # For C3S, re-fetch if some models used prior-month fallback
-                        # (new models trickle in over ~10 days each month)
-                        if name == "C3S" and existing:
-                            import pandas as pd
-                            latest = pd.read_csv(existing[-1])
-                            if "init_date" in latest.columns:
-                                current_init = f"{date.today().strftime('%Y-%m')}-01"
-                                has_stale = (latest["init_date"] < current_init).any()
-                                if has_stale:
-                                    logger.info(
-                                        "C3S has models on prior-month init, re-fetching"
-                                    )
-                                else:
-                                    logger.info(f"{name} already fetched this month (all models current), skipping")
-                                    continue
-                            else:
-                                logger.info(f"{name} already fetched this month, skipping")
-                                continue
-                        else:
-                            logger.info(f"{name} already fetched this month, skipping")
+                existing = sorted(src_dir.glob("*.csv")) if src_dir.exists() else []
+                if existing:
+                    import pandas as pd
+                    try:
+                        latest = pd.read_csv(existing[-1])
+                    except Exception:
+                        latest = None
+                    if latest is not None and not latest.empty and "init_date" in latest.columns:
+                        current_init = f"{date.today().strftime('%Y-%m')}-01"
+                        inits = latest["init_date"].astype(str)
+                        if not (inits < current_init).any():
+                            logger.info(
+                                f"{name} already on current-month init "
+                                f"({inits.max()}), skipping"
+                            )
                             continue
+                        logger.info(
+                            f"{name} latest init {inits.min()} predates "
+                            f"{current_init} — fetching for new run"
+                        )
+                    # No init_date / empty / unreadable file: fall through and fetch.
 
             logger.info(f"Fetching {name} ENSO data...")
             fetch_fn(force=force)
