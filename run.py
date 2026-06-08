@@ -65,23 +65,33 @@ def update_enso_forecasts(force: bool = False) -> None:
 
     for name, fetch_fn in sources:
         try:
-            # Monthly sources: skip only if the data we already have is on the
-            # CURRENT month's initialization. We key off the init_date INSIDE
-            # the latest CSV, not its fetch-date filename. Keying off the
-            # filename is wrong: a file fetched this calendar month but holding
-            # last month's run (because the new run wasn't posted yet when the
-            # cron last ran) would suppress fetching for the rest of the month,
-            # so we'd never pick up the new run once it appears.
+            # Monthly sources (NMME, C3S, CanSIPS, IRI): fetch only when a new
+            # run is actually available, judged by the init_date INSIDE the
+            # latest CSV — not its fetch-date filename, and deliberately NOT
+            # gated on --force.
             #
-            # Re-fetching is cheap relative to missing a whole month's update;
-            # C3S (~30 min via CDS) is the slow one, and this still skips it
-            # once all its models are current. Init conventions differ
-            # (NMME/C3S/IRI use YYYY-MM-01, CanSIPS uses end-of-month
-            # YYYY-MM-DD), but the previous month's run is always < the first
-            # day of the current month, so one comparison works for all four.
-            # C3S models trickle in over ~10 days, so "any model still on a
-            # prior-month init" keeps re-fetching until the whole panel is current.
-            if name in ("NMME", "C3S", "CanSIPS", "IRI") and not force:
+            # Keying on the filename was wrong: a file fetched this calendar
+            # month but holding last month's run (the new run wasn't posted yet
+            # when the cron last ran) suppressed fetching for the rest of the
+            # month, so the new run was never picked up once it appeared.
+            #
+            # Ignoring --force is intentional. The daily cron runs
+            # `update --force` so ERA5 re-downloads in its ephemeral container,
+            # but that flag used to also force these monthly fetchers every day
+            # — re-pulling C3S (~30 min via CDS) needlessly, since these sources
+            # only change monthly. Keying the skip on init_date instead picks up
+            # a new monthly run within a day of posting while keeping same-month
+            # days cheap. (CFS/observed aren't here, so they still refresh daily;
+            # ERA5 still honors --force above.)
+            #
+            # Skip only when the latest CSV is already on the current month's
+            # initialization. Convention-agnostic — NMME/C3S/IRI init = the 1st,
+            # CanSIPS = end-of-month — because the prior month's run is always <
+            # the first of the current month; "any model still on a prior init"
+            # keeps re-fetching while C3S's panel trickles in over ~10 days. To
+            # force-repull a current-month run (e.g. after a bad fetch), delete
+            # the source's latest CSV so this guard falls through.
+            if name in ("NMME", "C3S", "CanSIPS", "IRI"):
                 src_dir = FORECASTS_DIR / name
                 existing = sorted(src_dir.glob("*.csv")) if src_dir.exists() else []
                 if existing:
