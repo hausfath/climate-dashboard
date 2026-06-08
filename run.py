@@ -166,6 +166,20 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"EC46 skill plot failed: {e}")
 
+    # Refresh the ENSO multi-model plume skill plots (past plumes vs. observed
+    # Niño3.4 / rNiño3.4). Archives the current month's plume from the live
+    # forecasts once its runs are in (maturity auto-detected, day-of-month
+    # fallback), then regenerates the figures — so they update on a monthly
+    # cadence. Output lives under forecast_skill/ and is committed by the cron;
+    # not surfaced in the dashboard layout. Reads live CSVs + committed
+    # archives only (no git history), so it works under shallow CI checkouts.
+    logger.info("Updating ENSO forecast-skill plots...")
+    try:
+        from src.enso_skill import update_enso_skill
+        update_enso_skill()
+    except Exception as e:
+        logger.error(f"ENSO skill plots failed: {e}")
+
     # Update ENSO data
     logger.info("Updating ENSO data...")
     try:
