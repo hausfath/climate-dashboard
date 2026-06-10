@@ -1,6 +1,5 @@
 """Fetch C3S/Copernicus seasonal SST anomaly forecasts via CDS API."""
 
-import concurrent.futures
 import logging
 import time
 from datetime import date, datetime
@@ -8,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import requests
 import xarray as xr
 
 from enso_forecast.config import (
@@ -26,50 +26,118 @@ from enso_forecast.config import (
 
 logger = logging.getLogger(__name__)
 
-# Cache for resolved system versions {(centre, year, month): system}
-_system_cache: dict[tuple[str, int, int], str] = {}
+# Cache for constraints lookups {(centre, year, month): response dict}
+_constraints_cache: dict[tuple[str, int, int], dict] = {}
 
-# Per-retrieve timeout. cdsapi.Client.retrieve has no timeout of its own and
-# blocks until the CDS job completes; when MARS is restricted or backed up a
-# single call can sit in the queue for hours, eating the workflow timeout.
+# Per-retrieve timeout. A CDS job can sit in the queue for hours when MARS is
+# restricted or backed up, eating the workflow timeout — so we poll with a
+# deadline and CANCEL the job server-side when we give up. Abandoning the job
+# (the old thread-timeout approach) left it queued on CDS, counting against
+# the per-user/dataset queue quota; enough zombies and CDS rejects every new
+# submission with "Number queued requests for this dataset is temporarily
+# limited" until they drain.
 C3S_RETRIEVE_TIMEOUT_SEC = 900  # 15 minutes
+_POLL_INTERVAL_SEC = 10
 
 
-def _retrieve_with_timeout(client, dataset, request, target, timeout_sec):
-    """Call client.retrieve in a worker thread, abandoning it after timeout_sec.
+def _cds_headers() -> dict:
+    return {"PRIVATE-TOKEN": CDS_API_KEY}
 
-    The CDS request keeps running server-side; the thread is left dangling
-    (cdsapi exposes no cancel hook). That's fine for the daily cron, which
-    exits at the end of the run.
+
+def _job_rejection_reason(job_id: str) -> str:
+    """Best-effort extraction of why a CDS job was rejected/failed.
+
+    The job-status payload carries an empty log for rejections; the real
+    reason (e.g. queue-limit throttling) is in the results body.
     """
-    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        fut = ex.submit(client.retrieve, dataset, request, target)
-        return fut.result(timeout=timeout_sec)
-    except concurrent.futures.TimeoutError as e:
-        raise TimeoutError(
-            f"CDS retrieve exceeded {timeout_sec}s for {dataset}"
-        ) from e
-    finally:
-        ex.shutdown(wait=False, cancel_futures=True)
+        r = requests.get(
+            f"{CDS_API_URL}/retrieve/v1/jobs/{job_id}/results",
+            headers=_cds_headers(), timeout=30,
+        )
+        body = r.json()
+        return body.get("traceback") or body.get("title") or str(body)[:300]
+    except Exception:
+        return "(no reason available)"
 
 
-def _resolve_system(centre: str, year: int, month: int, configured_system: str) -> str:
-    """Return the correct system version for a centre/year/month combo.
+def _retrieve_direct(request: dict, target: str, timeout_sec: float) -> None:
+    """Submit a CDS retrieve, poll to completion, download the result.
 
-    Uses the CDS constraints API to find the valid system when the
-    configured default doesn't match (centres periodically bump versions).
-    Results are cached for the session.
+    Replaces cdsapi.Client.retrieve so we hold the job ID: on deadline we
+    DELETE the job server-side instead of leaving a zombie in the queue, and
+    on rejection we surface CDS's actual reason instead of a bare 400.
     """
+    base = f"{CDS_API_URL}/retrieve/v1"
+    r = requests.post(
+        f"{base}/processes/{C3S_DATASET}/execution",
+        headers=_cds_headers(), json={"inputs": request}, timeout=60,
+    )
+    r.raise_for_status()
+    job_id = r.json()["jobID"]
+
+    deadline = time.monotonic() + timeout_sec
+    status = r.json().get("status", "accepted")
+    while status in ("accepted", "running"):
+        if time.monotonic() >= deadline:
+            try:
+                requests.delete(f"{base}/jobs/{job_id}",
+                                headers=_cds_headers(), timeout=30)
+                logger.info("C3S: cancelled timed-out CDS job %s", job_id)
+            except Exception as e:  # noqa: BLE001 — cancellation is best-effort
+                logger.warning("C3S: failed to cancel job %s: %s", job_id, e)
+            raise TimeoutError(
+                f"CDS retrieve exceeded {timeout_sec:.0f}s for {C3S_DATASET} "
+                f"(job {job_id} cancelled)"
+            )
+        time.sleep(_POLL_INTERVAL_SEC)
+        s = requests.get(f"{base}/jobs/{job_id}",
+                         headers=_cds_headers(), timeout=30)
+        s.raise_for_status()
+        status = s.json().get("status")
+
+    if status != "successful":
+        raise RuntimeError(
+            f"CDS job {job_id} {status}: {_job_rejection_reason(job_id)}"
+        )
+
+    res = requests.get(f"{base}/jobs/{job_id}/results",
+                       headers=_cds_headers(), timeout=60)
+    res.raise_for_status()
+
+    def _find_href(node):
+        if isinstance(node, dict):
+            if "href" in node:
+                return node["href"]
+            for v in node.values():
+                if (h := _find_href(v)) is not None:
+                    return h
+        elif isinstance(node, list):
+            for v in node:
+                if (h := _find_href(v)) is not None:
+                    return h
+        return None
+
+    href = _find_href(res.json())
+    if not href:
+        raise RuntimeError(f"CDS job {job_id}: no download href in results")
+    with requests.get(href, headers=_cds_headers(), stream=True, timeout=300) as dl:
+        dl.raise_for_status()
+        with open(target, "wb") as f:
+            for chunk in dl.iter_content(chunk_size=65536):
+                f.write(chunk)
+
+
+def _resolve_constraints(centre: str, year: int, month: int) -> dict:
+    """Return the CDS constraints payload (valid systems, leads, …) for a
+    centre/year/month combo. Cached for the session; {} on lookup failure."""
     key = (centre, year, month)
-    if key in _system_cache:
-        return _system_cache[key]
-
+    if key in _constraints_cache:
+        return _constraints_cache[key]
+    data: dict = {}
     try:
-        import requests
         url = f"{CDS_API_URL}/retrieve/v1/processes/{C3S_DATASET}/constraints"
-        headers = {"PRIVATE-TOKEN": CDS_API_KEY}
-        r = requests.post(url, headers=headers, json={
+        r = requests.post(url, headers=_cds_headers(), json={
             "inputs": {
                 "originating_centre": [centre],
                 "variable": [C3S_VARIABLE],
@@ -79,24 +147,46 @@ def _resolve_system(centre: str, year: int, month: int, configured_system: str) 
         }, timeout=30)
         if r.status_code == 200:
             data = r.json()
-            systems = data.get("system", [])
-            if configured_system in systems:
-                _system_cache[key] = configured_system
-                return configured_system
-            if systems:
-                # Use the highest-numbered system (latest version)
-                best = max(systems, key=lambda s: int(s) if s.isdigit() else 0)
-                logger.info(
-                    "C3S %s: system %s not valid for %d-%02d, using system %s",
-                    centre, configured_system, year, month, best,
-                )
-                _system_cache[key] = best
-                return best
     except Exception as e:
         logger.debug("Constraints lookup failed for %s: %s", centre, e)
+    _constraints_cache[key] = data
+    return data
 
-    _system_cache[key] = configured_system
-    return configured_system
+
+def _resolve_system(centre: str, year: int, month: int, configured_system: str) -> str:
+    """Return the correct system version for a centre/year/month combo.
+
+    Uses the CDS constraints API to find the valid system when the
+    configured default doesn't match (centres periodically bump versions).
+    """
+    systems = _resolve_constraints(centre, year, month).get("system", [])
+    if configured_system in systems or not systems:
+        return configured_system
+    # Use the highest-numbered system (latest version)
+    best = max(systems, key=lambda s: int(s) if s.isdigit() else 0)
+    logger.info(
+        "C3S %s: system %s not valid for %d-%02d, using system %s",
+        centre, configured_system, year, month, best,
+    )
+    return best
+
+
+def _resolve_leads(centre: str, year: int, month: int, configured_max: int) -> list[str]:
+    """Return the leadtime_month list to request, clamped to what the CDS
+    constraints say is valid — asking for an out-of-range lead (e.g. 7 when
+    the postprocessed-anomalies dataset only carries 1-6) rejects the whole
+    job. Falls back to the configured range if the lookup fails."""
+    valid = _resolve_constraints(centre, year, month).get("leadtime_month", [])
+    valid_ints = sorted(int(v) for v in valid if str(v).isdigit())
+    if not valid_ints:
+        return [str(i) for i in range(1, configured_max + 1)]
+    max_lead = min(configured_max, valid_ints[-1])
+    if max_lead < configured_max:
+        logger.info(
+            "C3S %s: clamping leads to 1-%d (configured 1-%d; CDS allows max %d)",
+            centre, max_lead, configured_max, valid_ints[-1],
+        )
+    return [str(i) for i in valid_ints if i <= max_lead]
 
 
 TROPICAL_LAT_BOUNDS = (-20.0, 20.0)
@@ -298,13 +388,10 @@ def _fetch_c3s_month(
         (records, succeeded_models) — the fetched records and the set of
         model names that returned data.
     """
-    import cdsapi
-
     init_date = f"{year}-{month:02d}-01"
     c3s_raw = RAW_DIR / "c3s" / f"{year}{month:02d}"
     c3s_raw.mkdir(parents=True, exist_ok=True)
 
-    client = cdsapi.Client(url=CDS_API_URL, key=CDS_API_KEY)
     product_type = "monthly_mean" if include_members else "ensemble_mean"
     all_records = []
     succeeded_models: set[str] = set()
@@ -322,9 +409,7 @@ def _fetch_c3s_month(
         nc_path = c3s_raw / f"{centre}_{year}{month:02d}_{suffix}.nc"
 
         try:
-            _retrieve_with_timeout(
-                client,
-                C3S_DATASET,
+            _retrieve_direct(
                 {
                     "originating_centre": centre,
                     "system": system,
@@ -332,7 +417,9 @@ def _fetch_c3s_month(
                     "product_type": product_type,
                     "year": str(year),
                     "month": f"{month:02d}",
-                    "leadtime_month": [str(i) for i in range(1, model_info.get("max_lead_months", 6) + 1)],
+                    "leadtime_month": _resolve_leads(
+                        centre, year, month, model_info.get("max_lead_months", 6)
+                    ),
                     "area": [20, -180, -20, 180],  # N, W, S, E — full tropical band for rONI
                     "data_format": "netcdf",
                 },
@@ -398,11 +485,6 @@ def fetch_c3s(
             "or edit enso_forecast/config.py. Get a key at "
             "https://cds.climate.copernicus.eu/"
         )
-
-    try:
-        import cdsapi
-    except ImportError:
-        raise ImportError("cdsapi package required. Install with: pip install cdsapi")
 
     if year is None:
         year = date.today().year
