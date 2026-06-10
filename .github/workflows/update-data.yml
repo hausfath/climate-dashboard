@@ -34,7 +34,11 @@ jobs:
           key: ${{ secrets.CDS_KEY }}
           EOF
 
+      # Step-level timeout so a hung CDS request fails THIS step instead of
+      # the whole job hitting the 6h limit — job-level cancellation kills the
+      # commit steps too, losing the day's already-fetched data (ERA5, CFS…).
       - name: Update data and generate images
+        timeout-minutes: 240
         env:
           CDS_API_KEY: ${{ secrets.CDS_KEY }}
           CDS_API_URL: ${{ secrets.CDS_URL }}
@@ -42,6 +46,8 @@ jobs:
           python run.py update --force
 
       - name: Update ERA5 spatial data (current month)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 60
         run: |
           python -c "
           from src.precompute_monthly_stats import download_current_month_mtd, precompute_current_month
@@ -50,13 +56,17 @@ jobs:
           "
         continue-on-error: true   # Don't fail the whole workflow if CDS is slow/unavailable
 
+      # Run the commit steps even if an earlier step FAILED (e.g. step
+      # timeout above): whatever data landed on disk before the failure
+      # still gets committed. Skipped only on true job cancellation.
       - name: Check for changes
         id: git-check
+        if: ${{ !cancelled() }}
         run: |
           git diff --quiet || echo "changes=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
-        if: steps.git-check.outputs.changes == 'true'
+        if: ${{ !cancelled() && steps.git-check.outputs.changes == 'true' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
