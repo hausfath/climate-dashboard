@@ -244,7 +244,13 @@ def _current_plume_live() -> tuple[pd.DataFrame, str | None, bool]:
     for src in CORE_MONTHLY:
         sub = combined[combined["source"] == src]
         if not sub.empty:
-            months[src] = str(sub["init_date"].astype(str).max())[:7]
+            max_init = str(sub["init_date"].astype(str).max())
+            # Normalize to ISSUANCE month: CanSIPS stamps the run issued in
+            # month M as init = last day of M-1 (end-of-month ICs), so shift
+            # by one day before taking the month. No-op for first-of-month
+            # conventions (NMME/C3S).
+            issued = pd.Timestamp(max_init) + pd.Timedelta(days=1)
+            months[src] = issued.strftime("%Y-%m") if src == "CanSIPS" else max_init[:7]
     if not months:
         return pd.DataFrame(), None, False
     init_month = max(months.values())
