@@ -4,7 +4,7 @@
 import argparse
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Add src to path
@@ -84,34 +84,44 @@ def update_enso_forecasts(force: bool = False) -> None:
             # days cheap. (CFS/observed aren't here, so they still refresh daily;
             # ERA5 still honors --force above.)
             #
-            # Skip only when the latest CSV is already on the current month's
-            # initialization. Convention-agnostic — NMME/C3S/IRI init = the 1st,
-            # CanSIPS = end-of-month — because the prior month's run is always <
-            # the first of the current month; "any model still on a prior init"
-            # keeps re-fetching while C3S's panel trickles in over ~10 days. To
-            # force-repull a current-month run (e.g. after a bad fetch), delete
-            # the source's latest CSV so this guard falls through.
+            # Skip only when the latest CSV is already on the current run's
+            # initialization. The freshness floor is per-convention:
+            #   - NMME/C3S/IRI stamp the run issued in month M as init M-01,
+            #     so anything < the 1st of this month is stale.
+            #   - CanSIPS stamps the run issued in month M as init = the LAST
+            #     DAY of M-1 (end-of-month initial conditions). The floor is
+            #     therefore the day before the 1st of this month — comparing
+            #     against the 1st would misread the current run as stale and
+            #     re-download the same gribs every day all month.
+            # "Any init below the floor" keeps re-fetching while C3S's panel
+            # trickles in over ~10 days. To force-repull a current run (e.g.
+            # after a bad fetch), delete the source's latest CSV so this
+            # guard falls through.
             if name in ("NMME", "C3S", "CanSIPS", "IRI"):
                 src_dir = FORECASTS_DIR / name
                 existing = sorted(src_dir.glob("*.csv")) if src_dir.exists() else []
                 if existing:
                     import pandas as pd
+                    month_start = date.today().replace(day=1)
+                    if name == "CanSIPS":
+                        floor_init = (month_start - timedelta(days=1)).isoformat()
+                    else:
+                        floor_init = month_start.isoformat()
                     try:
                         latest = pd.read_csv(existing[-1])
                     except Exception:
                         latest = None
                     if latest is not None and not latest.empty and "init_date" in latest.columns:
-                        current_init = f"{date.today().strftime('%Y-%m')}-01"
                         inits = latest["init_date"].astype(str)
-                        if not (inits < current_init).any():
+                        if not (inits < floor_init).any():
                             logger.info(
-                                f"{name} already on current-month init "
+                                f"{name} already on current init "
                                 f"({inits.max()}), skipping"
                             )
                             continue
                         logger.info(
                             f"{name} latest init {inits.min()} predates "
-                            f"{current_init} — fetching for new run"
+                            f"{floor_init} — fetching for new run"
                         )
                     # No init_date / empty / unreadable file: fall through and fetch.
 
