@@ -11,7 +11,7 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Provider**: NOAA Climate Prediction Center (CPC)
 - **URL**: `https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd3/nino34Mon.nc`
 - **Data type**: Pre-computed Nino3.4 SST anomaly index (no spatial processing needed)
-- **Ensemble**: 41 members from the E3 (latest) rolling ensemble window. Empirical inspection of successive file snapshots indicates the window is ~8 days wide with ~5 new runs per day, and member indexing runs newest (index 1) → oldest (index ~40). Member 41 appears to be a stable control/reference slot that does not rotate.
+- **Ensemble**: the 40 most-recent runs from the E3 (latest) rolling ensemble window. Empirical inspection of successive file snapshots indicates the window is ~8 days wide with ~5 new runs per day, and member indexing runs newest (index 1) → oldest (index ~40). Member slot 41 is a stable control/reference that does not rotate; it is carried in the data but excluded from strength-probability statistics.
 - **Lead time**: 9 months beyond the initialization month
 - **Anomaly baseline**: 1991-2020
 - **Update frequency**: Continuously (4–5 runs per day; we use the latest E3 file)
@@ -42,22 +42,22 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Dataset**: `seasonal-postprocessed-single-levels`
 - **API**: CDS API (`cdsapi` Python package) with user-provided API key
 - **Data type**: Gridded SST anomaly fields; Nino3.4 computed as cosine-latitude-weighted spatial mean over the requested sub-region (5N-5S, 170W-120W)
-- **Models and ensemble sizes** (April 2026 initialization):
+- **Models and ensemble sizes** (June 2026 initialization):
   - ECMWF (system 51): 51 members
   - Meteo-France (system 9): 51 members
   - DWD (system 22): 50 members
   - CMCC (system 4): 50 members
   - ECCC (system 5): 20 members
   - NCEP (system 2): 124 members
-  - BOM (system 2): 110 members
-  - UKMO (system 604): 60 members
-  - JMA (system 503): 155 members
-  - Total: ~671 members across 9 models (before deduplication)
-- **Lead time**: 6 months beyond the initialization month
+  - BOM (system 2): 121 members
+  - UKMO (system 610): 62 members
+  - JMA (system 4): 155 members
+  - Total: ~684 members across 9 models (before deduplication)
+- **Lead window**: `forecastMonth` 1–6, i.e. the initialization month plus 5 subsequent months (the shortest window in the aggregated dataset). The postprocessed-anomalies dataset carries only these 6 leads; requested leads are clamped to the CDS constraints-API-reported valid range, since requesting an out-of-range lead rejects the whole retrieval.
 - **Anomaly baseline**: 1993-2016 (C3S hindcast climatology period), adjusted to 1991-2020 (see below)
-- **Update frequency**: Monthly
-- **forecastMonth convention**: In C3S, `forecastMonth=1` corresponds to the initialization month itself (e.g., for a April 2026 initialization, forecastMonth=1 = April 2026, forecastMonth=2 = May 2026, etc.)
-- **Availability**: UKMO and JMA are sometimes delayed relative to the other centers; they may be missing for the first few days of a new initialization cycle. When a model is absent for the current init date, it is simply excluded.
+- **Update frequency**: Monthly. Centers trickle in over roughly the first 10 days of each month (ECMWF typically first); the fetcher re-fetches daily until every model carries the current month's initialization, so early-cycle datasets can mix two initialization months per model until the panel completes.
+- **forecastMonth convention**: In C3S, `forecastMonth=1` corresponds to the initialization month itself (e.g., for a June 2026 initialization, forecastMonth=1 = June 2026, forecastMonth=2 = July 2026, etc.)
+- **System versions and retrieval**: Each centre's `system` number is resolved at fetch time against the CDS constraints API (centres periodically bump versions). Retrievals are submitted directly to the CDS jobs API and polled with a deadline; jobs that exceed it are **cancelled server-side** rather than abandoned — abandoned jobs continue to queue on CDS and count against the per-user queue quota, eventually causing every new submission to be rejected ("number of queued requests temporarily limited").
 
 ### 4. CanSIPS (Canadian Seasonal to Interannual Prediction System)
 
@@ -144,7 +144,7 @@ Several physical models appear in multiple source databases. To avoid double-cou
 
 | Physical Model | Appears in | Kept version | Rationale |
 |---------------|-----------|-------------|-----------|
-| NCEP CFSv2 | CFS, NMME, C3S | **CFS** (E3, 41 members) | Most current initialization; direct Nino3.4 output |
+| NCEP CFSv2 | CFS, NMME, C3S | **CFS** (E3, 40 rolling members) | Most current initialization; direct Nino3.4 output |
 | ECCC CanESM5 | NMME, CanSIPS | **CanSIPS** (20 members, 12 leads) | Direct feed from ECCC; longer lead window (12 vs 8 months) |
 | ECCC GEM5.2-NEMO | NMME, C3S, CanSIPS | **CanSIPS** (20 members, 12 leads) | Same physical model; CanSIPS is the authoritative direct feed |
 | NMME overall mean | NMME | **Dropped** | Not an independent model; derived multi-model mean |
@@ -158,27 +158,27 @@ Specifically, the `MEGA_PLUME_DROP` set excludes these (source, model) pairs:
 - `("C3S", "NCEP")` — duplicate of CFSv2
 - `("C3S", "ECCC")` — duplicate of CanSIPS-GEM-NEMO family
 
-After deduplication, **13 unique models** remain with a total of **~637 individual ensemble members**.
+After deduplication, **13 unique models** remain with a total of **~650 individual ensemble members**.
 
 ### Deduplicated Model Inventory
 
 | Model | Source | Members | Lead (months beyond init) |
 |-------|--------|---------|---------------------------|
-| CFSv2 | CFS | 41 | 9 |
-| ECMWF | C3S | 51 | 6 |
-| Meteo-France | C3S | 51 | 6 |
-| DWD | C3S | 50 | 6 |
-| CMCC | C3S | 50 | 6 |
-| BOM | C3S | 110 | 6 |
-| UKMO | C3S | 60 | 6 |
-| JMA | C3S | 155 | 6 |
+| CFSv2 | CFS | 40 | 9 |
+| ECMWF | C3S | 51 | 5 |
+| Meteo-France | C3S | 51 | 5 |
+| DWD | C3S | 50 | 5 |
+| CMCC | C3S | 50 | 5 |
+| BOM | C3S | 121 | 5 |
+| UKMO | C3S | 62 | 5 |
+| JMA | C3S | 155 | 5 |
 | CanSIPS-CanESM5 | CanSIPS | 20 | 12 |
 | CanSIPS-GEM-NEMO | CanSIPS | 20 | 12 |
 | NCAR-CESM1 | NMME | 10 | 8 |
 | NCAR-CCSM4 | NMME | 10 | 8 |
 | NASA-GEOS-S2S-2 | NMME | 10 | 8 |
 
-Member counts reflect the April 2026 initialization cycle; they can vary month-to-month as models add or drop realizations.
+Member counts reflect the June 2026 initialization cycle; they can vary month-to-month as models add or drop realizations. CFSv2 reflects the 40 rotating E3 runs; slot 41 (the stable control) is additionally excluded from strength-probability calculations.
 
 ## Equal-Weight Model Statistics
 
@@ -198,9 +198,42 @@ This approach preserves the full distributional information from each model's en
 
 The CFS NetCDF files contain both historical verification months (where all ensemble members report the same observed value, resulting in zero ensemble spread) and true forecast months (where members diverge). The tool automatically identifies and separates these by computing the ensemble standard deviation per target month: months with std < 0.001 C are classified as verification and excluded from forecast plots.
 
+## Operational Update Detection
+
+The daily cron decides per source whether a fetch is needed by reading the
+`init_date` inside the latest saved CSV — not its filename — and comparing it
+to a per-convention freshness floor:
+
+- **NMME / C3S / IRI** stamp the run issued in month *M* as init `M-01`; the
+  floor is the 1st of the current month.
+- **CanSIPS** stamps the run issued in month *M* as init = the **last day of
+  *M−1*** (end-of-month initial conditions); its floor is the day before the
+  1st of the current month. Comparing CanSIPS against the 1st would misread
+  the current run as stale every day of the month.
+
+A source is skipped only when no init in its latest file predates the floor;
+otherwise it is re-fetched. This makes the system self-correcting: a new
+monthly run is picked up within a day of being posted, while same-month days
+cost nothing (important for C3S, whose CDS retrieval can take ~30 minutes).
+C3S's "any model still on a prior-month init" rule keeps re-fetching daily
+while its panel trickles in. Daily sources (CFSv2, observed indices) refresh
+unconditionally.
+
+## Forecast Verification
+
+Past multi-model plumes are verified against observed Niño 3.4 / rNiño 3.4
+in `forecast_skill/enso_skill_{oni,roni}_{lines,plumes,hybrid}.png`
+(generated by `src/enso_skill.py`; committed to the repository but not shown
+on the dashboard). Each month's combined plume (model-weighted 25/50/75
+quantiles per target month) is frozen into an archive CSV under
+`forecast_skill/enso_archive/` once all core monthly sources carry that
+month's initialization; the figures overlay every archived plume, colored
+oldest → newest, on the observed series. The archive was backfilled from git
+history to March 2026 and accumulates monthly.
+
 ## Figures Produced
 
-The dashboard ENSO tab renders three figures, generated by `generate_enso_static_images` in `src/enso_plots.py` (dark + light variants of each):
+The dashboard ENSO tab renders four figures, generated by `generate_enso_static_images` in `src/enso_plots.py`. Each is produced in dark + light variants and in both index modes (ONI and rONI — the rONI files carry a `_roni` suffix):
 
 ### 1. Combined Forecast Plume (`enso_mega_plume_{mode}.png`)
 All ensemble members from all sources (deduplicated, 13 models, ~637 members) in a single plume plot, alongside recent observed ONI for historical context. Members are color-coded by model, with per-model means as thicker lines and the multi-model median (model-weighted) as a dashed black line. Target months with fewer than 3 distinct models reporting are dropped. This is the most comprehensive view of the full forecast distribution.
@@ -210,6 +243,9 @@ All ensemble members as colored dots with a box-and-whisker overlay per target m
 
 ### 3. Historical Context (`enso_historical_{mode}.png`)
 Observed monthly Nino3.4 index since ~1990 with red shading for El Niño episodes (anomaly > +0.5 °C) and blue shading for La Niña episodes (anomaly < -0.5 °C). The multi-model mean forecast is overlaid as a dashed line with a model-weighted 25th-75th percentile band, letting the current forecast be compared visually against the magnitude of past events (e.g. 1997-98, 2015-16 strong El Niños).
+
+### 4. Strength Probabilities (`enso_strength_probs_{mode}.png`)
+Probability bars for ENSO strength categories (La Niña / Neutral / Weak / Moderate / Strong / Very Strong El Niño) by 3-month season. Each ensemble member's seasonal mean is classified against the standard ±0.5/1.0/1.5/2.0 °C thresholds and tallied with model-equal weighting, so the bars reflect the share of (model-weighted) members in each category. CFSv2's stable control slot (member 41) is excluded from this calculation.
 
 ## Software and Dependencies
 
@@ -225,10 +261,10 @@ Observed monthly Nino3.4 index since ~1990 with red shading for El Niño episode
 
 2. **Model independence**: Some models share components or heritage (e.g., NCAR-CESM1 and NCAR-CCSM4 share atmospheric components). Treating them as fully independent slightly overstates the effective number of independent forecasts.
 
-3. **Unequal lead times**: Lead coverage beyond the initialization month varies by source: C3S 6 months, NMME 8 months, CFSv2 9 months, CanSIPS 12 months. At leads 7-9 only CFSv2, NMME, and CanSIPS contribute; at leads 10-12 only CanSIPS (two models) contributes. Multi-model statistics at long leads are therefore based on fewer models, and plots filter to target months with ≥3 models reporting.
+3. **Unequal lead times**: Lead coverage beyond the initialization month varies by source: C3S 5 months, NMME 8 months, CFSv2 9 months, CanSIPS 12 months. At leads 6-9 only CFSv2, NMME, and CanSIPS contribute; at leads 10-12 only CanSIPS (two models) contributes. Multi-model statistics at long leads are therefore based on fewer models, and plots filter to target months with ≥3 models reporting.
 
 4. **Late-arriving C3S models**: UKMO and JMA can be delayed in the CDS archive by a few days after the monthly initialization date; if missing at fetch time they are simply excluded from that cycle.
 
 5. **No amplitude bias correction**: The NMME operationally applies an amplitude bias correction (dividing forecast anomalies by the ratio of model hindcast standard deviation to observed standard deviation, per model/lead/start-month). This correction is not applied here because hindcast data is not available for all current model versions. This means some NMME models may exhibit systematically too much or too little variability.
 
-6. **IRI models excluded**: The IRI ENSO forecast (23 models, means only) is available in the tool but excluded from the current plots because its most recent update (February 2026) predates the March 2026 initialization of the other sources. It can be included with `--include-iri`.
+6. **IRI models excluded**: The IRI ENSO forecast (23 models, means only) is available in the tool but excluded from the current plots and multi-model statistics. Its fetcher has been failing since mid-May 2026 (latest data on the April 2026 initialization), so it lags the other sources by multiple cycles. It can be included with `--include-iri`.
