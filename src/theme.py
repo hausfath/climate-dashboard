@@ -107,10 +107,11 @@ def _build_template(t: dict) -> go.layout.Template:
             bgcolor='rgba(0,0,0,0)',
             font=dict(family=_BODY_STACK, size=12, color=t['text_dim']),
         ),
+        # No fixed hoverlabel bgcolor: in 'x'/'closest' modes plotly tints
+        # each tooltip with its trace color (the color-coded look). Figures
+        # that use 'x unified' set a panel-colored hoverlabel themselves.
         hoverlabel=dict(
-            bgcolor=t['panel_raised'] if t is DARK else '#ffffff',
-            bordercolor=t['line'],
-            font=dict(family=_MONO_STACK, size=12, color=t['text']),
+            font=dict(family=_MONO_STACK, size=12),
         ),
         hovermode='x unified',
     ))

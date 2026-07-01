@@ -273,6 +273,9 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
         showlegend=False,
         height=500,
         margin=dict(r=110),
+        hovermode='x unified',
+        hoverlabel=dict(bgcolor=theme['paper_color'],
+                        bordercolor=theme['grid_color']),
     )
 
     return fig
@@ -777,6 +780,9 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
             showgrid=False,
         ),
         template=theme['template'],
+        # Closest-point hover: one cell-tinted tooltip instead of a unified
+        # row readout.
+        hovermode='closest',
         height=500,
     )
 
@@ -1655,6 +1661,8 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             range=[y_min - y_padding, y_max + y_padding]
         ),
         hovermode='x unified',
+        hoverlabel=dict(bgcolor=theme['paper_color'],
+                        bordercolor=theme['grid_color']),
         template=theme['template'],
         showlegend=False,
         height=500,

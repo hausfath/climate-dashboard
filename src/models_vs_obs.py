@@ -689,6 +689,8 @@ def _base_layout(theme: dict, title: str = None, height: int = 500) -> dict:
         height=height,
         template=theme['template'],
         hovermode='x unified',
+        hoverlabel=dict(bgcolor=theme['paper_color'],
+                        bordercolor=theme['grid_color']),
     )
 
 
@@ -972,6 +974,7 @@ def create_trend_histogram_grid(
         template=theme['template'],
         showlegend=False,
         margin=dict(l=50, r=30, t=40, b=60),
+        hovermode='closest',
     )
     fig.update_annotations(font_size=12)
     if np.isfinite(x_lo) and np.isfinite(x_hi):

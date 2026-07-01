@@ -607,6 +607,8 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
         yaxis_title=meta["y_label"],
         template=theme["template"],
         height=550,
+        hoverlabel=dict(bgcolor=theme["paper_color"],
+                        bordercolor=theme["grid_color"]),
         uirevision="enso-mega-plume",
         # Model roster sits outside the plot so it never covers the plume
         legend=dict(
@@ -971,6 +973,8 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         template=theme["template"],
         height=450,
         showlegend=False,
+        hoverlabel=dict(bgcolor=theme["paper_color"],
+                        bordercolor=theme["grid_color"]),
         yaxis=dict(
             range=[ymin, ymax],
             tickmode="array",
@@ -1333,6 +1337,8 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
         annotations=n_annotations,
         margin=dict(l=60, r=30, t=30, b=70),
         template=theme.get("template", "plotly_white"),
+        hoverlabel=dict(bgcolor=theme.get("paper_color"),
+                        bordercolor=theme.get("grid_color")),
     )
     return fig
 
