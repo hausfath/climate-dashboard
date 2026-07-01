@@ -614,18 +614,21 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
         y=historical_values.values,
         mode='lines+markers',
         name='Historical',
+        showlegend=False,
         line=dict(color=theme['historical_color'], width=2),
         marker=dict(size=6),
         hovertemplate='%{x}<br>Anomaly: %{y:.2f}°C<extra></extra>'
     ))
 
-    # Add prediction with error bar
+    # Prediction + month-to-date markers. Their values ride in the legend
+    # entries (legend box sits in the empty upper-left corner), so no
+    # annotations need to fight the line for space.
     if predicted_value is not None:
         fig.add_trace(go.Scatter(
             x=[target_year],
             y=[predicted_value],
             mode='markers',
-            name=f'{month_name} {target_year} Prediction',
+            name=f'{month_name} {target_year}: {predicted_value:.2f} ±{error:.2f}°C',
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
@@ -643,7 +646,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             x=[target_year],
             y=[mtd_avg],
             mode='markers',
-            name=f'Month-to-date ({days_so_far} days)',
+            name=f'Month-to-date ({days_so_far}d): {mtd_avg:.2f}°C',
             marker=dict(color=theme['mtd_color'], size=10, symbol='diamond'),
             hovertemplate=f'Month-to-date<br>Average: {mtd_avg:.2f}°C<br>({days_so_far} days)<extra></extra>'
         ))
@@ -651,24 +654,6 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     # Add 1.5°C reference line
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
-
-    # Direct label for the prediction + month-to-date markers, placed as one
-    # block in the empty space below the marker cluster so it never sits on
-    # the (steep) recent line.
-    if predicted_value is not None:
-        label_text = (
-            f"<span style='color:{theme['prediction_color']}'>"
-            f"{month_name} {target_year}: {predicted_value:.2f} ±{error:.2f}°C</span><br>"
-            f"<span style='color:{theme['mtd_color']}'>"
-            f"month-to-date ({days_so_far}d): {mtd_avg:.2f}°C</span>"
-        )
-        fig.add_annotation(
-            x=target_year, y=(predicted_value + mtd_avg) / 2,
-            text=label_text,
-            font=dict(size=11.5),
-            showarrow=False, xanchor='left', yanchor='middle',
-            xshift=14, align='left',
-        )
 
     # Default view starts at 1990 so recent values aren't squashed; the full
     # record stays in the traces, so zooming out (double-click) reaches 1940.
@@ -678,17 +663,21 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
         y_candidates.append(predicted_value + (error or 0))
         y_candidates.append(mtd_avg)
     y_lo = min(y_candidates) - 0.08
-    y_hi = max(y_candidates) + 0.15
+    # Extra headroom so the upper-left legend box clears the 1.5°C line
+    y_hi = max(y_candidates) + 0.28
 
     fig.update_layout(
         xaxis=dict(title='', range=[1989.2, target_year + 1.5]),
         yaxis=dict(title='Temperature anomaly (°C)', range=[y_lo, y_hi]),
         hovermode='x',
         template=theme['template'],
-        showlegend=False,
+        legend=dict(
+            orientation='v',
+            x=0.02, y=0.96, xanchor='left', yanchor='top',
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12),
+        ),
         height=500,
-        # Right margin hosts the marker label so it never overlaps the line
-        margin=dict(r=190),
     )
 
     return fig
@@ -1194,12 +1183,15 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         y=historical['annual_anomaly'],
         mode='lines+markers',
         name='Observed',
+        showlegend=False,
         line=dict(color=theme['historical_color'], width=2),
         marker=dict(size=6),
         hovertemplate='%{x}<br>Anomaly: %{y:.2f}°C<extra></extra>'
     ))
 
-    # Add current year partial data point (YTD)
+    # Add current year partial data point (YTD). Values ride in the legend
+    # entries (legend box in the empty upper-left corner) rather than in
+    # annotations that would fight the line for space.
     current_year_data = annual[annual['year'] == current_year]
     if len(current_year_data) > 0:
         ytd_anomaly = current_year_data['annual_anomaly'].values[0]
@@ -1207,7 +1199,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             x=[current_year],
             y=[ytd_anomaly],
             mode='markers',
-            name=f'{current_year} YTD',
+            name=f'{current_year} YTD: {ytd_anomaly:.2f}°C',
             marker=dict(color=theme['ytd_color'], size=10, symbol='diamond'),
             hovertemplate=f'{current_year} YTD<br>Anomaly: %{{y:.2f}}°C<extra></extra>'
         ))
@@ -1216,11 +1208,13 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     if prediction_2026:
         up = prediction_2026['ub'] - prediction_2026['predicted']
         down = prediction_2026['predicted'] - prediction_2026['lb']
+        half = (prediction_2026['ub'] - prediction_2026['lb']) / 2
         fig.add_trace(go.Scatter(
             x=[current_year],
             y=[prediction_2026['predicted']],
             mode='markers',
-            name=f'{current_year} Prediction',
+            name=(f"{current_year} projection: "
+                  f"{prediction_2026['predicted']:.2f} ±{half:.2f}°C"),
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
@@ -1239,25 +1233,6 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
 
-    # Direct labels on the prediction and YTD markers
-    if prediction_2026:
-        fig.add_annotation(
-            x=current_year, y=prediction_2026['ub'],
-            text=(f"{current_year} projection<br>"
-                  f"{prediction_2026['predicted']:.2f}°C"),
-            font=dict(size=11.5, color=theme['prediction_color']),
-            showarrow=False, xanchor='right', yanchor='bottom',
-            xshift=-6, align='right',
-        )
-    if len(current_year_data) > 0:
-        fig.add_annotation(
-            x=current_year, y=ytd_anomaly,
-            text="YTD",
-            font=dict(size=10.5, color=theme['ytd_color']),
-            showarrow=False, xanchor='right', yanchor='top',
-            xshift=-8, yshift=-4,
-        )
-
     # Default view starts at 1990 so recent values aren't squashed; the full
     # record stays in the traces, so zooming out (double-click) reaches 1940.
     recent = historical[historical['year'] >= 1990]['annual_anomaly']
@@ -1275,7 +1250,12 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
         yaxis=dict(title='Temperature anomaly (°C)', range=[y_lo, y_hi]),
         hovermode='x',
         template=theme['template'],
-        showlegend=False,
+        legend=dict(
+            orientation='v',
+            x=0.02, y=0.96, xanchor='left', yanchor='top',
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12),
+        ),
         height=500,
     )
 
@@ -2365,7 +2345,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_src='/assets/images/projection_history_dark.png',
                     graph_id='projection-history', graph_height=460, tag="Daily",
                     caption=["Step changes mark ",
-                             html.B("new seasonal ENSO forecasts"),
+                             html.B("large updates to the seasonal ENSO forecasts"),
                              "; the band is the 95% interval."]),
         ], section_id='sec-projection'),
         L.section("03", "The long view", "1940–present",
