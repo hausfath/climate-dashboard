@@ -463,6 +463,40 @@ body.light .kpi { background: var(--bg-raised); box-shadow: 0 2px 10px -6px rgba
 /* ------------------------------------------------------------------ misc */
 .tooltip { font-family: var(--body-font); font-size: 12px; }
 
+/* methodology modal */
+.modal-content {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+}
+.modal-header {
+  border-bottom: 1px solid var(--line);
+  font-family: var(--display);
+}
+.modal-header .btn-close {
+  filter: invert(1) grayscale(1);
+  opacity: 0.6;
+}
+body.light .modal-header .btn-close { filter: none; }
+.modal-body {
+  font-size: 14px; color: var(--text-dim);
+  max-height: 70vh; overflow-y: auto;
+}
+.modal-body h1, .modal-body h2, .modal-body h3 {
+  font-family: var(--body-font); font-weight: 600;
+  color: var(--text); font-size: 16px; margin-top: 1.2em;
+}
+.modal-body code {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--bg-raised); color: var(--text);
+  padding: 1px 5px; border-radius: 4px;
+}
+.modal-body table { font-size: 12.5px; }
+.modal-body th, .modal-body td {
+  border: 1px solid var(--line); padding: 4px 8px;
+}
+
 /* rank probability table (compact panel) */
 .ranktable { width: 100%; }
 .ranktable .rrow {

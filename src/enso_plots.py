@@ -443,23 +443,44 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
         means = means[means["target_month"].isin(valid_months)].copy()
         members = members[members["target_month"].isin(valid_months)].copy()
 
-    # -- Ensemble members as thin lines per model (None-separated for efficiency) --
+    # -- Ensemble spread as a model-weighted percentile fan (replaces the
+    # ~650 individual member lines, which read as noise) --
     if not members.empty:
         members["date"] = members["target_month"].apply(_target_month_to_date)
-        for model in sorted(members["model"].unique()):
-            color = MEGA_COLORS.get(model, "#999999")
-            model_members = members[members["model"] == model]
-            xs, ys = [], []
-            for _, mdf in model_members.groupby("member_id"):
-                mdf = mdf.sort_values("date")
-                xs.extend(mdf["date"].tolist() + [None])
-                ys.extend(mdf["nino34_anom"].tolist() + [None])
+        fan_rows = []
+        for tm in sorted(members["target_month"].unique()):
+            tm_m = members[members["target_month"] == tm]
+            counts = tm_m.groupby("model").size()
+            w = tm_m["model"].map(lambda m: 1.0 / counts[m]).values
+            v = tm_m["nino34_anom"].values
+            mask = ~np.isnan(v)
+            if mask.sum() == 0:
+                continue
+            fan_rows.append({
+                "date": _target_month_to_date(tm),
+                "p05": _weighted_quantile(v[mask], w[mask], 0.05),
+                "p25": _weighted_quantile(v[mask], w[mask], 0.25),
+                "p75": _weighted_quantile(v[mask], w[mask], 0.75),
+                "p95": _weighted_quantile(v[mask], w[mask], 0.95),
+            })
+        if fan_rows:
+            fan = pd.DataFrame(fan_rows).sort_values("date")
+            outer = ("rgba(232, 234, 242, 0.09)" if dark_mode
+                     else "rgba(31, 36, 48, 0.07)")
+            inner = ("rgba(232, 234, 242, 0.15)" if dark_mode
+                     else "rgba(31, 36, 48, 0.12)")
+            dates = fan["date"].tolist()
             fig.add_trace(go.Scatter(
-                x=xs, y=ys, mode="lines",
-                line=dict(color=color, width=0.8),
-                opacity=0.2,
-                showlegend=False,
-                hoverinfo="skip",
+                x=dates + dates[::-1],
+                y=fan["p95"].tolist() + fan["p05"].tolist()[::-1],
+                fill="toself", fillcolor=outer, line=dict(width=0),
+                name="5–95th %ile", hoverinfo="skip",
+            ))
+            fig.add_trace(go.Scatter(
+                x=dates + dates[::-1],
+                y=fan["p75"].tolist() + fan["p25"].tolist()[::-1],
+                fill="toself", fillcolor=inner, line=dict(width=0),
+                name="25–75th %ile", hoverinfo="skip",
             ))
 
     # -- Per-model means --
@@ -473,8 +494,8 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
                 x=mdf["date"], y=mdf["nino34_anom"],
                 mode="lines",
                 name=f"{model} ({n_mem})",
-                line=dict(color=color, width=2),
-                opacity=0.85,
+                line=dict(color=color, width=1.4),
+                opacity=0.65,
                 hovertemplate=f"{model}<br>%{{x|%b %Y}}: %{{y:.2f}}\u00b0C<extra></extra>",
             ))
 
@@ -1115,6 +1136,53 @@ def compute_strength_probabilities(forecast_df, dark_mode_unused=None,
     probs = np.vstack([_model_weighted_probs(sm[c]) for c in centers])
     n_models = [int(sm[c].dropna().reset_index()["model"].nunique()) for c in centers]
     return centers, probs, n_models
+
+
+def compute_peak_month_odds(forecast_df, index_mode="oni"):
+    """Strength-category odds for the latest target month where every
+    reporting model contributes members (single month, not a 3-month season).
+
+    Used for the ENSO hero strip: seasonal means blend in observed months and
+    drop models with shorter horizons, so the single latest full-ensemble
+    month is the cleanest "peak" snapshot.
+    """
+    if forecast_df is None or forecast_df.empty:
+        return None
+    meta = _index_meta(index_mode)
+    value_col = meta["col"]
+
+    forecast_only = _get_forecast_only(forecast_df)
+    mega = _build_mega_df(forecast_only)
+    mem = mega[mega["member_id"] != "mean"].copy()
+    mem = mem[~((mem["model"] == "CFSv2") & (mem["member_id"] == "ens_E3_041"))]
+    mem = mem.dropna(subset=[value_col])
+    if mem.empty:
+        return None
+
+    total_models = mem["model"].nunique()
+    per_month = mem.groupby("target_month")["model"].nunique()
+    full_months = per_month[per_month == total_models].index
+    if len(full_months) == 0:
+        return None
+    tm = max(full_months)  # 'YYYY-MM' strings sort chronologically
+
+    sub = mem[mem["target_month"] == tm]
+    counts = sub.groupby("model").size()
+    weights = sub["model"].map(lambda m: 1.0 / counts[m]).values
+    cats = sub[value_col].map(_classify_strength).values
+    probs = np.zeros(len(STRENGTH_BINS))
+    for c, w in zip(cats, weights):
+        probs[c] += w
+    probs /= weights.sum()
+
+    el_nino = probs[0] >= probs[8]
+    return {
+        "month_label": pd.Timestamp(tm + "-01").strftime("%b %Y"),
+        "kind": "El Niño" if el_nino else "La Niña",
+        "p_very": float(probs[0] if el_nino else probs[8]),
+        "p_strong": float(probs[1] if el_nino else probs[7]),
+        "n_models": int(total_models),
+    }
 
 
 def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):

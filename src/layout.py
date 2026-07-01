@@ -136,14 +136,17 @@ def section(no: str, title: str, hint, desc, children, section_id=None) -> html.
 
 def panel(title: str, img_id: str = None, img_src: str = None,
           graph_id: str = None, graph_height: int = 500,
-          tag: str = None, caption=None, body=None) -> html.Div:
+          tag: str = None, caption=None, body=None,
+          head_extra=None, alt: str = None) -> html.Div:
     head = [html.H3(title)]
     if tag:
         head.append(html.Span(tag, className="ptag"))
+    if head_extra is not None:
+        head.append(html.Div(head_extra, style={'marginLeft': 'auto'}))
 
     content = []
     if img_id:
-        content.append(html.Img(id=img_id, src=img_src,
+        content.append(html.Img(id=img_id, src=img_src, alt=alt or title,
                                 style={'width': '100%', 'height': 'auto'}))
     if graph_id:
         content.append(dcc.Loading(
@@ -177,6 +180,9 @@ def footer_block(last_updated: str) -> html.Footer:
                    html.A("ECMWF ERA5", href="https://pulse.climate.copernicus.eu/",
                           target="_blank"),
                    " · NOAA CPC · NMME · C3S · CanSIPS · CMIP"]),
+        html.Span(["METHOD · ",
+                   html.A("projection methodology", id='methodology-link',
+                          href='#', n_clicks=0)]),
         html.Span(f"Updated {last_updated}"),
         html.Span("CLIMATE·DASHBOARD — rebuilt nightly 06:00 UTC", className="right"),
     ], className="footer")
@@ -223,38 +229,28 @@ def split_enso_state(state_str: str) -> tuple:
     return label, val, when
 
 
-def enso_peak_odds(centers, probs, n_models):
-    """Pick the peak season (highest P(very strong El Niño or La Niña)) and
-    return (season_label, dominant_label, segments, legend, p_dominant)."""
-    if len(centers) == 0 or probs.shape[0] == 0:
+def enso_odds_view(pm: dict) -> dict | None:
+    """Build hero-strip segments/legend from ``compute_peak_month_odds``
+    output (odds at the latest month where all models report)."""
+    if not pm:
         return None
-    el_dom = probs[:, 0].max() >= probs[:, 8].max()
-    idx_dom = 0 if el_dom else 8
-    idx_strong = 1 if el_dom else 7
-    season_i = int(np.argmax(probs[:, idx_dom]))
-    row = probs[season_i] / 100.0
-    p_very, p_strong = float(row[idx_dom]), float(row[idx_strong])
+    p_very, p_strong = pm['p_very'], pm['p_strong']
     p_rest = max(1.0 - p_very - p_strong, 0.0)
-
-    center = centers[season_i]
-    months = [(center + pd.DateOffset(months=k)).strftime('%b')[0] for k in (-1, 0, 1)]
-    season_label = f"{''.join(months)} {center.year}"
-    kind = "El Niño" if el_dom else "La Niña"
     segments = [
         (p_very, *ENSO_ODDS_COLORS[0], True),
         (p_strong, *ENSO_ODDS_COLORS[1], True),
         (p_rest, *ENSO_ODDS_COLORS[2], False),
     ]
-    legend = [(ENSO_ODDS_COLORS[0][0], f"Very strong (≥2.0°C)"),
+    legend = [(ENSO_ODDS_COLORS[0][0], "Very strong (≥2.0°C)"),
               (ENSO_ODDS_COLORS[1][0], "Strong (1.5–2.0)"),
               (ENSO_ODDS_COLORS[2][0], "Weaker")]
     return {
-        'season_label': season_label,
-        'kind': kind,
+        'month_label': pm['month_label'],
+        'kind': pm['kind'],
         'segments': segments,
         'legend': legend,
         'p_very': p_very,
-        'n_models': n_models[season_i] if season_i < len(n_models) else None,
+        'n_models': pm['n_models'],
     }
 
 

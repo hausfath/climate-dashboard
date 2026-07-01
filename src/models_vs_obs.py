@@ -112,6 +112,12 @@ HIST_COLORS = {
     'dark':  'rgba(255, 107, 107, 0.65)',
 }
 
+# Consolidated observations: one warm-hued median line + min–max band across
+# the five datasets, against the teal model ensemble.
+OBS_MEDIAN_COLORS = {'light': '#d64541', 'dark': '#ff6b6b'}
+OBS_BAND_COLORS = {'light': 'rgba(214, 69, 65, 0.22)',
+                   'dark': 'rgba(255, 107, 107, 0.25)'}
+
 
 # ── CMIP data loading ─────────────────────────────────────────────────────────
 
@@ -752,29 +758,35 @@ def create_models_vs_obs_timeseries(
         hovertemplate='%{y:.2f}°C<extra>' + gen_label + ' mean</extra>',
     ))
 
-    # Observational datasets
-    obs_labels = {
-        'hadcrut5':   'HadCRUT5',
-        'gistemp':    'GISTEMP v4',
-        'noaa':       'NOAA GlobalTemp',
-        'berkeley':   'Berkeley Earth',
-        'copernicus': 'Copernicus/ERA5',
-    }
+    # Observations consolidated: the five datasets agree closely, so draw
+    # their min–max range as a band and the median as one line rather than
+    # five near-identical traces.
     if rolling:
         for c in obs_cols_ordered:
             if c in obs_to_plot.columns:
                 obs_to_plot[c] = obs_to_plot[c].rolling(12, min_periods=12).mean()
 
-    for col in obs_cols_ordered:
-        if col not in obs_to_plot.columns:
-            continue
-        sub = obs_to_plot[obs_to_plot['date'].dt.year >= 1900]
-        s = sub[['date', col]].dropna()
+    obs_present = [c for c in obs_cols_ordered if c in obs_to_plot.columns]
+    if obs_present:
+        sub = obs_to_plot[obs_to_plot['date'].dt.year >= 1900].copy()
+        vals = sub[obs_present]
+        sub['obs_med'] = vals.median(axis=1)
+        sub['obs_min'] = vals.min(axis=1)
+        sub['obs_max'] = vals.max(axis=1)
+        sub = sub.dropna(subset=['obs_med'])
+        obs_line = OBS_MEDIAN_COLORS['dark' if dark_mode else 'light']
+        obs_band = OBS_BAND_COLORS['dark' if dark_mode else 'light']
         fig.add_trace(go.Scatter(
-            x=s['date'], y=s[col],
-            mode='lines', line=dict(color=oc[col], width=1.5),
-            name=obs_labels[col],
-            hovertemplate='%{y:.2f}°C<extra>' + obs_labels[col] + '</extra>',
+            x=pd.concat([sub['date'], sub['date'][::-1]]),
+            y=pd.concat([sub['obs_max'], sub['obs_min'][::-1]]),
+            fill='toself', fillcolor=obs_band, line=dict(width=0),
+            name='Obs range (5 datasets)', hoverinfo='skip',
+        ))
+        fig.add_trace(go.Scatter(
+            x=sub['date'], y=sub['obs_med'],
+            mode='lines', line=dict(color=obs_line, width=1.8),
+            name='Observations (median of 5)',
+            hovertemplate='%{y:.2f}°C<extra>Obs median</extra>',
         ))
 
     # 1.5°C reference line (only meaningful for 1850-1900 baseline)
@@ -841,24 +853,26 @@ def create_trend_explorer(
         hovertemplate='%{y:.3f}°C/dec<extra>' + gen_label + ' mean</extra>',
     ))
 
-    # Observational trends
-    obs_labels = {
-        'hadcrut5':   'HadCRUT5',
-        'gistemp':    'GISTEMP v4',
-        'noaa':       'NOAA GlobalTemp',
-        'berkeley':   'Berkeley Earth',
-        'copernicus': 'Copernicus/ERA5',
-    }
-    for col, label in obs_labels.items():
-        key = f'obs_{col}'
-        if key not in data:
-            continue
-        vals = data[key]
+    # Observed trends consolidated: min–max band + median across datasets
+    obs_keys = [k for k in data if k.startswith('obs_')]
+    if obs_keys:
+        obs_mat = np.array([data[k] for k in obs_keys], dtype=float)
+        obs_med = np.nanmedian(obs_mat, axis=0)
+        obs_min = np.nanmin(obs_mat, axis=0)
+        obs_max = np.nanmax(obs_mat, axis=0)
+        obs_line = OBS_MEDIAN_COLORS['dark' if dark_mode else 'light']
+        obs_band = OBS_BAND_COLORS['dark' if dark_mode else 'light']
         fig.add_trace(go.Scatter(
-            x=syears, y=vals,
-            mode='lines', line=dict(color=oc[col], width=1.5, dash='dash'),
-            name=label,
-            hovertemplate='%{y:.3f}°C/dec<extra>' + label + '</extra>',
+            x=list(syears) + list(syears)[::-1],
+            y=list(obs_max) + list(obs_min)[::-1],
+            fill='toself', fillcolor=obs_band, line=dict(width=0),
+            name='Obs range (5 datasets)', hoverinfo='skip',
+        ))
+        fig.add_trace(go.Scatter(
+            x=syears, y=obs_med,
+            mode='lines', line=dict(color=obs_line, width=2, dash='dash'),
+            name='Observations (median of 5)',
+            hovertemplate='%{y:.3f}°C/dec<extra>Obs median</extra>',
         ))
 
     gen_title = f'{gen_label} — {scenario}' if scenario else gen_label
@@ -912,6 +926,12 @@ def create_trend_histogram_grid(
         horizontal_spacing=0.08,
     )
 
+    obs_line = OBS_MEDIAN_COLORS['dark' if dark_mode else 'light']
+    obs_band = OBS_BAND_COLORS['dark' if dark_mode else 'light']
+
+    # Shared x-scale across the three panels so widths are comparable
+    x_lo, x_hi = np.inf, -np.inf
+
     for col_i, (start, end, period_label) in enumerate(periods):
         c = col_i + 1
         obs_tr = calculate_obs_trends(obs_df, start, end)
@@ -926,16 +946,22 @@ def create_trend_histogram_grid(
                 showlegend=False,
                 hovertemplate='Trend: %{x:.3f}°C/dec<br>Count: %{y}<extra></extra>',
             ), row=1, col=c)
+            x_lo = min(x_lo, float(np.min(member_trends)))
+            x_hi = max(x_hi, float(np.max(member_trends)))
 
-        # Observed trend lines
-        for obs_col, label in obs_labels.items():
-            val = obs_tr.get(obs_col)
-            if val is None:
-                continue
-            fig.add_vline(
-                x=val, row=1, col=c,
-                line_dash='dash', line_color=oc[obs_col], line_width=2,
+        # Observed trends as one band (min–max across datasets) + median line
+        obs_vals = [v for v in obs_tr.values() if v is not None]
+        if obs_vals:
+            fig.add_vrect(
+                x0=min(obs_vals), x1=max(obs_vals), row=1, col=c,
+                fillcolor=obs_band, line_width=0, layer='below',
             )
+            fig.add_vline(
+                x=float(np.median(obs_vals)), row=1, col=c,
+                line_dash='dash', line_color=obs_line, line_width=2,
+            )
+            x_lo = min(x_lo, min(obs_vals))
+            x_hi = max(x_hi, max(obs_vals))
 
     fig.update_layout(
         height=380,
@@ -944,8 +970,14 @@ def create_trend_histogram_grid(
         margin=dict(l=50, r=30, t=40, b=60),
     )
     fig.update_annotations(font_size=12)
-    for c in range(1, 4):
-        fig.update_xaxes(title_text='°C/decade', row=1, col=c)
+    if np.isfinite(x_lo) and np.isfinite(x_hi):
+        pad = (x_hi - x_lo) * 0.06
+        for c in range(1, 4):
+            fig.update_xaxes(title_text='°C/decade', row=1, col=c,
+                             range=[x_lo - pad, x_hi + pad])
+    else:
+        for c in range(1, 4):
+            fig.update_xaxes(title_text='°C/decade', row=1, col=c)
     return fig
 
 

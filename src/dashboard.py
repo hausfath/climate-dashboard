@@ -44,6 +44,12 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(15, 157, 148, 0.08)',
         'background_years_color': 'rgba(31, 36, 48, 0.15)',
         'enso_update_color': '#2e9cb8',
+        'era_band_colors': ['rgba(46, 111, 201, 0.13)',
+                            'rgba(31, 36, 48, 0.13)',
+                            'rgba(232, 137, 12, 0.15)'],
+        'era_line_colors': ['rgba(46, 111, 201, 0.55)',
+                            'rgba(31, 36, 48, 0.45)',
+                            'rgba(232, 137, 12, 0.6)'],
     },
     'dark': {
         'template': 'climate_dark',
@@ -69,8 +75,18 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(78, 205, 196, 0.10)',
         'background_years_color': 'rgba(232, 234, 242, 0.13)',
         'enso_update_color': '#48cae4',
+        'era_band_colors': ['rgba(84, 160, 255, 0.12)',
+                            'rgba(232, 234, 242, 0.11)',
+                            'rgba(255, 159, 67, 0.13)'],
+        'era_line_colors': ['rgba(84, 160, 255, 0.5)',
+                            'rgba(232, 234, 242, 0.4)',
+                            'rgba(255, 159, 67, 0.55)'],
     }
 }
+
+# Era windows for the daily-plot background envelopes (start, end inclusive).
+# The last era is open-ended and stops just before the highlighted years.
+ERA_BANDS = [(1940, 1979), (1980, 1999), (2000, 2022)]
 
 
 def get_theme(dark_mode: bool = False) -> dict:
@@ -282,6 +298,31 @@ def get_recent_month_bounds(df: pd.DataFrame) -> tuple:
     return month_start, month_end
 
 
+def _add_era_envelopes(fig: go.Figure, df: pd.DataFrame, value_col: str,
+                       theme: dict) -> None:
+    """Replace per-year background spaghetti with 5–95th percentile envelopes
+    for each era in ERA_BANDS. Percentiles are computed per day-of-year and
+    lightly smoothed so the bands read as clean shapes."""
+    for (start, end), fill, line in zip(ERA_BANDS,
+                                        theme['era_band_colors'],
+                                        theme['era_line_colors']):
+        era = df[(df['year'] >= start) & (df['year'] <= end)]
+        if era.empty:
+            continue
+        grouped = era.groupby('day_of_year')[value_col]
+        p05 = grouped.quantile(0.05).rolling(7, center=True, min_periods=1).mean()
+        p95 = grouped.quantile(0.95).rolling(7, center=True, min_periods=1).mean()
+        doy = p05.index.tolist()
+        fig.add_trace(go.Scatter(
+            x=doy + doy[::-1],
+            y=p95.tolist() + p05.tolist()[::-1],
+            fill='toself', fillcolor=fill,
+            line=dict(color=line, width=0.5),
+            name=f'{start}–{end}',
+            hoverinfo='skip',
+        ))
+
+
 def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Figure:
     """
     Create a plot of daily temperature anomalies by day of year relative to preindustrial.
@@ -319,20 +360,8 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
 
-    # Plot background years (not highlighted) first
-    for year in all_years:
-        if year not in years_to_highlight:
-            year_data = df_adj[df_adj['year'] == year].sort_values('day_of_year')
-            if len(year_data) > 0:
-                fig.add_trace(go.Scatter(
-                    x=year_data['day_of_year'],
-                    y=year_data['anomaly'],
-                    mode='lines',
-                    name=str(year),
-                    line=dict(color=theme['background_years_color'], width=1),
-                    hoverinfo='skip',
-                    showlegend=False
-                ))
+    # Historical context as era percentile envelopes (was ~80 spaghetti lines)
+    _add_era_envelopes(fig, df_adj, 'anomaly', theme)
 
     # Plot highlighted years on top
     for year in years_to_highlight:
@@ -447,20 +476,8 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         font=dict(size=10.5, color=theme['text_dim']),
     )
 
-    # Plot background years (not highlighted) first
-    for year in all_years:
-        if year not in years_to_highlight:
-            year_data = df[df['year'] == year].sort_values('day_of_year')
-            if len(year_data) > 0:
-                fig.add_trace(go.Scatter(
-                    x=year_data['day_of_year'],
-                    y=year_data['temperature'],
-                    mode='lines',
-                    name=str(year),
-                    line=dict(color=theme['background_years_color'], width=1),
-                    hoverinfo='skip',
-                    showlegend=False
-                ))
+    # Historical context as era percentile envelopes (was ~80 spaghetti lines)
+    _add_era_envelopes(fig, df, 'temperature', theme)
 
     # Plot highlighted years on top
     for year in years_to_highlight:
@@ -2014,10 +2031,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     SITE_URL = "https://climate-dashboard.onrender.com"
     OG_IMAGE = f"{SITE_URL}/assets/images/annual_prediction_light.png"
-    OG_TITLE = "Global Temperature Dashboard"
+    OG_TITLE = "Climate Dashboard"
     OG_DESC = (
-        "Daily-updated global temperature tracker with ERA5 data, "
-        "ENSO forecasts, and 2026 annual projections."
+        "Daily-updated global temperature tracker: ERA5 daily data, "
+        "multi-model ENSO forecasts, annual projections, and climate "
+        "models vs. observations."
     )
 
     app.index_string = f'''<!DOCTYPE html>
@@ -2149,12 +2167,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         return _cmip_lazy[gen]
 
     # ── Hero data (computed once at startup) ────────────────────────────────
+    # Odds at the latest month where all models report (not a seasonal mean —
+    # seasonal means blend in observed months and drop short-horizon models).
     _enso_odds = None
     try:
         if _ENSO_AVAILABLE:
-            from src.enso_plots import compute_strength_probabilities
-            _centers, _probs, _nm_seas = compute_strength_probabilities(_enso_forecast_df)
-            _enso_odds = L.enso_peak_odds(_centers, _probs, _nm_seas)
+            from src.enso_plots import compute_peak_month_odds
+            _enso_odds = L.enso_odds_view(compute_peak_month_odds(_enso_forecast_df))
     except Exception as e:
         logger.warning(f"Could not compute ENSO peak odds: {e}")
 
@@ -2164,6 +2183,29 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             _alignment = L.models_alignment(_cmip6, _obs_models)
     except Exception as e:
         logger.warning(f"Could not compute model alignment: {e}")
+
+    # Computed record comparison for the ENSO historical caption — always
+    # qualified by the record's actual start year, never "all time".
+    _enso_record_note = ""
+    try:
+        if _ENSO_AVAILABLE and not _enso_oni_df.empty and _enso_cards.get('peak_val'):
+            oni_valid = _enso_oni_df.dropna(subset=['oni'])
+            rec_max = float(oni_valid['oni'].max())
+            rec_year = int(pd.to_datetime(
+                oni_valid.loc[oni_valid['oni'].idxmax(), 'date']).year)
+            rec_start = int(pd.to_datetime(oni_valid['date']).dt.year.min())
+            peak = _enso_cards['peak_val']
+            if peak > rec_max:
+                _enso_record_note = (
+                    f" The median peak ({peak:+.1f}°C) would exceed the highest "
+                    f"ONI observed since {rec_start} ({rec_max:+.1f}°C in "
+                    f"{rec_year}) — treat the upper tail with caution.")
+            else:
+                _enso_record_note = (
+                    f" Highest ONI observed since {rec_start}: {rec_max:+.1f}°C "
+                    f"({rec_year}).")
+    except Exception as e:
+        logger.warning(f"Could not compute ENSO record note: {e}")
 
     # ── Temperature tab ─────────────────────────────────────────────────────
     if stats.get('annual_prediction', 'N/A') != 'N/A':
@@ -2223,21 +2265,43 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         "Grey: daily anomalies. The ", html.B("365-day average"),
                         " smooths out weather and the seasonal cycle.",
                     ]),
-            L.panel("The year in context — daily anomalies by year",
-                    img_id='daily-anomalies-img',
-                    img_src='/assets/images/daily_anomalies_dark.png',
-                    graph_id='daily-anomalies-plot', graph_height=500, tag="Daily",
+            L.panel("The year in context — recent years vs the historical range",
+                    body=html.Div([
+                        html.Img(id='daily-anomalies-img',
+                                 src='/assets/images/daily_anomalies_dark.png',
+                                 alt='Daily temperature anomalies by year',
+                                 style={'width': '100%', 'height': 'auto'}),
+                        html.Img(id='daily-temps-img',
+                                 src='/assets/images/daily_temps_dark.png',
+                                 alt='Daily absolute temperatures by year',
+                                 style={'width': '100%', 'height': 'auto',
+                                        'display': 'none'}),
+                        dcc.Loading(id='loading-daily-anomalies-plot', type='circle',
+                                    children=[dcc.Graph(
+                                        id='daily-anomalies-plot',
+                                        style={'height': '500px', 'display': 'none'},
+                                        config={'toImageButtonOptions': {'scale': 3},
+                                                'displaylogo': False})]),
+                        dcc.Loading(id='loading-daily-absolutes-plot', type='circle',
+                                    children=[dcc.Graph(
+                                        id='daily-absolutes-plot',
+                                        style={'height': '500px', 'display': 'none'},
+                                        config={'toImageButtonOptions': {'scale': 3},
+                                                'displaylogo': False})]),
+                    ]),
+                    head_extra=dbc.RadioItems(
+                        id='daily-mode-toggle',
+                        className='segmented btn-group',
+                        inputClassName='btn-check', labelClassName='btn',
+                        options=[{'label': 'Anomaly', 'value': 'anomaly'},
+                                 {'label': 'Absolute', 'value': 'absolute'}],
+                        value='anomaly',
+                    ),
                     caption=[
-                        "Recent years against the 1940–2022 range (grey). Dashed: ",
-                        html.B("EC46 46-day forecast"),
+                        "Recent years against era envelopes (5–95th percentile "
+                        "per era). Dashed: ", html.B("EC46 46-day forecast"),
                         ". Shaded band: the current month.",
                     ]),
-            L.panel("Daily global mean temperature (absolute)",
-                    img_id='daily-temps-img',
-                    img_src='/assets/images/daily_temps_dark.png',
-                    graph_id='daily-absolutes-plot', graph_height=500, tag="Daily",
-                    caption="The same days in absolute terms — the seasonal cycle "
-                            "dominates, with recent years riding along the top."),
         ], section_id='sec-now'),
         L.section("02", f"Where {stats['current_year']} is heading",
                   "Monte Carlo · refreshed daily",
@@ -2283,17 +2347,39 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.section("03", "The long view", "1940–present",
                   "The full daily record in two frames: every day as a pixel, and "
                   "every year as a distribution.", [
-            L.panel("Every day since 1940 — anomaly heatmap",
-                    img_id='heatmap-anomaly-img',
-                    img_src='/assets/images/heatmap_anomaly_dark.png',
-                    graph_id='daily-anomaly-heatmap', graph_height=500,
+            L.panel("Every day since 1940",
+                    body=html.Div([
+                        html.Img(id='heatmap-anomaly-img',
+                                 src='/assets/images/heatmap_anomaly_dark.png',
+                                 alt='Daily temperature anomaly heatmap',
+                                 style={'width': '100%', 'height': 'auto'}),
+                        html.Img(id='heatmap-temp-img',
+                                 src='/assets/images/heatmap_temp_dark.png',
+                                 alt='Daily absolute temperature heatmap',
+                                 style={'width': '100%', 'height': 'auto',
+                                        'display': 'none'}),
+                        dcc.Loading(id='loading-daily-anomaly-heatmap', type='circle',
+                                    children=[dcc.Graph(
+                                        id='daily-anomaly-heatmap',
+                                        style={'height': '500px', 'display': 'none'},
+                                        config={'toImageButtonOptions': {'scale': 3},
+                                                'displaylogo': False})]),
+                        dcc.Loading(id='loading-daily-temp-heatmap', type='circle',
+                                    children=[dcc.Graph(
+                                        id='daily-temp-heatmap',
+                                        style={'height': '500px', 'display': 'none'},
+                                        config={'toImageButtonOptions': {'scale': 3},
+                                                'displaylogo': False})]),
+                    ]),
+                    head_extra=dbc.RadioItems(
+                        id='heatmap-mode-toggle',
+                        className='segmented btn-group',
+                        inputClassName='btn-check', labelClassName='btn',
+                        options=[{'label': 'Anomaly', 'value': 'anomaly'},
+                                 {'label': 'Absolute', 'value': 'absolute'}],
+                        value='anomaly',
+                    ),
                     caption="Columns are years, rows are days of the year."),
-            L.panel("Every day since 1940 — absolute temperature",
-                    img_id='heatmap-temp-img',
-                    img_src='/assets/images/heatmap_temp_dark.png',
-                    graph_id='daily-temp-heatmap', graph_height=500,
-                    caption="The seasonal cycle as horizontal bands, warming as "
-                            "the left-to-right drift."),
             html.Div(
                 L.panel("The distribution slides warm",
                         img_id='ridgeline-img',
@@ -2339,8 +2425,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     enso_strip = None
     if _enso_odds:
         enso_strip = L.prob_strip(
-            f"Peak-season odds · {_enso_odds['season_label']}",
-            f"{_enso_cards.get('n_models', '?')} models · equal weight",
+            f"Odds for {_enso_odds['month_label']}",
+            f"all {_enso_odds['n_models']} models · equal weight",
             _enso_odds['segments'], _enso_odds['legend'])
 
     enso_kpis = L.kpi_row([
@@ -2351,9 +2437,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.kpi("Forecast peak", _enso_cards.get('max_change_str', 'N/A'),
               _enso_cards.get('max_change_range', 'N/A'),
               value_id='enso-card-2-value', sub_id='enso-card-2-sub'),
-        L.kpi("P(very strong at peak)",
+        L.kpi((f"P(very strong) · {_enso_odds['month_label']}"
+               if _enso_odds else "P(very strong)"),
               (L.fmt_prob(_enso_odds['p_very']) if _enso_odds else "N/A"),
-              (f"index ≥ 2.0°C · {_enso_odds['kind']}, {_enso_odds['season_label']}"
+              (f"index ≥ 2.0°C · latest month with all {_enso_odds['n_models']} models"
                if _enso_odds else "multi-model ensemble")),
         L.kpi("Ensemble",
               [f"{_enso_cards.get('n_models', '?')} ", html.Small("models")],
@@ -2385,8 +2472,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_id='enso-mega-plume-img',
                     img_src='/assets/images/enso_mega_plume_dark.png',
                     graph_id='enso-mega-plume-plot', graph_height=550, tag="Monthly",
-                    caption=["Individual members fade into the background; model "
-                             "means are drawn on top. Spread widens with lead time."]),
+                    caption=["Shaded fan: model-weighted ",
+                             html.B("5–95th and 25–75th percentile"),
+                             " ranges across all members; colored lines are "
+                             "per-model ensemble means."]),
         ], section_id='sec-plume'),
         L.section("02", "How strong, when", "Model-equal weighting",
                   "The same ensemble, sliced two ways: the monthly forecast "
@@ -2413,7 +2502,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_src='/assets/images/enso_historical_dark.png',
                     graph_id='enso-historical-plot', graph_height=450,
                     caption=["Dotted: multi-model median forecast with the "
-                             "25th–75th percentile band."]),
+                             "25th–75th percentile band." + _enso_record_note]),
         ], section_id='sec-context'),
     ])
 
@@ -2529,15 +2618,25 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_id='models-trend-explorer-img',
                     img_src='/assets/images/models_trend_explorer_dark.png',
                     graph_id='models-trend-explorer-plot', graph_height=500,
-                    caption="Observed trends (dashed) vs the model distribution "
-                            "for every start year through 2010."),
+                    caption="Dashed: median observed trend, with the shaded "
+                            "range across the five datasets, for every start "
+                            "year through 2010."),
             L.panel("Where observations land in the model distribution",
                     img_id='models-histograms-img',
                     img_src='/assets/images/models_histograms_dark.png',
                     graph_id='models-histograms-plot', graph_height=380,
-                    caption="Dashed lines are the five observational records."),
+                    caption="Shaded band: range across the five observational "
+                            "records; dashed line their median. Panels share "
+                            "one x-scale."),
         ], section_id='sec-trends'),
     ])
+
+    # Methodology text for the footer modal
+    try:
+        _methodology_md = (Path(__file__).parent.parent /
+                           'PROJECTION_METHODOLOGY.md').read_text()
+    except Exception:
+        _methodology_md = "Methodology document unavailable."
 
     app.layout = html.Div([
         dcc.Location(id='url', refresh=False),
@@ -2557,6 +2656,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         tab_models,
 
         L.footer_block(stats['latest_date']),
+
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle("Projection methodology")),
+            dbc.ModalBody(dcc.Markdown(_methodology_md)),
+        ], id='methodology-modal', size='lg', scrollable=True, is_open=False),
     ], id='main-container')
 
     # Clientside callback for mobile detection - sets interactive switch based on device
@@ -2610,6 +2714,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             'fas fa-image' + ('' if interactive else ' tgl-on'),
             'fas fa-chart-line' + (' tgl-on' if interactive else ''),
         )
+
+    # Methodology modal open/close
+    @app.callback(
+        Output('methodology-modal', 'is_open'),
+        Input('methodology-link', 'n_clicks'),
+        State('methodology-modal', 'is_open'),
+        prevent_initial_call=True,
+    )
+    def toggle_methodology(n, is_open):
+        return not is_open
 
     _VALID_TABS = {'global', 'enso', 'models'}
     _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet'}
@@ -2666,7 +2780,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'#{tab}',
         )
 
-    # Callback to toggle between static images and interactive graphs
+    # Callback to toggle between static images and interactive graphs.
+    # The merged panels (daily anomaly/absolute, heatmap anomaly/absolute)
+    # additionally gate on their mode toggles.
     @app.callback(
         [
             # Image visibility — Global tab (8)
@@ -2706,53 +2822,56 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('models-trend-explorer-plot', 'style'),
             Output('models-histograms-plot', 'style'),
         ],
-        [Input('interactive-switch', 'value')]
+        [Input('interactive-switch', 'value'),
+         Input('daily-mode-toggle', 'value'),
+         Input('heatmap-mode-toggle', 'value')],
     )
-    def toggle_interactive_mode(interactive):
-        img_style_show = {'width': '100%', 'height': 'auto', 'display': 'block'}
-        img_style_hide = {'display': 'none'}
-        graph_style_show = {'height': '500px', 'display': 'block'}
-        graph_style_hide = {'display': 'none'}
+    def toggle_interactive_mode(interactive, daily_mode, heatmap_mode):
+        daily_mode = daily_mode or 'anomaly'
+        heatmap_mode = heatmap_mode or 'anomaly'
 
-        if interactive:
-            return (
-                # Hide images — Global (8)
-                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
-                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
-                # Show graphs — Global (8)
-                graph_style_show, graph_style_show, graph_style_show, graph_style_show,
-                graph_style_show, graph_style_show, graph_style_show, graph_style_show,
-                # Hide images — ENSO (4)
-                img_style_hide, img_style_hide, img_style_hide, img_style_hide,
-                # Show graphs — ENSO (4)
-                {'height': '550px', 'display': 'block'},
-                {'height': '550px', 'display': 'block'},
-                {'height': '450px', 'display': 'block'},
-                {'height': '500px', 'display': 'block'},
-                # Hide images — Models (3)
-                img_style_hide, img_style_hide, img_style_hide,
-                # Show graphs — Models (3), with per-plot heights
-                {'height': '520px', 'display': 'block'},
-                {'height': '500px', 'display': 'block'},
-                {'height': '380px', 'display': 'block'},
-            )
-        else:
-            return (
-                # Show images — Global (8)
-                img_style_show, img_style_show, img_style_show, img_style_show,
-                img_style_show, img_style_show, img_style_show, img_style_show,
-                # Hide graphs — Global (8)
-                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
-                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
-                # Show images — ENSO (4)
-                img_style_show, img_style_show, img_style_show, img_style_show,
-                # Hide graphs — ENSO (4)
-                graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
-                # Show images — Models (3)
-                img_style_show, img_style_show, img_style_show,
-                # Hide graphs — Models (3)
-                graph_style_hide, graph_style_hide, graph_style_hide,
-            )
+        def img(show):
+            return ({'width': '100%', 'height': 'auto', 'display': 'block'}
+                    if show else {'display': 'none'})
+
+        def graph(show, height=500):
+            return ({'height': f'{height}px', 'display': 'block'}
+                    if show else {'display': 'none'})
+
+        static = not interactive
+        return (
+            # Images — Global
+            img(static),                                       # timeseries
+            img(static and daily_mode == 'anomaly'),           # daily anomalies
+            img(static and daily_mode == 'absolute'),          # daily temps
+            img(static),                                       # monthly proj
+            img(static),                                       # annual pred
+            img(static),                                       # proj history
+            img(static and heatmap_mode == 'anomaly'),         # heatmap anomaly
+            img(static and heatmap_mode == 'absolute'),        # heatmap temp
+            # Graphs — Global
+            graph(interactive),                                # timeseries
+            graph(interactive and daily_mode == 'anomaly'),    # daily anomalies
+            graph(interactive and daily_mode == 'absolute'),   # daily absolutes
+            graph(interactive, 460),                           # monthly proj
+            graph(interactive, 460),                           # annual pred
+            graph(interactive, 460),                           # proj history
+            graph(interactive and heatmap_mode == 'anomaly'),  # heatmap anomaly
+            graph(interactive and heatmap_mode == 'absolute'), # heatmap temp
+            # Images — ENSO
+            img(static), img(static), img(static), img(static),
+            # Graphs — ENSO
+            graph(interactive, 550),
+            graph(interactive, 550),
+            graph(interactive, 450),
+            graph(interactive, 500),
+            # Images — Models
+            img(static), img(static), img(static),
+            # Graphs — Models
+            graph(interactive, 520),
+            graph(interactive, 500),
+            graph(interactive, 380),
+        )
 
     # Update all static image sources based on dark mode
     @app.callback(
