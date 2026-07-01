@@ -2446,45 +2446,70 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ])
 
     # ── ENSO tab ────────────────────────────────────────────────────────────
-    _peak_val = _enso_cards.get('peak_val')
-    _peak_month = _enso_cards.get('peak_month_label', '')
-    if _peak_val is not None and _enso_state_label.startswith('El Niño'):
-        _strength_word = ("A major" if _peak_val >= 2.0 else
-                          "A moderate" if _peak_val >= 1.0 else "A weak")
-        enso_headline = [
-            f"{_strength_word} El Niño is under way, forecast to peak near ",
-            html.Span(f"{_peak_val:+.1f} °C", className="num"),
-            f" in {_peak_month}.",
-        ]
-    elif _peak_val is not None and _enso_state_label.startswith('La Niña'):
-        enso_headline = [
-            "La Niña conditions, forecast to reach ",
-            html.Span(f"{_peak_val:+.1f} °C", className="num"),
-            f" in {_peak_month}.",
-        ]
-    elif _peak_val is not None:
-        enso_headline = [
-            "Neutral conditions now; the ensemble points to ",
-            html.Span(f"{_peak_val:+.1f} °C", className="num"),
-            f" by {_peak_month}.",
-        ]
-    else:
-        enso_headline = ["Seasonal ENSO forecasts, aggregated."]
-    if _nino_daily:
-        enso_lede = [
-            "Daily Niño 3.4 (OISSTv2.1) is at ",
-            html.Strong(f"{_nino_daily['nino34_anom']:+.2f}°C"),
-            f" as of {_nino_daily['date']}.",
-            " Every seasonal forecast system's full ensemble is aggregated "
-            "with equal model weighting, updated as new runs arrive.",
-        ]
-    else:
-        enso_lede = [
-            "Observed Niño 3.4 is at ", html.Strong(_enso_state_val or "N/A"),
-            f" ({_enso_state_when})." if _enso_state_when else ".",
-            " Every seasonal forecast system's full ensemble is aggregated with "
-            "equal model weighting, updated as new runs arrive.",
-        ]
+    def _enso_hero_parts(roni_on: bool):
+        """Kicker, headline, lede for the ENSO hero, per index mode."""
+        cards = _enso_cards_roni if roni_on else _enso_cards
+        idx_name = 'RONI' if roni_on else 'Niño 3.4'
+        peak_val = cards.get('peak_val')
+        peak_month = cards.get('peak_month_label', '')
+
+        # State from the 30-day daily mean of the displayed index (falls back
+        # to the monthly classification when the daily series is unavailable)
+        state, _, _ = L.split_enso_state(cards.get('current_state', 'N/A'))
+        daily_val = None
+        if _nino_daily:
+            daily_val = (_nino_daily['roni_anom'] if roni_on
+                         else _nino_daily['nino34_anom'])
+            avg30 = _nino_daily['roni_30d'] if roni_on else _nino_daily['nino34_30d']
+            state = ('El Niño' if avg30 >= 0.5
+                     else 'La Niña' if avg30 <= -0.5 else 'Neutral')
+
+        kicker = (f"El Niño Watch · {idx_name}" if state.startswith('El Niño')
+                  else f"La Niña Watch · {idx_name}" if state.startswith('La Niña')
+                  else f"ENSO Forecast · {idx_name}")
+
+        if peak_val is not None and state.startswith('El Niño'):
+            word = ("A major" if peak_val >= 2.0 else
+                    "A moderate" if peak_val >= 1.0 else "A weak")
+            headline = [
+                f"{word} El Niño is under way, forecast to peak near ",
+                html.Span(f"{peak_val:+.1f} °C", className="num"),
+                f" in {peak_month}.",
+            ]
+        elif peak_val is not None and state.startswith('La Niña'):
+            headline = [
+                "La Niña conditions, forecast to reach ",
+                html.Span(f"{peak_val:+.1f} °C", className="num"),
+                f" in {peak_month}.",
+            ]
+        elif peak_val is not None:
+            headline = [
+                "Neutral conditions now; the ensemble points to ",
+                html.Span(f"{peak_val:+.1f} °C", className="num"),
+                f" by {peak_month}.",
+            ]
+        else:
+            headline = ["Seasonal ENSO forecasts, aggregated."]
+
+        if daily_val is not None:
+            lede = [
+                f"Daily {idx_name} (OISSTv2.1) is at ",
+                html.Strong(f"{daily_val:+.2f}°C"),
+                f" as of {_nino_daily['date']}.",
+                " Every seasonal forecast system's full ensemble is aggregated "
+                "with equal model weighting, updated as new runs arrive.",
+            ]
+        else:
+            lede = [
+                f"Observed {idx_name} is at ",
+                html.Strong(_enso_state_val or "N/A"),
+                f" ({_enso_state_when})." if _enso_state_when else ".",
+                " Every seasonal forecast system's full ensemble is aggregated "
+                "with equal model weighting, updated as new runs arrive.",
+            ]
+        return kicker, headline, lede
+
+    enso_kicker, enso_headline, enso_lede = _enso_hero_parts(False)
 
     def _enso_odds_strip(odds, idx_label):
         if not odds:
@@ -2540,10 +2565,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ]
 
     tab_enso = html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
-        L.hero("El Niño Watch · Niño 3.4" if _enso_state_label.startswith('El Niño')
-               else "La Niña Watch · Niño 3.4" if _enso_state_label.startswith('La Niña')
-               else "ENSO Forecast · Niño 3.4",
-               enso_headline, enso_lede,
+        L.hero(enso_kicker, enso_headline, enso_lede,
+               kicker_id='enso-kicker', headline_id='enso-headline',
+               lede_id='enso-lede',
                right=enso_strip, right_id='enso-odds-wrap'),
         enso_kpis,
         L.section("01", "The forecast", _enso_index_ctl,
@@ -3264,6 +3288,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-card-3-value', 'children'),
          Output('enso-card-3-sub', 'children'),
          Output('enso-odds-wrap', 'children'),
+         Output('enso-kicker', 'children'),
+         Output('enso-headline', 'children'),
+         Output('enso-lede', 'children'),
          Output('enso-plume-title', 'children'),
          Output('enso-box-title', 'children'),
          Output('enso-probs-title', 'children'),
@@ -3294,6 +3321,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                      else 'ONI (Niño 3.4)')
         odds = _enso_odds_roni if roni_on else _enso_odds
         pvs_label, pvs_value, pvs_sub = _pvs_card_parts(odds, idx_name if roni_on else 'ONI')
+        kicker, headline, lede = _enso_hero_parts(bool(roni_on))
         return (
             value,
             sub,
@@ -3303,6 +3331,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             pvs_value,
             pvs_sub,
             _enso_odds_strip(odds, 'RONI' if roni_on else 'ONI'),
+            kicker,
+            headline,
+            lede,
             f"Combined forecast plume · {idx_title}",
             f"Monthly forecast distribution · {idx_title}",
             f"Strength probabilities by season · {idx_title}",
