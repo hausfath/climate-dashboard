@@ -17,6 +17,10 @@ data/*.csv
 !data/last_enso_forecast_snapshot.csv
 !data/last_enso_forecast_snapshot_roni.csv
 !data/era5_forecast_ec46_*.csv
+# Daily Nino 3.4 / RONI from OISST: the climatology is expensive to rebuild
+# (one-time ~40MB ERDDAP pull) and the daily CSV is refreshed by the cron
+!data/nino34_daily.csv
+!data/nino34_daily_climatology.csv
 
 # IDE
 .idea/
