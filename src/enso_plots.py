@@ -649,6 +649,25 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
     target_months = sorted(members["target_month"].unique())
     models = sorted(members["model"].unique())
 
+    # -- Individual ensemble member dots (jittered, colored by model). No
+    # legend — hover identifies the model; the plume panel carries the roster.
+    np.random.seed(42)
+    for i, tm in enumerate(target_months):
+        for model in models:
+            color = MEGA_COLORS.get(model, "#999999")
+            mdf = members[(members["target_month"] == tm) & (members["model"] == model)]
+            if len(mdf) == 0:
+                continue
+            jitter = np.random.uniform(-0.24, 0.24, len(mdf))
+            fig.add_trace(go.Scatter(
+                x=i + jitter, y=mdf["nino34_anom"],
+                mode="markers",
+                marker=dict(color=color, size=4.5, opacity=0.45),
+                showlegend=False,
+                name=model,
+                hovertemplate=f"{model}: %{{y:.2f}}°C<extra></extra>",
+            ))
+
     # -- Weighted box plots via shapes --
     box_width = 0.5
     for i, tm in enumerate(target_months):
@@ -745,6 +764,9 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
         xaxis=dict(
             tickvals=list(range(len(target_months))),
             ticktext=tick_labels,
+            # Explicit range: the boxes are shapes, which don't participate
+            # in autorange, so without this late months fall off the plot.
+            range=[-0.6, len(target_months) - 0.4],
         ),
         yaxis=dict(range=[ymin, ymax]),
         template=theme["template"],

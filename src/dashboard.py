@@ -2484,8 +2484,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_id='enso-box-distribution-img',
                     img_src='/assets/images/enso_box_distribution_dark.png',
                     graph_id='enso-box-distribution-plot', graph_height=550,
-                    caption="Boxes span the model-weighted interquartile range; "
-                            "whiskers the 5th–95th percentiles."),
+                    caption="Dots: individual ensemble members, colored by "
+                            "model. Boxes span the model-weighted "
+                            "interquartile range."),
             L.panel("Strength probabilities by season",
                     img_id='enso-strength-probs-img',
                     img_src='/assets/images/enso_strength_probs_dark.png',
@@ -2507,29 +2508,37 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ])
 
     # ── Models tab ──────────────────────────────────────────────────────────
-    if _alignment:
-        models_headline = [
-            "Observations are running ",
-            html.Span(_alignment['phrase'], className="num"),
-            " of the model envelope.",
+    def _models_hero_parts(gen_label: str, scenario: str, cards: dict,
+                           alignment: dict | None):
+        """Kicker, headline, lede, and gauge for the Models hero — reused by
+        the generation-change callback so all hero copy tracks the selector."""
+        kicker = f"{gen_label} · {scenario} · five observational records"
+        if alignment:
+            headline = [
+                "Observations are running ",
+                html.Span(alignment['phrase'], className="num"),
+                " of the model envelope.",
+            ]
+        else:
+            headline = ["Climate models vs. observations."]
+        lede = [
+            "Since 1970 the world has warmed at ",
+            html.Strong(cards.get('obs_trend_1970', 'N/A')),
+            " against a model mean of ",
+            html.Strong(cards.get('model_trend_1970', 'N/A')),
+            "; over the last 15 years observations have run at ",
+            html.Strong(cards.get('obs_trend_15', 'N/A')), ".",
         ]
-    else:
-        models_headline = ["Climate models vs. observations."]
-    models_lede = [
-        "Since 1970 the world has warmed at ",
-        html.Strong(_models_cards.get('obs_trend_1970', 'N/A')),
-        " against a model mean of ",
-        html.Strong(_models_cards.get('model_trend_1970', 'N/A')),
-        f"; over the last 15 years observations have run at ",
-        html.Strong(_models_cards.get('obs_trend_15', 'N/A')), ".",
-    ]
+        gauge = None
+        if alignment:
+            gauge = L.percentile_gauge(
+                f"Observed trend vs {gen_label} ensemble", "1970–present",
+                alignment['percentile'],
+                f"obs · {ordinal(int(round(alignment['percentile'])))} percentile")
+        return kicker, headline, lede, gauge
 
-    models_gauge = None
-    if _alignment:
-        models_gauge = L.percentile_gauge(
-            "Observed trend vs CMIP6 ensemble", "1970–present",
-            _alignment['percentile'],
-            f"obs · {ordinal(int(round(_alignment['percentile'])))} percentile")
+    models_kicker, models_headline, models_lede, models_gauge = \
+        _models_hero_parts('CMIP6', 'SSP2-4.5', _models_cards, _alignment)
 
     models_kpis = L.kpi_row([
         L.kpi([html.Span("Warming vs preindustrial", id='models-card-1-title')],
@@ -2597,11 +2606,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ], className="controlbar"), className="block", style={'paddingBottom': '0'})
 
     tab_models = html.Div(id='tab-content-models', style={'display': 'none'}, children=[
-        L.hero("CMIP6 · SSP2-4.5 · five observational records",
-               models_headline, models_lede, right=models_gauge),
+        L.hero(models_kicker, models_headline, models_lede, right=models_gauge,
+               kicker_id='models-kicker', headline_id='models-headline',
+               lede_id='models-lede', right_id='models-gauge-wrap'),
         models_kpis,
         models_controls,
-        L.section("01", "The scorecard", "1900–2040 · SSP2-4.5",
+        L.section("01", "The scorecard",
+                  html.Span("1900–2040 · SSP2-4.5", id='models-scorecard-hint'),
                   "Five independent observational records against the model "
                   "ensemble mean and its 5th–95th percentile envelope.", [
             L.panel("Climate models vs observations",
@@ -3094,7 +3105,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
 
-    # Update cards when CMIP generation changes
+    # Update cards + hero copy + gauge when CMIP generation changes
     @app.callback(
         [Output('models-card-1-title', 'children'),
          Output('models-card-1-value', 'children'),
@@ -3106,7 +3117,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('models-card-3-sub', 'children'),
          Output('models-card-4-title', 'children'),
          Output('models-card-4-value', 'children'),
-         Output('models-card-4-sub', 'children')],
+         Output('models-card-4-sub', 'children'),
+         Output('models-kicker', 'children'),
+         Output('models-headline', 'children'),
+         Output('models-lede', 'children'),
+         Output('models-gauge-wrap', 'children'),
+         Output('models-scorecard-hint', 'children')],
         [Input('models-cmip-gen', 'value')],
         prevent_initial_call=True,
     )
@@ -3121,6 +3137,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             scenario = scenario_for(gen)
             cmip_df = _get_cmip(gen)
             cards = compute_model_obs_cards(cmip_df, _obs_models, cmip_label=label)
+            alignment = L.models_alignment(cmip_df, _obs_models)
+            kicker, headline, lede, gauge = _models_hero_parts(
+                label, scenario, cards, alignment)
             return (
                 f"{label} ({scenario}) vs Observed",
                 cards.get('obs_warming', 'N/A'),
@@ -3133,6 +3152,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 f"{cards.get('start_15', '')}–Present Trend",
                 cards.get('obs_trend_15', 'N/A'),
                 f"Models: {cards.get('model_trend_15', 'N/A')} ({cards.get('model_range_15', 'N/A')})",
+                kicker,
+                headline,
+                lede,
+                gauge,
+                f"1900–2040 · {scenario}",
             )
         except Exception as e:
             logger.error(f"Models cards update error: {e}")

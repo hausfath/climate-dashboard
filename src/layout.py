@@ -48,13 +48,17 @@ def topbar(last_updated: str) -> html.Header:
     ], className="topbar")
 
 
-def hero(kicker: str, headline, lede, right=None) -> html.Div:
+def hero(kicker: str, headline, lede, right=None,
+         kicker_id: str = None, headline_id: str = None,
+         lede_id: str = None, right_id: str = None) -> html.Div:
+    kw = lambda i: {'id': i} if i else {}
     left = html.Div([
-        html.Div(kicker, className="kicker"),
-        html.H1(headline),
-        html.P(lede, className="lede"),
+        html.Div(kicker, className="kicker", **kw(kicker_id)),
+        html.H1(headline, **kw(headline_id)),
+        html.P(lede, className="lede", **kw(lede_id)),
     ])
-    children = [left] + ([right] if right is not None else [])
+    right_el = html.Div(right, **kw(right_id)) if right_id else right
+    children = [left] + ([right_el] if right_el is not None else [])
     return html.Div(children, className="hero")
 
 
