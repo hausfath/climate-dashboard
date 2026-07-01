@@ -747,7 +747,9 @@ def create_models_vs_obs_timeseries(
         mode='lines', line=dict(width=0),
         fill='tonexty', fillcolor=mc['band'],
         name=f'{gen_label} 5th–95th %ile',
-        hovertemplate='%{y:.2f}°C<extra>Model range</extra>',
+        customdata=stats['p05'],
+        hovertemplate='%{customdata:.2f} to %{y:.2f}°C'
+                      '<extra>' + gen_label + ' 5–95%</extra>',
     ))
 
     # Model ensemble mean
@@ -842,7 +844,9 @@ def create_trend_explorer(
         mode='lines', line=dict(width=0),
         fill='tonexty', fillcolor=mc['band'],
         name=f'{gen_label} 5th–95th %ile',
-        hovertemplate='%{y:.3f}°C/dec<extra>Model range</extra>',
+        customdata=data['model_p05'],
+        hovertemplate='%{customdata:.3f} to %{y:.3f}°C/dec'
+                      '<extra>' + gen_label + ' 5–95%</extra>',
     ))
 
     # Model mean
