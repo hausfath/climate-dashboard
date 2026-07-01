@@ -141,8 +141,9 @@ def section(no: str, title: str, hint, desc, children, section_id=None) -> html.
 def panel(title: str, img_id: str = None, img_src: str = None,
           graph_id: str = None, graph_height: int = 500,
           tag: str = None, caption=None, body=None,
-          head_extra=None, alt: str = None) -> html.Div:
-    head = [html.H3(title)]
+          head_extra=None, alt: str = None,
+          title_id: str = None) -> html.Div:
+    head = [html.H3(title, **({'id': title_id} if title_id else {}))]
     if tag:
         head.append(html.Span(tag, className="ptag"))
     if head_extra is not None:

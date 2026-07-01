@@ -44,10 +44,12 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(15, 157, 148, 0.08)',
         'background_years_color': 'rgba(31, 36, 48, 0.15)',
         'enso_update_color': '#2e9cb8',
-        'era_range_fill': 'rgba(31, 36, 48, 0.08)',
-        'era_line_colors': ['rgba(46, 111, 201, 0.8)',
-                            'rgba(31, 36, 48, 0.5)',
-                            'rgba(232, 137, 12, 0.85)'],
+        'era_band_colors': ['rgba(46, 111, 201, 0.13)',
+                            'rgba(31, 36, 48, 0.13)',
+                            'rgba(232, 137, 12, 0.15)'],
+        'era_line_colors': ['rgba(46, 111, 201, 0.55)',
+                            'rgba(31, 36, 48, 0.45)',
+                            'rgba(232, 137, 12, 0.6)'],
     },
     'dark': {
         'template': 'climate_dark',
@@ -73,10 +75,12 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(78, 205, 196, 0.10)',
         'background_years_color': 'rgba(232, 234, 242, 0.13)',
         'enso_update_color': '#48cae4',
-        'era_range_fill': 'rgba(232, 234, 242, 0.10)',
-        'era_line_colors': ['rgba(84, 160, 255, 0.8)',
-                            'rgba(232, 234, 242, 0.6)',
-                            'rgba(255, 159, 67, 0.85)'],
+        'era_band_colors': ['rgba(84, 160, 255, 0.12)',
+                            'rgba(232, 234, 242, 0.11)',
+                            'rgba(255, 159, 67, 0.13)'],
+        'era_line_colors': ['rgba(84, 160, 255, 0.5)',
+                            'rgba(232, 234, 242, 0.4)',
+                            'rgba(255, 159, 67, 0.55)'],
     }
 }
 
@@ -296,39 +300,25 @@ def get_recent_month_bounds(df: pd.DataFrame) -> tuple:
 
 def _add_era_envelopes(fig: go.Figure, df: pd.DataFrame, value_col: str,
                        theme: dict) -> None:
-    """Historical context: one neutral 5–95% envelope for the full
-    pre-highlight record, plus a median line per era. The eras' upward shift
-    reads as clean lines instead of overlapping translucent fills (which
-    blended into colors that matched nothing in the legend)."""
-    full_start, full_end = ERA_BANDS[0][0], ERA_BANDS[-1][1]
-    hist = df[(df['year'] >= full_start) & (df['year'] <= full_end)]
-    if hist.empty:
-        return
-
-    grouped = hist.groupby('day_of_year')[value_col]
-    p05 = grouped.quantile(0.05).rolling(7, center=True, min_periods=1).mean()
-    p95 = grouped.quantile(0.95).rolling(7, center=True, min_periods=1).mean()
-    doy = p05.index.tolist()
-    fig.add_trace(go.Scatter(
-        x=doy + doy[::-1],
-        y=p95.tolist() + p05.tolist()[::-1],
-        fill='toself', fillcolor=theme['era_range_fill'],
-        line=dict(width=0),
-        name=f'{full_start}–{full_end} range',
-        hoverinfo='skip',
-    ))
-
-    for (start, end), line_color in zip(ERA_BANDS, theme['era_line_colors']):
+    """Replace per-year background spaghetti with 5–95th percentile envelopes
+    for each era in ERA_BANDS. Percentiles are computed per day-of-year and
+    lightly smoothed so the bands read as clean shapes."""
+    for (start, end), fill, line in zip(ERA_BANDS,
+                                        theme['era_band_colors'],
+                                        theme['era_line_colors']):
         era = df[(df['year'] >= start) & (df['year'] <= end)]
         if era.empty:
             continue
-        med = (era.groupby('day_of_year')[value_col].median()
-                  .rolling(7, center=True, min_periods=1).mean())
+        grouped = era.groupby('day_of_year')[value_col]
+        p05 = grouped.quantile(0.05).rolling(7, center=True, min_periods=1).mean()
+        p95 = grouped.quantile(0.95).rolling(7, center=True, min_periods=1).mean()
+        doy = p05.index.tolist()
         fig.add_trace(go.Scatter(
-            x=med.index, y=med.values,
-            mode='lines',
-            line=dict(color=line_color, width=1.6),
-            name=f'{start}–{end} median',
+            x=doy + doy[::-1],
+            y=p95.tolist() + p05.tolist()[::-1],
+            fill='toself', fillcolor=fill,
+            line=dict(color=line, width=0.5),
+            name=f'{start}–{end}',
             hoverinfo='skip',
         ))
 
@@ -448,7 +438,9 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
             ticktext=month_names,
             range=[1, 366],
         ),
-        yaxis=dict(title='Temperature anomaly (°C)'),
+        # Default zoom on the ~1–2°C band where recent years live, so they
+        # are directly comparable; double-click/zoom-out shows the full range.
+        yaxis=dict(title='Temperature anomaly (°C)', range=[0.95, 2.1]),
         hovermode='x',
         template=theme['template'],
         height=500,
@@ -2316,9 +2308,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         value='anomaly',
                     ),
                     caption=[
-                        "Recent years against the 1940–2022 range (5–95%), "
-                        "with each era's median path. Dashed: ",
-                        html.B("EC46 46-day forecast"),
+                        "Recent years against era envelopes (5–95th percentile "
+                        "per era). Dashed: ", html.B("EC46 46-day forecast"),
                         ". Shaded column: the current month.",
                     ]),
         ], section_id='sec-now'),
@@ -2487,7 +2478,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.section("01", "The forecast", _enso_index_ctl,
                   "Every seasonal forecast system's full ensemble, drawn as one "
                   "plume. The dotted line is the model-equal-weighted median.", [
-            L.panel("Niño 3.4 combined forecast plume",
+            L.panel("Combined forecast plume · ONI (Niño 3.4)",
+                    title_id='enso-plume-title',
                     img_id='enso-mega-plume-img',
                     img_src='/assets/images/enso_mega_plume_dark.png',
                     graph_id='enso-mega-plume-plot', graph_height=550, tag="Monthly",
@@ -2499,14 +2491,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.section("02", "How strong, when", "Model-equal weighting",
                   "The same ensemble, sliced two ways: the monthly forecast "
                   "distribution, and the seasonal odds of each ENSO category.", [
-            L.panel("Monthly forecast distribution",
+            L.panel("Monthly forecast distribution · ONI (Niño 3.4)",
+                    title_id='enso-box-title',
                     img_id='enso-box-distribution-img',
                     img_src='/assets/images/enso_box_distribution_dark.png',
                     graph_id='enso-box-distribution-plot', graph_height=550,
                     caption="Dots: individual ensemble members, colored by "
                             "model. Boxes span the model-weighted "
                             "interquartile range."),
-            L.panel("Strength probabilities by season",
+            L.panel("Strength probabilities by season · ONI (Niño 3.4)",
+                    title_id='enso-probs-title',
                     img_id='enso-strength-probs-img',
                     img_src='/assets/images/enso_strength_probs_dark.png',
                     graph_id='enso-strength-probs-plot', graph_height=500,
@@ -2517,7 +2511,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.section("03", "In context", "1990–present",
                   "The observed ENSO record with the current forecast appended. "
                   "Red spans are El Niño events, blue La Niña.", [
-            L.panel("Historical record and current forecast",
+            L.panel("Historical record and current forecast · ONI (Niño 3.4)",
+                    title_id='enso-historical-title',
                     img_id='enso-historical-img',
                     img_src='/assets/images/enso_historical_dark.png',
                     graph_id='enso-historical-plot', graph_height=450,
@@ -3188,12 +3183,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # ── ENSO Forecast callbacks ─────────────────────────────────────────────
 
-    # ENSO card values follow the rONI toggle
+    # ENSO card values and panel titles follow the rONI toggle
     @app.callback(
         [Output('enso-card-1-value', 'children'),
          Output('enso-card-1-sub', 'children'),
          Output('enso-card-2-value', 'children'),
-         Output('enso-card-2-sub', 'children')],
+         Output('enso-card-2-sub', 'children'),
+         Output('enso-plume-title', 'children'),
+         Output('enso-box-title', 'children'),
+         Output('enso-probs-title', 'children'),
+         Output('enso-historical-title', 'children')],
         [Input('enso-index-toggle', 'value')],
     )
     def update_enso_card_values(roni_on):
@@ -3201,11 +3200,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         label, val, when = L.split_enso_state(cards.get('current_state', 'N/A'))
         idx_name = 'rONI' if roni_on else 'Niño 3.4'
         sub = f"{idx_name} at {val} ({when})" if val else "N/A"
+        idx_title = ('rONI (relative Niño 3.4)' if roni_on
+                     else 'ONI (Niño 3.4)')
         return (
             label,
             sub,
             cards.get('max_change_str', 'N/A'),
             cards.get('max_change_range', 'N/A'),
+            f"Combined forecast plume · {idx_title}",
+            f"Monthly forecast distribution · {idx_title}",
+            f"Strength probabilities by season · {idx_title}",
+            f"Historical record and current forecast · {idx_title}",
         )
 
     # ENSO Graph 1: Mega Plume (triggered by interactive switch + dark mode)
