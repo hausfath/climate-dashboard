@@ -669,9 +669,19 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             xshift=-8, yshift=-4,
         )
 
+    # Default view starts at 1990 so recent values aren't squashed; the full
+    # record stays in the traces, so zooming out (double-click) reaches 1940.
+    recent_vals = [v for y, v in historical_values.items() if y >= 1990]
+    y_candidates = recent_vals + [1.5]
+    if predicted_value is not None:
+        y_candidates.append(predicted_value + (error or 0))
+        y_candidates.append(mtd_avg)
+    y_lo = min(y_candidates) - 0.08
+    y_hi = max(y_candidates) + 0.15
+
     fig.update_layout(
-        xaxis=dict(title='', range=[min(historical_years) - 1, target_year + 1.5]),
-        yaxis_title='Temperature anomaly (°C)',
+        xaxis=dict(title='', range=[1989.2, target_year + 1.5]),
+        yaxis=dict(title='Temperature anomaly (°C)', range=[y_lo, y_hi]),
         hovermode='x',
         template=theme['template'],
         showlegend=False,
@@ -1245,10 +1255,21 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             xshift=-8, yshift=-4,
         )
 
+    # Default view starts at 1990 so recent values aren't squashed; the full
+    # record stays in the traces, so zooming out (double-click) reaches 1940.
+    recent = historical[historical['year'] >= 1990]['annual_anomaly']
+    y_candidates = recent.tolist() + [1.5]
+    if prediction_2026:
+        y_candidates.append(prediction_2026['ub'])
+    if len(current_year_data) > 0:
+        y_candidates.append(ytd_anomaly)
+    y_lo = min(y_candidates) - 0.08
+    y_hi = max(y_candidates) + 0.15
+
     # Layout
     fig.update_layout(
-        xaxis=dict(title='', range=[1938, current_year + 2], dtick=10),
-        yaxis=dict(title='Temperature anomaly (°C)', range=[-0.2, 1.8]),
+        xaxis=dict(title='', range=[1989.2, current_year + 2], dtick=5),
+        yaxis=dict(title='Temperature anomaly (°C)', range=[y_lo, y_hi]),
         hovermode='x',
         template=theme['template'],
         showlegend=False,
