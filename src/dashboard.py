@@ -100,9 +100,6 @@ def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
 # ECMWF EC46 forecast tail (loaded once per render; used by Figures 1 & 2)
 # ---------------------------------------------------------------------------
 
-EC46_ANCHOR_DAYS = 7
-
-
 def _load_ec46_forecast() -> pd.DataFrame | None:
     """Read the latest EC46 percentile-summary CSV under ``data/``.
     Returns None if no forecast file is present (graceful fallback)."""
@@ -119,26 +116,29 @@ def _load_ec46_forecast() -> pd.DataFrame | None:
     return df
 
 
-def _ec46_anomalize_and_anchor(
+def _ec46_anomalize(
     fcst: pd.DataFrame, obs_adj: pd.DataFrame
-) -> tuple[pd.DataFrame, float] | None:
+) -> pd.DataFrame | None:
     """Convert EC46 absolute t2m to preindustrial anomaly + apply a
-    data-driven model bias correction + anchor the residual to the
-    last-7-day observed mean.
+    data-driven model bias correction.
 
-    The bias correction comes from src.ec46_skill (mean of ERA5 obs −
-    forecast t2m at lead-day-0 across all archived inits) and removes
-    the ~0.2 °C cold offset between ECMWF's operational analysis (used
-    to initialise EC46) and ERA5 reanalysis. The remaining 7-day anchor
-    only has to smooth the small residual synoptic noise on the
-    boundary day, so the forecast tail stays visually continuous with
-    the observed trace without yanking the whole trajectory by a large
-    per-init delta.
+    This uses exactly the same transform as the EC46 forecast-skill plot
+    (src.ec46_skill._anomalize_forecast): subtract the per-day-of-year
+    1991–2020 climatology, add the monthly preindustrial offset, and add
+    a single archive-wide bias correction. That bias (mean of ERA5 obs −
+    forecast t2m at lead-day-0 across all archived inits) removes the
+    ~0.2 °C cold offset between ECMWF's operational analysis (used to
+    initialise EC46) and ERA5 reanalysis.
+
+    The forecast is intentionally *not* anchored to recent observations,
+    so the dashboard tail matches the skill plot exactly. A small step
+    (~0.05 °C, the former anchor delta) may therefore appear at the
+    observed→forecast boundary; the dotted bridge segment spans it.
 
     obs_adj must already have its anomaly column preindustrial-adjusted
-    (i.e. produced by adjust_anomalies_to_preindustrial). Returns
-    (anchored DataFrame with same percentile cols, residual offset)
-    or None if alignment is impossible.
+    (i.e. produced by adjust_anomalies_to_preindustrial). Returns a
+    DataFrame with the same percentile cols, or None if alignment is
+    impossible.
     """
     if fcst is None or fcst.empty or obs_adj is None or obs_adj.empty:
         return None
@@ -173,17 +173,7 @@ def _ec46_anomalize_and_anchor(
     for c in cols:
         out[c] = out[c] + bias - out["clim_C"] + out["pi_offset"]
 
-    # Anchor: shift trajectory so day 0 matches the recent observed mean.
-    # After the bias correction this delta should be small (~0.05 °C).
-    fc_start = out["date"].iloc[0]
-    obs_recent = obs[obs["date"] < fc_start].tail(EC46_ANCHOR_DAYS)
-    if obs_recent.empty:
-        return None
-    anchor_value = float(obs_recent["anomaly"].mean())
-    delta = anchor_value - float(out["t2m_mean"].iloc[0])
-    for c in cols:
-        out[c] = out[c] + delta
-    return out.drop(columns=["clim_C", "pi_offset"]), delta
+    return out.drop(columns=["clim_C", "pi_offset"])
 
 
 def _hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -342,26 +332,25 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
     # ECMWF EC46 forecast tail layered onto the current-year trace
     ec46 = _load_ec46_forecast()
     if ec46 is not None and not ec46.empty:
-        result = _ec46_anomalize_and_anchor(ec46, df_adj)
-        if result is not None:
-            anchored, _ = result
-            current_year = int(anchored['date'].iloc[0].year)
+        ec46_anom = _ec46_anomalize(ec46, df_adj)
+        if ec46_anom is not None:
+            current_year = int(ec46_anom['date'].iloc[0].year)
             color = theme['highlight_colors'].get(
                 current_year, theme['rolling_color'])
             band_outer = _hex_to_rgba(color, 0.10)
             band_inner = _hex_to_rgba(color, 0.22)
-            fc_doy = anchored['date'].dt.dayofyear
+            fc_doy = ec46_anom['date'].dt.dayofyear
 
             fig.add_trace(go.Scatter(
                 x=list(fc_doy) + list(fc_doy[::-1]),
-                y=list(anchored['t2m_p95']) + list(anchored['t2m_p5'][::-1]),
+                y=list(ec46_anom['t2m_p95']) + list(ec46_anom['t2m_p5'][::-1]),
                 fill='toself', fillcolor=band_outer,
                 line=dict(width=0), hoverinfo='skip',
                 name=f'EC46 5–95th %ile', showlegend=False,
             ))
             fig.add_trace(go.Scatter(
                 x=list(fc_doy) + list(fc_doy[::-1]),
-                y=list(anchored['t2m_p75']) + list(anchored['t2m_p25'][::-1]),
+                y=list(ec46_anom['t2m_p75']) + list(ec46_anom['t2m_p25'][::-1]),
                 fill='toself', fillcolor=band_inner,
                 line=dict(width=0), hoverinfo='skip',
                 name=f'EC46 25–75th %ile', showlegend=False,
@@ -372,14 +361,14 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
                 last_obs = cy_obs.iloc[-1]
                 fig.add_trace(go.Scatter(
                     x=[last_obs['day_of_year'], int(fc_doy.iloc[0])],
-                    y=[last_obs['anomaly'], anchored['t2m_mean'].iloc[0]],
+                    y=[last_obs['anomaly'], ec46_anom['t2m_mean'].iloc[0]],
                     mode='lines',
                     line=dict(color=color, width=2.5, dash='dot'),
                     showlegend=False, hoverinfo='skip',
                 ))
-            fc_dates = anchored['date'].dt.strftime('%b %-d')
+            fc_dates = ec46_anom['date'].dt.strftime('%b %-d')
             fig.add_trace(go.Scatter(
-                x=fc_doy, y=anchored['t2m_mean'],
+                x=fc_doy, y=ec46_anom['t2m_mean'],
                 mode='lines',
                 name=f'{current_year} forecast (EC46)',
                 line=dict(color=color, width=2.5, dash='dash'),
