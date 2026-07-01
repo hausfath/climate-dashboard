@@ -666,6 +666,7 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
     # legend — hover identifies the model; the plume panel carries the roster.
     np.random.seed(42)
     for i, tm in enumerate(target_months):
+        tm_label = pd.Timestamp(tm + "-01").strftime("%b %Y")
         for model in models:
             color = MEGA_COLORS.get(model, "#999999")
             mdf = members[(members["target_month"] == tm) & (members["model"] == model)]
@@ -678,7 +679,8 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
                 marker=dict(color=color, size=4.5, opacity=0.45),
                 showlegend=False,
                 name=model,
-                hovertemplate=f"{model}: %{{y:.2f}}°C<extra></extra>",
+                hovertemplate=(f"{tm_label} · {model}<br>"
+                               "%{y:.2f}°C<extra></extra>"),
             ))
 
     # -- Weighted box plots via shapes --
@@ -785,6 +787,9 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
         template=theme["template"],
         height=550,
         showlegend=False,
+        # Closest-point hover: the template's unified mode would list every
+        # member at the hovered month in one giant tooltip.
+        hovermode="closest",
         margin=dict(l=60, r=30, t=30, b=50),
     )
 
