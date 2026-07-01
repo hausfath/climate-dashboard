@@ -44,12 +44,10 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(15, 157, 148, 0.08)',
         'background_years_color': 'rgba(31, 36, 48, 0.15)',
         'enso_update_color': '#2e9cb8',
-        'era_band_colors': ['rgba(46, 111, 201, 0.13)',
-                            'rgba(31, 36, 48, 0.13)',
-                            'rgba(232, 137, 12, 0.15)'],
-        'era_line_colors': ['rgba(46, 111, 201, 0.55)',
-                            'rgba(31, 36, 48, 0.45)',
-                            'rgba(232, 137, 12, 0.6)'],
+        'era_range_fill': 'rgba(31, 36, 48, 0.08)',
+        'era_line_colors': ['rgba(46, 111, 201, 0.8)',
+                            'rgba(31, 36, 48, 0.5)',
+                            'rgba(232, 137, 12, 0.85)'],
     },
     'dark': {
         'template': 'climate_dark',
@@ -75,12 +73,10 @@ THEME_CONFIG = {
         'vrect_color': 'rgba(78, 205, 196, 0.10)',
         'background_years_color': 'rgba(232, 234, 242, 0.13)',
         'enso_update_color': '#48cae4',
-        'era_band_colors': ['rgba(84, 160, 255, 0.12)',
-                            'rgba(232, 234, 242, 0.11)',
-                            'rgba(255, 159, 67, 0.13)'],
-        'era_line_colors': ['rgba(84, 160, 255, 0.5)',
-                            'rgba(232, 234, 242, 0.4)',
-                            'rgba(255, 159, 67, 0.55)'],
+        'era_range_fill': 'rgba(232, 234, 242, 0.10)',
+        'era_line_colors': ['rgba(84, 160, 255, 0.8)',
+                            'rgba(232, 234, 242, 0.6)',
+                            'rgba(255, 159, 67, 0.85)'],
     }
 }
 
@@ -300,25 +296,39 @@ def get_recent_month_bounds(df: pd.DataFrame) -> tuple:
 
 def _add_era_envelopes(fig: go.Figure, df: pd.DataFrame, value_col: str,
                        theme: dict) -> None:
-    """Replace per-year background spaghetti with 5–95th percentile envelopes
-    for each era in ERA_BANDS. Percentiles are computed per day-of-year and
-    lightly smoothed so the bands read as clean shapes."""
-    for (start, end), fill, line in zip(ERA_BANDS,
-                                        theme['era_band_colors'],
-                                        theme['era_line_colors']):
+    """Historical context: one neutral 5–95% envelope for the full
+    pre-highlight record, plus a median line per era. The eras' upward shift
+    reads as clean lines instead of overlapping translucent fills (which
+    blended into colors that matched nothing in the legend)."""
+    full_start, full_end = ERA_BANDS[0][0], ERA_BANDS[-1][1]
+    hist = df[(df['year'] >= full_start) & (df['year'] <= full_end)]
+    if hist.empty:
+        return
+
+    grouped = hist.groupby('day_of_year')[value_col]
+    p05 = grouped.quantile(0.05).rolling(7, center=True, min_periods=1).mean()
+    p95 = grouped.quantile(0.95).rolling(7, center=True, min_periods=1).mean()
+    doy = p05.index.tolist()
+    fig.add_trace(go.Scatter(
+        x=doy + doy[::-1],
+        y=p95.tolist() + p05.tolist()[::-1],
+        fill='toself', fillcolor=theme['era_range_fill'],
+        line=dict(width=0),
+        name=f'{full_start}–{full_end} range',
+        hoverinfo='skip',
+    ))
+
+    for (start, end), line_color in zip(ERA_BANDS, theme['era_line_colors']):
         era = df[(df['year'] >= start) & (df['year'] <= end)]
         if era.empty:
             continue
-        grouped = era.groupby('day_of_year')[value_col]
-        p05 = grouped.quantile(0.05).rolling(7, center=True, min_periods=1).mean()
-        p95 = grouped.quantile(0.95).rolling(7, center=True, min_periods=1).mean()
-        doy = p05.index.tolist()
+        med = (era.groupby('day_of_year')[value_col].median()
+                  .rolling(7, center=True, min_periods=1).mean())
         fig.add_trace(go.Scatter(
-            x=doy + doy[::-1],
-            y=p95.tolist() + p05.tolist()[::-1],
-            fill='toself', fillcolor=fill,
-            line=dict(color=line, width=0.5),
-            name=f'{start}–{end}',
+            x=med.index, y=med.values,
+            mode='lines',
+            line=dict(color=line_color, width=1.6),
+            name=f'{start}–{end} median',
             hoverinfo='skip',
         ))
 
@@ -351,8 +361,8 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         layer="below", line_width=0,
     )
     fig.add_annotation(
-        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='bottom',
-        text='current month', showarrow=False, yshift=2,
+        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='top',
+        text='current month', showarrow=False, yshift=-4,
         font=dict(size=10.5, color=theme['text_dim']),
     )
 
@@ -471,8 +481,8 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         layer="below", line_width=0,
     )
     fig.add_annotation(
-        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='bottom',
-        text='current month', showarrow=False, yshift=2,
+        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='top',
+        text='current month', showarrow=False, yshift=-4,
         font=dict(size=10.5, color=theme['text_dim']),
     )
 
@@ -629,6 +639,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             y=[predicted_value],
             mode='markers',
             name=f'{month_name} {target_year}: {predicted_value:.2f} ±{error:.2f}°C',
+            legendrank=2,
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
@@ -647,6 +658,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
             y=[mtd_avg],
             mode='markers',
             name=f'Month-to-date ({days_so_far}d): {mtd_avg:.2f}°C',
+            legendrank=1,
             marker=dict(color=theme['mtd_color'], size=10, symbol='diamond'),
             hovertemplate=f'Month-to-date<br>Average: {mtd_avg:.2f}°C<br>({days_so_far} days)<extra></extra>'
         ))
@@ -1200,6 +1212,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             y=[ytd_anomaly],
             mode='markers',
             name=f'{current_year} YTD: {ytd_anomaly:.2f}°C',
+            legendrank=1,
             marker=dict(color=theme['ytd_color'], size=10, symbol='diamond'),
             hovertemplate=f'{current_year} YTD<br>Anomaly: %{{y:.2f}}°C<extra></extra>'
         ))
@@ -1215,6 +1228,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             mode='markers',
             name=(f"{current_year} projection: "
                   f"{prediction_2026['predicted']:.2f} ±{half:.2f}°C"),
+            legendrank=2,
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
                 type='data',
@@ -2302,9 +2316,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         value='anomaly',
                     ),
                     caption=[
-                        "Recent years against era envelopes (5–95th percentile "
-                        "per era). Dashed: ", html.B("EC46 46-day forecast"),
-                        ". Shaded band: the current month.",
+                        "Recent years against the 1940–2022 range (5–95%), "
+                        "with each era's median path. Dashed: ",
+                        html.B("EC46 46-day forecast"),
+                        ". Shaded column: the current month.",
                     ]),
         ], section_id='sec-now'),
         L.section("02", f"Where {stats['current_year']} is heading",
@@ -2744,6 +2759,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet'}
     _NAV_ACTIVE = {'global': 'tab-active-temp', 'enso': 'tab-active-enso',
                    'models': 'tab-active-models'}
+    # Brand subtitle follows the active tab's data source
+    _TAB_BRAND_SUB = {'global': 'ERA5 · daily', 'enso': 'Niño 3.4 · monthly',
+                      'models': 'CMIP · obs'}
 
     # Callback to switch between tab content divs
     @app.callback(
@@ -2755,6 +2773,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('nav-global', 'className'),
          Output('nav-enso', 'className'),
          Output('nav-models', 'className'),
+         Output('brand-sub', 'children'),
          Output('url', 'hash')],
         [Input('nav-global', 'n_clicks'),
          Input('nav-enso', 'n_clicks'),
@@ -2792,6 +2811,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             nav_cls('global'),
             nav_cls('enso'),
             nav_cls('models'),
+            _TAB_BRAND_SUB[tab],
             f'#{tab}',
         )
 

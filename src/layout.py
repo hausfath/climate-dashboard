@@ -22,7 +22,7 @@ def topbar(last_updated: str) -> html.Header:
     return html.Header([
         html.Div([
             "CLIMATE", html.Span("·", className="dot"), "DASHBOARD",
-            html.Span("ERA5 · daily", className="brand-sub"),
+            html.Span("ERA5 · daily", className="brand-sub", id='brand-sub'),
         ], className="brand"),
         dbc.Nav([
             dbc.NavItem(dbc.NavLink("Temperature", id='nav-global', href='#global', n_clicks=0)),
