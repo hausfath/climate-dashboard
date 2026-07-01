@@ -64,7 +64,7 @@ def load_enso_forecast_data():
 
 
 def load_full_observed(start_year=1990):
-    """Load the full observed Niño 3.4 record with rONI columns merged in."""
+    """Load the full observed Niño 3.4 record with RONI columns merged in."""
     obs_path = OBSERVED_DIR / "nino34_monthly.csv"
     if not obs_path.exists():
         return pd.DataFrame()
@@ -76,20 +76,20 @@ def load_full_observed(start_year=1990):
 
 
 # ---------------------------------------------------------------------------
-# Index-mode helpers (ONI vs rONI)
+# Index-mode helpers (ONI vs RONI)
 # ---------------------------------------------------------------------------
 
 INDEX_MODES = ("oni", "roni")
 
 
 def _index_meta(index_mode: str) -> dict:
-    """Return label/column metadata for ONI vs rONI display modes."""
+    """Return label/column metadata for ONI vs RONI display modes."""
     if index_mode == "roni":
         return {
             "col": "roni_anom",
-            "y_label": "Niño 3.4 minus tropical mean (rONI, \u00b0C)",
-            "short": "rONI",
-            "long": "Niño 3.4 Relative SST Anomaly (rONI)",
+            "y_label": "Niño 3.4 minus tropical mean (RONI, \u00b0C)",
+            "short": "RONI",
+            "long": "Niño 3.4 Relative SST Anomaly (RONI)",
         }
     return {
         "col": "nino34_anom",
@@ -103,7 +103,7 @@ def _swap_to_nino34(df: pd.DataFrame, source_col: str) -> pd.DataFrame:
     """Return a copy of ``df`` with ``source_col`` renamed to ``nino34_anom``.
 
     Lets downstream plotting code reference a single column name regardless
-    of whether the active index is ONI or rONI. If ``source_col`` is missing
+    of whether the active index is ONI or RONI. If ``source_col`` is missing
     or all-NaN, returns the df unchanged so the caller can fall back.
     """
     if df is None or df.empty:
@@ -129,7 +129,7 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None, index_mode="oni"):
     Returns DataFrame with columns: date, year, month, <value>, is_forecast
     where <value> is ``oni`` for index_mode="oni" or ``roni`` for "roni".
     Observed data comes from NOAA's seasonal ONI / monthly Niño 3.4 (for
-    ONI mode) or directly from ``obs_df.roni_anom`` (for rONI mode, which
+    ONI mode) or directly from ``obs_df.roni_anom`` (for RONI mode, which
     already merges NOAA's monthly rNINO3.4 with the seasonal RONI as
     fallback in ``merge_observed_with_roni``). Forecast portion uses the
     multi-model weighted median across the combined ensemble plume.
@@ -169,10 +169,10 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None, index_mode="oni"):
                     })
                     obs_dates.add(period)
     else:
-        # rONI mode: ``obs_df.roni_anom`` already merges monthly rNINO3.4
+        # RONI mode: ``obs_df.roni_anom`` already merges monthly rNINO3.4
         # (preferred) with seasonal NOAA RONI (fallback for older months
         # — see ``merge_observed_with_roni``), so it's the single source
-        # of truth for observed rONI.
+        # of truth for observed RONI.
         if obs_df is not None and not obs_df.empty and "roni_anom" in obs_df.columns:
             roni_obs = obs_df.dropna(subset=["roni_anom"]).sort_values("date")
             for _, r in roni_obs.iterrows():
@@ -279,7 +279,7 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None, index_mode="oni"):
 
     fc_col = "roni_anom" if index_mode == "roni" else "nino34_anom"
     obs_col = "roni_anom" if index_mode == "roni" else "nino34_anom"
-    label_short = "rONI" if index_mode == "roni" else "Niño 3.4"
+    label_short = "RONI" if index_mode == "roni" else "Niño 3.4"
 
     # Current ENSO state from latest observed monthly value
     if obs_df is not None and not obs_df.empty and obs_col in obs_df.columns:
@@ -421,7 +421,7 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
     meta = _index_meta(index_mode)
     fig = go.Figure()
 
-    # For rONI, swap the source column into nino34_anom so downstream plot
+    # For RONI, swap the source column into nino34_anom so downstream plot
     # logic stays unchanged.
     forecast_df = _swap_to_nino34(forecast_df, meta["col"])
     obs_df = _swap_to_nino34(obs_df, meta["col"])
@@ -803,7 +803,7 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
 # ---------------------------------------------------------------------------
 
 def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni"):
-    """Observed Niño 3.4 (or rONI) since 1990 with threshold fills + forecast overlay."""
+    """Observed Niño 3.4 (or RONI) since 1990 with threshold fills + forecast overlay."""
     theme = get_theme(dark_mode)
     meta = _index_meta(index_mode)
     fig = go.Figure()
@@ -816,7 +816,7 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         return fig
 
     # Drop any leading rows where the active index has no data (early years
-    # of the rONI seasonal series may not cover the full nino34_monthly span).
+    # of the RONI seasonal series may not cover the full nino34_monthly span).
     obs_full = obs_full.dropna(subset=["nino34_anom"]).reset_index(drop=True)
     if obs_full.empty:
         fig.update_layout(title=f"No observed {meta['short']} data available")
@@ -1348,7 +1348,7 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
 # ---------------------------------------------------------------------------
 
 def generate_enso_static_images(forecast_df, obs_df, assets_dir):
-    """Render 16 static PNGs: 4 plots × 2 themes × 2 indices (ONI / rONI)."""
+    """Render 16 static PNGs: 4 plots × 2 themes × 2 indices (ONI / RONI)."""
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1375,7 +1375,7 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
             for name, create_func, height, width in plot_configs:
                 # Backwards-compat filename for ONI: keep `{name}_{mode}.png`
                 # so the dashboard doesn't need to special-case the legacy
-                # default. rONI gets a `_roni_{mode}.png` suffix.
+                # default. RONI gets a `_roni_{mode}.png` suffix.
                 if index_mode == "oni":
                     filename = f"{name}_{mode}.png"
                 else:

@@ -2260,6 +2260,23 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _enso_state_label, _enso_state_val, _enso_state_when = L.split_enso_state(
         _enso_cards.get('current_state', 'N/A'))
 
+    # Latest daily Niño 3.4 / RONI reading (OISSTv2.1, refreshed by the cron)
+    _nino_daily = None
+    try:
+        from src.nino_daily import load_daily_status
+        _nino_daily = load_daily_status()
+    except Exception as e:
+        logger.warning(f"Could not load daily Niño 3.4 status: {e}")
+
+    def _daily_idx_sub(roni: bool):
+        """KPI sub-line for the daily index reading."""
+        if not _nino_daily:
+            return None
+        val = _nino_daily['roni_anom'] if roni else _nino_daily['nino34_anom']
+        name = 'RONI' if roni else 'Niño 3.4'
+        return (f"Daily {name}: {val:+.2f}°C ({_nino_daily['date']}, "
+                f"OISSTv2.1)")
+
     temp_kpis = L.kpi_row([
         L.kpi(f"Latest day · {stats['latest_date']}", stats['latest_anomaly'],
               ([html.Span(stats['daily_rank'], className='rank'),
@@ -2277,8 +2294,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.kpi("365-day mean", stats.get('rolling_365') or "N/A",
               "vs preindustrial 1850–1900"),
         L.kpi("ENSO state", _enso_state_label,
-              (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
-               if _enso_state_val else "Forecast on the ENSO tab")),
+              (_daily_idx_sub(False) or
+               (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
+                if _enso_state_val else "Forecast on the ENSO tab"))),
     ])
 
     tab_global = html.Div(id='tab-content-global', children=[
@@ -2447,12 +2465,23 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ]
     else:
         enso_headline = ["Seasonal ENSO forecasts, aggregated."]
-    enso_lede = [
-        "Observed Niño 3.4 is at ", html.Strong(_enso_state_val or "N/A"),
-        f" ({_enso_state_when})." if _enso_state_when else ".",
-        " Every seasonal forecast system's full ensemble is aggregated with "
-        "equal model weighting, updated as new runs arrive.",
-    ]
+    if _nino_daily:
+        enso_lede = [
+            "Daily Niño 3.4 (OISSTv2.1) is at ",
+            html.Strong(f"{_nino_daily['nino34_anom']:+.2f}°C"),
+            f" as of {_nino_daily['date']}; the monthly index reached ",
+            html.Strong(_enso_state_val or "N/A"),
+            f" in {_enso_state_when}." if _enso_state_when else ".",
+            " Every seasonal forecast system's full ensemble is aggregated "
+            "with equal model weighting, updated as new runs arrive.",
+        ]
+    else:
+        enso_lede = [
+            "Observed Niño 3.4 is at ", html.Strong(_enso_state_val or "N/A"),
+            f" ({_enso_state_when})." if _enso_state_when else ".",
+            " Every seasonal forecast system's full ensemble is aggregated with "
+            "equal model weighting, updated as new runs arrive.",
+        ]
 
     enso_strip = None
     if _enso_odds:
@@ -2486,7 +2515,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             className='segmented btn-group',
             inputClassName='btn-check', labelClassName='btn',
             options=[{'label': 'ONI', 'value': False},
-                     {'label': 'rONI', 'value': True}],
+                     {'label': 'RONI', 'value': True}],
             value=False,
         ),
     ]
@@ -3205,7 +3234,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # ── ENSO Forecast callbacks ─────────────────────────────────────────────
 
-    # ENSO card values and panel titles follow the rONI toggle
+    # ENSO card values and panel titles follow the RONI toggle
     @app.callback(
         [Output('enso-card-1-value', 'children'),
          Output('enso-card-1-sub', 'children'),
@@ -3220,9 +3249,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_enso_card_values(roni_on):
         cards = _enso_cards_roni if roni_on else _enso_cards
         label, val, when = L.split_enso_state(cards.get('current_state', 'N/A'))
-        idx_name = 'rONI' if roni_on else 'Niño 3.4'
-        sub = f"{idx_name} at {val} ({when})" if val else "N/A"
-        idx_title = ('rONI (relative Niño 3.4)' if roni_on
+        idx_name = 'RONI' if roni_on else 'Niño 3.4'
+        daily = _daily_idx_sub(bool(roni_on))
+        if daily and val:
+            sub = [daily, html.Br(), f"Monthly: {val} ({when})"]
+        elif val:
+            sub = f"{idx_name} at {val} ({when})"
+        else:
+            sub = "N/A"
+        idx_title = ('RONI (relative Niño 3.4)' if roni_on
                      else 'ONI (Niño 3.4)')
         return (
             label,
