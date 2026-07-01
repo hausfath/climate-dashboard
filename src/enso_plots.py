@@ -582,6 +582,19 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
     ymin = min(-3.0, min(all_vals) - 0.3) if all_vals else -3.0
     ymax = max(3.0, max(all_vals) + 0.3) if all_vals else 3.0
 
+    # X-axis end from the latest plotted month (+ padding). A half-open
+    # range like ["2025-12-01", None] renders blank in the browser (plotly.js
+    # treats it as invalid until an axis reset), even though kaleido copes.
+    x_dates = []
+    if not means.empty:
+        x_dates.extend(means["date"].tolist())
+    if not members.empty:
+        x_dates.extend(members["date"].tolist())
+    if x_dates:
+        x_end = max(x_dates) + pd.DateOffset(months=1)
+    else:
+        x_end = pd.Timestamp.today() + pd.DateOffset(months=10)
+
     # ENSO background shading (use computed ymin/ymax so autorange stays bounded)
     fig.add_shape(type="rect", x0=0, x1=1, y0=0.5, y1=ymax,
                   xref="paper", yref="y",
@@ -603,7 +616,7 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
             font=dict(size=10.5),
         ),
         margin=dict(l=60, r=30, t=30, b=50),
-        xaxis=dict(range=["2025-12-01", None]),
+        xaxis=dict(range=["2025-12-01", x_end]),
         yaxis=dict(range=[ymin, ymax]),
     )
 

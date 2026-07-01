@@ -438,11 +438,17 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
             ticktext=month_names,
             range=[1, 366],
         ),
-        # Default zoom on the ~1–2°C band where recent years live, so they
-        # are directly comparable; double-click/zoom-out shows the full range.
-        yaxis=dict(title='Temperature anomaly (°C)', range=[0.95, 2.1]),
+        yaxis=dict(title='Temperature anomaly (°C)'),
         hovermode='x',
         template=theme['template'],
+        # Boxed legend in the lower left, where the plot area is empty
+        legend=dict(
+            orientation='v',
+            x=0.01, y=0.02, xanchor='left', yanchor='bottom',
+            bgcolor=theme['paper_color'],
+            bordercolor=theme['grid_color'], borderwidth=1,
+            font=dict(size=11.5),
+        ),
         height=500,
     )
 
@@ -511,6 +517,14 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         yaxis=dict(title='Temperature (°C)'),
         hovermode='x',
         template=theme['template'],
+        # Boxed legend in the upper left (winter dip leaves that corner free)
+        legend=dict(
+            orientation='v',
+            x=0.01, y=0.98, xanchor='left', yanchor='top',
+            bgcolor=theme['paper_color'],
+            bordercolor=theme['grid_color'], borderwidth=1,
+            font=dict(size=11.5),
+        ),
         height=500,
     )
 
