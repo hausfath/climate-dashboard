@@ -2202,10 +2202,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     # Odds at the latest month where all models report (not a seasonal mean —
     # seasonal means blend in observed months and drop short-horizon models).
     _enso_odds = None
+    _enso_odds_roni = None
     try:
         if _ENSO_AVAILABLE:
             from src.enso_plots import compute_peak_month_odds
             _enso_odds = L.enso_odds_view(compute_peak_month_odds(_enso_forecast_df))
+            _enso_odds_roni = L.enso_odds_view(
+                compute_peak_month_odds(_enso_forecast_df, index_mode='roni'))
     except Exception as e:
         logger.warning(f"Could not compute ENSO peak odds: {e}")
 
@@ -2483,12 +2486,26 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             "equal model weighting, updated as new runs arrive.",
         ]
 
-    enso_strip = None
-    if _enso_odds:
-        enso_strip = L.prob_strip(
-            f"Odds for {_enso_odds['month_label']}",
-            f"all {_enso_odds['n_models']} models · equal weight",
-            _enso_odds['segments'], _enso_odds['legend'])
+    def _enso_odds_strip(odds, idx_label):
+        if not odds:
+            return None
+        return L.prob_strip(
+            f"Odds for {odds['month_label']} · {idx_label}",
+            f"all {odds['n_models']} models · equal weight",
+            odds['segments'], odds['legend'])
+
+    def _pvs_card_parts(odds, idx_label):
+        """Label / value / sub for the P(very strong) KPI, per index mode."""
+        if not odds:
+            return "P(very strong)", "N/A", "multi-model ensemble"
+        return (
+            f"P(very strong) · {odds['month_label']} · {idx_label}",
+            L.fmt_prob(odds['p_very']),
+            f"index ≥ 2.0°C · latest month with all {odds['n_models']} models",
+        )
+
+    enso_strip = _enso_odds_strip(_enso_odds, 'ONI')
+    _pvs_label, _pvs_value, _pvs_sub = _pvs_card_parts(_enso_odds, 'ONI')
 
     enso_kpis = L.kpi_row([
         L.kpi("Current state",
@@ -2502,11 +2519,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.kpi("Forecast peak", _enso_cards.get('max_change_str', 'N/A'),
               _enso_cards.get('max_change_range', 'N/A'),
               value_id='enso-card-2-value', sub_id='enso-card-2-sub'),
-        L.kpi((f"P(very strong) · {_enso_odds['month_label']}"
-               if _enso_odds else "P(very strong)"),
-              (L.fmt_prob(_enso_odds['p_very']) if _enso_odds else "N/A"),
-              (f"index ≥ 2.0°C · latest month with all {_enso_odds['n_models']} models"
-               if _enso_odds else "multi-model ensemble")),
+        L.kpi(_pvs_label, _pvs_value, _pvs_sub,
+              label_id='enso-card-3-label', value_id='enso-card-3-value',
+              sub_id='enso-card-3-sub'),
         L.kpi("Ensemble",
               [f"{_enso_cards.get('n_models', '?')} ", html.Small("models")],
               f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS"),
@@ -2528,7 +2543,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.hero("El Niño Watch · Niño 3.4" if _enso_state_label.startswith('El Niño')
                else "La Niña Watch · Niño 3.4" if _enso_state_label.startswith('La Niña')
                else "ENSO Forecast · Niño 3.4",
-               enso_headline, enso_lede, right=enso_strip),
+               enso_headline, enso_lede,
+               right=enso_strip, right_id='enso-odds-wrap'),
         enso_kpis,
         L.section("01", "The forecast", _enso_index_ctl,
                   "Every seasonal forecast system's full ensemble, drawn as one "
@@ -3244,6 +3260,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-card-1-sub', 'children'),
          Output('enso-card-2-value', 'children'),
          Output('enso-card-2-sub', 'children'),
+         Output('enso-card-3-label', 'children'),
+         Output('enso-card-3-value', 'children'),
+         Output('enso-card-3-sub', 'children'),
+         Output('enso-odds-wrap', 'children'),
          Output('enso-plume-title', 'children'),
          Output('enso-box-title', 'children'),
          Output('enso-probs-title', 'children'),
@@ -3272,11 +3292,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             sub = f"{idx_name} at {val} ({when})" if val else "N/A"
         idx_title = ('RONI (relative Niño 3.4)' if roni_on
                      else 'ONI (Niño 3.4)')
+        odds = _enso_odds_roni if roni_on else _enso_odds
+        pvs_label, pvs_value, pvs_sub = _pvs_card_parts(odds, idx_name if roni_on else 'ONI')
         return (
             value,
             sub,
             cards.get('max_change_str', 'N/A'),
             cards.get('max_change_range', 'N/A'),
+            pvs_label,
+            pvs_value,
+            pvs_sub,
+            _enso_odds_strip(odds, 'RONI' if roni_on else 'ONI'),
             f"Combined forecast plume · {idx_title}",
             f"Monthly forecast distribution · {idx_title}",
             f"Strength probabilities by season · {idx_title}",
