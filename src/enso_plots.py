@@ -483,6 +483,25 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
                 name="25–75th %ile", hoverinfo="skip",
             ))
 
+    # -- Individual members as thin transparent lines (texture on top of the
+    # fan; None-separated per model for efficiency) --
+    if not members.empty:
+        for model in sorted(members["model"].unique()):
+            color = MEGA_COLORS.get(model, "#999999")
+            model_members = members[members["model"] == model]
+            xs, ys = [], []
+            for _, mdf in model_members.groupby("member_id"):
+                mdf = mdf.sort_values("date")
+                xs.extend(mdf["date"].tolist() + [None])
+                ys.extend(mdf["nino34_anom"].tolist() + [None])
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="lines",
+                line=dict(color=color, width=0.7),
+                opacity=0.14,
+                showlegend=False,
+                hoverinfo="skip",
+            ))
+
     # -- Per-model means --
     if not means.empty:
         means["date"] = means["target_month"].apply(_target_month_to_date)
