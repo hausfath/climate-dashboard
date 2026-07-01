@@ -652,21 +652,22 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
 
-    # Direct labels on the prediction and month-to-date markers
+    # Direct label for the prediction + month-to-date markers, placed as one
+    # block in the empty space below the marker cluster so it never sits on
+    # the (steep) recent line.
     if predicted_value is not None:
-        fig.add_annotation(
-            x=target_year, y=predicted_value + (error or 0),
-            text=f"{month_name} {target_year}<br>{predicted_value:.2f} ±{error:.2f}°C",
-            font=dict(size=11.5, color=theme['prediction_color']),
-            showarrow=False, xanchor='right', yanchor='bottom',
-            xshift=-6, align='right',
+        label_text = (
+            f"<span style='color:{theme['prediction_color']}'>"
+            f"{month_name} {target_year}: {predicted_value:.2f} ±{error:.2f}°C</span><br>"
+            f"<span style='color:{theme['mtd_color']}'>"
+            f"month-to-date ({days_so_far}d): {mtd_avg:.2f}°C</span>"
         )
         fig.add_annotation(
-            x=target_year, y=mtd_avg,
-            text=f"month-to-date ({days_so_far}d)",
-            font=dict(size=10.5, color=theme['mtd_color']),
-            showarrow=False, xanchor='right', yanchor='top',
-            xshift=-8, yshift=-4,
+            x=target_year, y=(predicted_value + mtd_avg) / 2,
+            text=label_text,
+            font=dict(size=11.5),
+            showarrow=False, xanchor='left', yanchor='middle',
+            xshift=14, align='left',
         )
 
     # Default view starts at 1990 so recent values aren't squashed; the full
@@ -686,6 +687,8 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
         template=theme['template'],
         showlegend=False,
         height=500,
+        # Right margin hosts the marker label so it never overlaps the line
+        margin=dict(r=190),
     )
 
     return fig
