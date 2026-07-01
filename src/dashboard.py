@@ -2268,14 +2268,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     except Exception as e:
         logger.warning(f"Could not load daily Niño 3.4 status: {e}")
 
-    def _daily_idx_sub(roni: bool):
-        """KPI sub-line for the daily index reading."""
-        if not _nino_daily:
-            return None
-        val = _nino_daily['roni_anom'] if roni else _nino_daily['nino34_anom']
-        name = 'RONI' if roni else 'Niño 3.4'
-        return (f"Daily {name}: {val:+.2f}°C ({_nino_daily['date']}, "
-                f"OISSTv2.1)")
+    # State label from the 30-day mean so it matches the daily numbers shown
+    # (the monthly episode classification can lag by 6+ weeks).
+    _daily_state_label = _enso_state_label
+    if _nino_daily:
+        _daily_state_label = ('El Niño' if _nino_daily['nino34_30d'] >= 0.5
+                              else 'La Niña' if _nino_daily['nino34_30d'] <= -0.5
+                              else 'Neutral')
 
     temp_kpis = L.kpi_row([
         L.kpi(f"Latest day · {stats['latest_date']}", stats['latest_anomaly'],
@@ -2293,8 +2292,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                if stats.get('month_rank') else [f"{stats['month_days']} days in"])),
         L.kpi("365-day mean", stats.get('rolling_365') or "N/A",
               "vs preindustrial 1850–1900"),
-        L.kpi("ENSO state", _enso_state_label,
-              (_daily_idx_sub(False) or
+        L.kpi("ENSO state",
+              (f"{_daily_state_label}: {_nino_daily['nino34_anom']:+.2f}°C"
+               if _nino_daily else _enso_state_label),
+              (f"Daily Niño 3.4 · {_nino_daily['date']} · OISSTv2.1"
+               if _nino_daily else
                (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
                 if _enso_state_val else "Forecast on the ENSO tab"))),
     ])
@@ -2469,9 +2471,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         enso_lede = [
             "Daily Niño 3.4 (OISSTv2.1) is at ",
             html.Strong(f"{_nino_daily['nino34_anom']:+.2f}°C"),
-            f" as of {_nino_daily['date']}; the monthly index reached ",
-            html.Strong(_enso_state_val or "N/A"),
-            f" in {_enso_state_when}." if _enso_state_when else ".",
+            f" as of {_nino_daily['date']}.",
             " Every seasonal forecast system's full ensemble is aggregated "
             "with equal model weighting, updated as new runs arrive.",
         ]
@@ -2491,9 +2491,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             _enso_odds['segments'], _enso_odds['legend'])
 
     enso_kpis = L.kpi_row([
-        L.kpi("Current state", _enso_state_label,
-              (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
-               if _enso_state_val else "N/A"),
+        L.kpi("Current state",
+              (f"{_daily_state_label}: {_nino_daily['nino34_anom']:+.2f}°C"
+               if _nino_daily else _enso_state_label),
+              (f"Daily Niño 3.4 · {_nino_daily['date']} · OISSTv2.1"
+               if _nino_daily else
+               (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
+                if _enso_state_val else "N/A")),
               value_id='enso-card-1-value', sub_id='enso-card-1-sub'),
         L.kpi("Forecast peak", _enso_cards.get('max_change_str', 'N/A'),
               _enso_cards.get('max_change_range', 'N/A'),
@@ -3250,17 +3254,26 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         cards = _enso_cards_roni if roni_on else _enso_cards
         label, val, when = L.split_enso_state(cards.get('current_state', 'N/A'))
         idx_name = 'RONI' if roni_on else 'Niño 3.4'
-        daily = _daily_idx_sub(bool(roni_on))
-        if daily and val:
-            sub = [daily, html.Br(), f"Monthly: {val} ({when})"]
-        elif val:
-            sub = f"{idx_name} at {val} ({when})"
+        if _nino_daily:
+            daily_val = (_nino_daily['roni_anom'] if roni_on
+                         else _nino_daily['nino34_anom'])
+            avg_30d = (_nino_daily['roni_30d'] if roni_on
+                       else _nino_daily['nino34_30d'])
+            # State label from the 30-day mean of the displayed index, so the
+            # label always matches the numbers shown (the monthly state can
+            # lag by 6+ weeks).
+            label = ('El Niño' if avg_30d >= 0.5
+                     else 'La Niña' if avg_30d <= -0.5 else 'Neutral')
+            value = f"{label}: {daily_val:+.2f}°C"
+            sub = [f"Daily {idx_name} · {_nino_daily['date']} · OISSTv2.1",
+                   html.Br(), f"30-day average: {avg_30d:+.2f}°C"]
         else:
-            sub = "N/A"
+            value = label
+            sub = f"{idx_name} at {val} ({when})" if val else "N/A"
         idx_title = ('RONI (relative Niño 3.4)' if roni_on
                      else 'ONI (Niño 3.4)')
         return (
-            label,
+            value,
             sub,
             cards.get('max_change_str', 'N/A'),
             cards.get('max_change_range', 'N/A'),

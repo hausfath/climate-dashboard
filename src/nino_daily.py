@@ -190,16 +190,19 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
 
 
 def load_daily_status() -> dict | None:
-    """Latest daily reading for UI cards: values plus their date."""
+    """Latest daily reading for UI cards: values, date, and 30-day means."""
     try:
         df = pd.read_csv(DAILY_FILE, parse_dates=['date'])
         if df.empty:
             return None
         last = df.iloc[-1]
+        win = df[df['date'] > last['date'] - pd.Timedelta(days=30)]
         return {
             'date': last['date'].strftime('%b %-d'),
             'nino34_anom': float(last['nino34_anom']),
             'roni_anom': float(last['roni_anom']),
+            'nino34_30d': float(win['nino34_anom'].mean()),
+            'roni_30d': float(win['roni_anom'].mean()),
         }
     except Exception:
         return None
