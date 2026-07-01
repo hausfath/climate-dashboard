@@ -335,6 +335,9 @@ def compute_enso_cards(forecast_df, oni_df, obs_df=None, index_mode="oni"):
                     peak_val = peak_row[fc_col]
                     peak_date = peak_row["date"]
                     cards["max_change_str"] = f"{peak_val:+.1f}\u00b0C in {peak_date.strftime('%b %Y')}"
+                    # Raw values for hero/KPI binding (avoid re-parsing strings)
+                    cards["peak_val"] = float(peak_val)
+                    cards["peak_month_label"] = peak_date.strftime('%b %Y')
 
                     peak_tm = peak_row["target_month"]
                     tm_members = members_used[members_used["target_month"] == peak_tm]
@@ -525,10 +528,22 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
                         hoverinfo="skip",
                     ))
 
-    # -- ENSO threshold lines --
+    # -- ENSO threshold lines (labeled so the dashes are self-explanatory) --
     fig.add_hline(y=0.5, line=dict(color="red", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=-0.5, line=dict(color="blue", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=0, line=dict(color="gray", width=0.5), opacity=0.4)
+    fig.add_annotation(
+        x=0.01, xref="paper", y=0.5, yanchor="bottom", yshift=2,
+        text="El Niño ≥ +0.5°C", showarrow=False,
+        font=dict(size=10.5, color="rgba(255,107,107,0.85)"),
+        xanchor="left",
+    )
+    fig.add_annotation(
+        x=0.01, xref="paper", y=-0.5, yanchor="top", yshift=-2,
+        text="La Niña ≤ −0.5°C", showarrow=False,
+        font=dict(size=10.5, color="rgba(84,160,255,0.85)"),
+        xanchor="left",
+    )
 
     # Counts for title
     n_models = means["model"].nunique() if not means.empty else 0
@@ -555,23 +570,20 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
                   fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
-        title=f"ENSO {meta['short']} Combined Forecast Plume ({n_models} models, {n_total} members)",
         yaxis_title=meta["y_label"],
         template=theme["template"],
-        paper_bgcolor=theme["paper_color"],
-        plot_bgcolor=theme["bg_color"],
-        font=dict(color=theme["text_color"]),
         height=550,
         uirevision="enso-mega-plume",
+        # Model roster sits outside the plot so it never covers the plume
         legend=dict(
-            yanchor="top", y=0.99, xanchor="left", x=0.01,
-            bgcolor="rgba(0,0,0,0.3)" if dark_mode else "rgba(255,255,255,0.9)",
-            font=dict(size=10),
+            orientation="v",
+            yanchor="top", y=1, xanchor="left", x=1.01,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=10.5),
         ),
-        margin=dict(l=60, r=30, t=50, b=50),
-        xaxis=dict(gridcolor=theme["grid_color"],
-                   range=["2025-12-01", None]),
-        yaxis=dict(range=[ymin, ymax], gridcolor=theme["grid_color"]),
+        margin=dict(l=60, r=30, t=30, b=50),
+        xaxis=dict(range=["2025-12-01", None]),
+        yaxis=dict(range=[ymin, ymax]),
     )
 
     return fig
@@ -615,28 +627,6 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
 
     target_months = sorted(members["target_month"].unique())
     models = sorted(members["model"].unique())
-
-    np.random.seed(42)
-
-    # -- Scatter dots per model --
-    legend_added = set()
-    for i, tm in enumerate(target_months):
-        for model in models:
-            color = MEGA_COLORS.get(model, "#999999")
-            mdf = members[(members["target_month"] == tm) & (members["model"] == model)]
-            if len(mdf) == 0:
-                continue
-            jitter = np.random.uniform(-0.25, 0.25, len(mdf))
-            show = model not in legend_added
-            legend_added.add(model)
-            fig.add_trace(go.Scatter(
-                x=i + jitter, y=mdf["nino34_anom"],
-                mode="markers",
-                marker=dict(color=color, size=5, opacity=0.5),
-                showlegend=show,
-                name=model,
-                hovertemplate=f"{model}: %{{y:.2f}}\u00b0C<extra></extra>",
-            ))
 
     # -- Weighted box plots via shapes --
     box_width = 0.5
@@ -703,6 +693,16 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
     fig.add_hline(y=0.5, line=dict(color="red", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=-0.5, line=dict(color="blue", width=1, dash="dash"), opacity=0.5)
     fig.add_hline(y=0, line=dict(color="gray", width=0.5), opacity=0.4)
+    fig.add_annotation(
+        x=0.01, xref="paper", y=0.5, yanchor="bottom", yshift=2,
+        text="El Niño ≥ +0.5°C", showarrow=False, xanchor="left",
+        font=dict(size=10.5, color="rgba(255,107,107,0.85)"),
+    )
+    fig.add_annotation(
+        x=0.01, xref="paper", y=-0.5, yanchor="top", yshift=-2,
+        text="La Niña ≤ −0.5°C", showarrow=False, xanchor="left",
+        font=dict(size=10.5, color="rgba(84,160,255,0.85)"),
+    )
 
     tick_labels = [pd.Timestamp(tm + "-01").strftime("%b\n%Y") for tm in target_months]
 
@@ -720,25 +720,16 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
                   fillcolor="blue", opacity=0.04, line_width=0)
 
     fig.update_layout(
-        title=f"{meta['short']} Forecast Distribution ({len(models)} models, model-weighted box plot)",
         yaxis_title=meta["y_label"],
         xaxis=dict(
             tickvals=list(range(len(target_months))),
             ticktext=tick_labels,
-            gridcolor=theme["grid_color"],
         ),
-        yaxis=dict(range=[ymin, ymax], gridcolor=theme["grid_color"]),
+        yaxis=dict(range=[ymin, ymax]),
         template=theme["template"],
-        paper_bgcolor=theme["paper_color"],
-        plot_bgcolor=theme["bg_color"],
-        font=dict(color=theme["text_color"]),
         height=550,
-        legend=dict(
-            yanchor="top", y=0.99, xanchor="left", x=0.01,
-            bgcolor="rgba(0,0,0,0.3)" if dark_mode else "rgba(255,255,255,0.9)",
-            font=dict(size=9),
-        ),
-        margin=dict(l=60, r=30, t=50, b=50),
+        showlegend=False,
+        margin=dict(l=60, r=30, t=30, b=50),
     )
 
     return fig
@@ -790,6 +781,16 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
     fig.add_hline(y=0.5, line=dict(color="#d62728", width=0.8, dash="dash"), opacity=0.4)
     fig.add_hline(y=-0.5, line=dict(color="#1f77b4", width=0.8, dash="dash"), opacity=0.4)
     fig.add_hline(y=0, line=dict(color="gray", width=0.5), opacity=0.4)
+    fig.add_annotation(
+        x=0.01, xref="paper", y=0.5, yanchor="bottom", yshift=2,
+        text="El Niño ≥ +0.5°C", showarrow=False, xanchor="left",
+        font=dict(size=10.5, color="rgba(214,39,40,0.8)"),
+    )
+    fig.add_annotation(
+        x=0.01, xref="paper", y=-0.5, yanchor="top", yshift=-2,
+        text="La Niña ≤ −0.5°C", showarrow=False, xanchor="left",
+        font=dict(size=10.5, color="rgba(31,119,180,0.9)"),
+    )
 
     # -- Forecast overlay --
     if not forecast_df.empty:
@@ -889,6 +890,11 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
                     font=dict(size=12, color="gray"),
                     yanchor="top",
                 )
+                # Give the forecast fan breathing room at the right edge
+                fig.update_xaxes(range=[
+                    obs_full["date"].min(),
+                    forecast_end + pd.DateOffset(months=4),
+                ])
         except Exception as e:
             logger.warning(f"Error adding forecast overlay: {e}")
 
@@ -900,26 +906,16 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
     ymax = max(3.5, max(all_vals) + 0.3)
 
     fig.update_layout(
-        title=f"ENSO {meta['short']}: Historical Record and Current Forecast",
         yaxis_title=meta["y_label"],
         template=theme["template"],
-        paper_bgcolor=theme["paper_color"],
-        plot_bgcolor=theme["bg_color"],
-        font=dict(color=theme["text_color"]),
         height=450,
-        legend=dict(
-            yanchor="top", y=0.99, xanchor="left", x=0.01,
-            bgcolor="rgba(0,0,0,0.3)" if dark_mode else "rgba(255,255,255,0.9)",
-            font=dict(size=10),
-        ),
-        xaxis=dict(gridcolor=theme["grid_color"]),
+        showlegend=False,
         yaxis=dict(
             range=[ymin, ymax],
             tickmode="array",
             tickvals=list(range(int(np.floor(ymin)), 4)),
-            gridcolor=theme["grid_color"],
         ),
-        margin=dict(l=60, r=30, t=50, b=50),
+        margin=dict(l=60, r=30, t=30, b=50),
     )
 
     return fig
@@ -1156,6 +1152,10 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
         label, _, _, _, rng, fc = STRENGTH_BINS[bin_idx]
         edge = STRENGTH_GROUP_EDGE[group_key]
         y = probs[:, bin_idx]
+        # Skip categories that never occur — keeps the legend to what's
+        # actually on the chart.
+        if np.nanmax(y) < 0.5:
+            return
         # Two-line legend label (NOAA style): name + threshold range
         legend_name = f"{label}<br><span style='font-size:0.85em'>{rng}</span>"
         fig.add_trace(go.Bar(
@@ -1166,6 +1166,13 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
             offsetgroup=group_key,
             legendgroup=group_key,
             legendrank=LEGEND_RANK[bin_idx],
+            # Label big segments directly so shades don't have to be decoded;
+            # never render a bare "100%" — these are ensemble odds.
+            text=[(">99%" if v >= 99.5 else f"{v:.0f}%") if v >= 12 else ""
+                  for v in y],
+            textposition="inside",
+            textfont=dict(size=10.5),
+            insidetextanchor="middle",
             hovertemplate=(
                 f"<b>{label}</b><br>"
                 f"{rng}<br>"
@@ -1191,49 +1198,33 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
         for lbl, n in zip(labels, n_models)
     ]
 
-    latest_init = pd.to_datetime(forecast_df["init_date"]).max()
-    issued_str = latest_init.strftime("%B %Y") if pd.notna(latest_init) else ""
-
     fig.update_layout(
         barmode="stack",
         bargap=0.2,
         bargroupgap=0.05,
-        title=dict(
-            text=(f"Multi-Model ENSO Strength Probabilities — {meta['short']}"
-                  f"<br><span style='font-size:0.75em;font-weight:normal'>"
-                  f"based on {meta['long']}; issued {issued_str} forecast plume "
-                  f"(model-equal weighting)</span>"),
-            x=0.5, xanchor="center",
-            font=dict(size=18, color=text_color),
-        ),
         xaxis=dict(
-            title="Season",
+            title="",
             tickangle=0,
             categoryorder="array",
             categoryarray=labels,
-            color=text_color,
         ),
         yaxis=dict(
-            title="Percent Chance (%)",
+            title="Percent chance (%)",
             range=[0, 100],
-            dtick=10,
-            gridcolor=grid_color,
-            color=text_color,
+            dtick=20,
         ),
         legend=dict(
-            font=dict(size=11, color=text_color),
+            orientation="v",
+            yanchor="top", y=1, xanchor="left", x=1.01,
+            font=dict(size=10.5),
             bgcolor="rgba(0,0,0,0)",
-            bordercolor=grid_color,
             itemsizing="constant",
             tracegroupgap=4,
             traceorder="normal",
         ),
         annotations=n_annotations,
-        margin=dict(l=70, r=160, t=90, b=70),
+        margin=dict(l=60, r=30, t=30, b=70),
         template=theme.get("template", "plotly_white"),
-        paper_bgcolor=theme.get("paper_color", "white"),
-        plot_bgcolor=theme.get("bg_color", "white"),
-        font=dict(color=text_color),
     )
     return fig
 
@@ -1247,25 +1238,27 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
+    # (name, figure factory, height, width) — box distribution and strength
+    # probs render side by side in the layout, so they export squarer.
     plot_configs = [
         ("enso_mega_plume",
          lambda dm, idx: create_enso_mega_plume(forecast_df, obs_df, dm, index_mode=idx),
-         550),
+         550, 1200),
         ("enso_box_distribution",
          lambda dm, idx: create_enso_box_distribution(forecast_df, dm, index_mode=idx),
-         550),
+         550, 780),
         ("enso_historical",
          lambda dm, idx: create_enso_historical_context(forecast_df, dm, index_mode=idx),
-         450),
+         450, 1200),
         ("enso_strength_probs",
          lambda dm, idx: create_enso_strength_probs(forecast_df, dm, index_mode=idx),
-         500),
+         550, 780),
     ]
 
     for index_mode in INDEX_MODES:
         for dark_mode in [True, False]:
             mode = "dark" if dark_mode else "light"
-            for name, create_func, height in plot_configs:
+            for name, create_func, height, width in plot_configs:
                 # Backwards-compat filename for ONI: keep `{name}_{mode}.png`
                 # so the dashboard doesn't need to special-case the legacy
                 # default. rONI gets a `_roni_{mode}.png` suffix.
@@ -1277,6 +1270,6 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
                 try:
                     logger.info(f"Generating {filename}...")
                     fig = create_func(dark_mode, index_mode)
-                    fig.write_image(str(filepath), width=1200, height=height, scale=2)
+                    fig.write_image(str(filepath), width=width, height=height, scale=2)
                 except Exception as e:
                     logger.error(f"Failed to generate {filename}: {e}")

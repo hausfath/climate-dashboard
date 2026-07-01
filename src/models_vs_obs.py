@@ -676,19 +676,12 @@ def compute_running_scorecard(cmip_stats: pd.DataFrame,
 
 # ── Plot functions ─────────────────────────────────────────────────────────────
 
-def _base_layout(theme: dict, title: str, height: int = 500) -> dict:
+def _base_layout(theme: dict, title: str = None, height: int = 500) -> dict:
+    """Shared layout. Figure titles live in the page DOM (panel headers), so
+    the ``title`` argument is accepted but no longer rendered."""
     return dict(
-        title=dict(text=title, font=dict(size=15, color=theme['text_color'])),
         height=height,
         template=theme['template'],
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color']),
-        legend=dict(bgcolor='rgba(0,0,0,0)', borderwidth=0,
-                    font=dict(size=11, color=theme['text_color'])),
-        margin=dict(l=60, r=30, t=60, b=60),
-        xaxis=dict(gridcolor=theme['grid_color'], showgrid=True),
-        yaxis=dict(gridcolor=theme['grid_color'], showgrid=True),
         hovermode='x unified',
     )
 
@@ -947,28 +940,12 @@ def create_trend_histogram_grid(
     fig.update_layout(
         height=380,
         template=theme['template'],
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'], size=11),
         showlegend=False,
-        margin=dict(l=50, r=30, t=60, b=60),
-        title=dict(
-            text=(f'{gen_label} — {scenario} Warming Trends vs. Observations'
-                  if scenario else f'{gen_label} Warming Trends vs. Observations'),
-            font=dict(size=14, color=theme['text_color']),
-        ),
+        margin=dict(l=50, r=30, t=40, b=60),
     )
     fig.update_annotations(font_size=12)
     for c in range(1, 4):
-        fig.update_xaxes(
-            title_text='°C/decade',
-            gridcolor=theme['grid_color'],
-            row=1, col=c,
-        )
-        fig.update_yaxes(
-            gridcolor=theme['grid_color'],
-            row=1, col=c,
-        )
+        fig.update_xaxes(title_text='°C/decade', row=1, col=c)
     return fig
 
 

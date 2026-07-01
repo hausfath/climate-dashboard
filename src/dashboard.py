@@ -12,43 +12,49 @@ from pathlib import Path
 from sklearn.linear_model import LinearRegression
 
 from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
+from src import layout as L
+from src.theme import install_fonts, template_name, tokens
 
 
-# Theme configurations for light and dark modes
+# Theme configurations for light and dark modes.
+# Color tokens live in src/theme.py; the registered 'climate_dark' /
+# 'climate_light' templates carry fonts, grids, margins, and legends.
 THEME_CONFIG = {
     'light': {
-        'template': 'plotly_white',
-        'bg_color': 'white',
-        'paper_color': 'white',
-        'text_color': '#2c3e50',
-        'grid_color': 'lightgray',
-        'line_color': 'rgba(100, 100, 100, 0.3)',
-        'rolling_color': '#d62728',
-        'threshold_color': 'orange',
+        'template': 'climate_light',
+        'bg_color': '#ffffff',
+        'paper_color': '#ffffff',
+        'text_color': '#1f2430',
+        'text_dim': '#5a6172',
+        'grid_color': 'rgba(31, 36, 48, 0.08)',
+        'line_color': 'rgba(31, 36, 48, 0.25)',
+        'rolling_color': '#d94f2e',
+        'threshold_color': '#c08a1e',
         'highlight_colors': {
-            2023: '#1f77b4',
-            2024: '#ff7f0e',
-            2025: '#d62728',
-            2026: '#9467bd',
+            2023: '#0f9d94',
+            2024: '#e8890c',
+            2025: '#d64541',
+            2026: '#6c5ce7',
         },
-        'historical_color': '#1f77b4',
-        'prediction_color': '#d62728',
-        'ytd_color': '#ff7f0e',
-        'mtd_color': '#ff7f0e',
+        'historical_color': '#0f9d94',
+        'prediction_color': '#d94f2e',
+        'ytd_color': '#e8890c',
+        'mtd_color': '#e8890c',
         'card_color': 'light',
-        'vrect_color': 'lightblue',
-        'background_years_color': 'lightgrey',
-        'enso_update_color': '#00b4d8',
+        'vrect_color': 'rgba(15, 157, 148, 0.08)',
+        'background_years_color': 'rgba(31, 36, 48, 0.15)',
+        'enso_update_color': '#2e9cb8',
     },
     'dark': {
-        'template': 'plotly_dark',
-        'bg_color': '#1a1a2e',
-        'paper_color': '#1a1a2e',
-        'text_color': '#eaeaea',
-        'grid_color': 'rgba(255, 255, 255, 0.1)',
-        'line_color': 'rgba(200, 200, 200, 0.2)',
-        'rolling_color': '#ff6b6b',
-        'threshold_color': '#feca57',
+        'template': 'climate_dark',
+        'bg_color': '#151a30',
+        'paper_color': '#151a30',
+        'text_color': '#e8eaf2',
+        'text_dim': '#9aa0b8',
+        'grid_color': 'rgba(232, 234, 242, 0.07)',
+        'line_color': 'rgba(232, 234, 242, 0.20)',
+        'rolling_color': '#ff6b4a',
+        'threshold_color': '#e8b84b',
         'highlight_colors': {
             2023: '#4ecdc4',
             2024: '#ff9f43',
@@ -56,12 +62,12 @@ THEME_CONFIG = {
             2026: '#a29bfe',
         },
         'historical_color': '#4ecdc4',
-        'prediction_color': '#ff6b6b',
+        'prediction_color': '#ff6b4a',
         'ytd_color': '#ff9f43',
         'mtd_color': '#ff9f43',
         'card_color': 'dark',
-        'vrect_color': 'rgba(78, 205, 196, 0.2)',
-        'background_years_color': 'rgba(255, 255, 255, 0.15)',
+        'vrect_color': 'rgba(78, 205, 196, 0.10)',
+        'background_years_color': 'rgba(232, 234, 242, 0.13)',
         'enso_update_color': '#48cae4',
     }
 }
@@ -224,24 +230,33 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Fig
         hovertemplate='%{x|%Y-%m-%d}<br>365-day avg: %{y:.2f}°C<extra></extra>'
     ))
 
-    # Add 1.5°C reference line
+    # Add 1.5°C reference line (label on the left so the right edge stays
+    # free for the rolling-mean end label)
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
-                  annotation_text="1.5°C", annotation_position="right")
+                  annotation_text="1.5°C", annotation_position="top left")
+
+    # Direct label on the rolling mean's endpoint (replaces the legend)
+    tail = df_rolling.dropna(subset=['rolling_365'])
+    if len(tail) > 0:
+        last = tail.iloc[-1]
+        fig.add_annotation(
+            x=last['date'], y=last['rolling_365'],
+            text=f"365-day avg<br>{last['rolling_365']:.2f}°C",
+            font=dict(size=12, color=theme['rolling_color']),
+            showarrow=False, xanchor='left', xshift=8, align='left',
+        )
 
     fig.update_layout(
-        title=dict(
-            text='Global Mean Temperature Anomaly vs Preindustrial (1850-1900)',
-            font=dict(size=20, color=theme['text_color'])
+        xaxis=dict(
+            title='',
+            range=[df_adj['date'].min(),
+                   df_adj['date'].max() + pd.Timedelta(days=150)],
         ),
-        xaxis_title='',
-        yaxis_title='Temperature Anomaly (°C)',
-        hovermode='x unified',
+        yaxis_title='Temperature anomaly (°C)',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        showlegend=False,
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
+        margin=dict(r=110),
     )
 
     return fig
@@ -293,6 +308,11 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         x0=month_start, x1=month_end,
         fillcolor=theme['vrect_color'], opacity=0.5,
         layer="below", line_width=0,
+    )
+    fig.add_annotation(
+        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='bottom',
+        text='current month', showarrow=False, yshift=2,
+        font=dict(size=10.5, color=theme['text_dim']),
     )
 
     # Add 1.5°C reference line
@@ -383,30 +403,16 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
     fig.update_layout(
-        title=dict(
-            text='Daily Temperature Anomalies vs Preindustrial (1850-1900)',
-            font=dict(size=20, color=theme['text_color'])
-        ),
         xaxis=dict(
             tickmode='array',
             tickvals=month_starts,
             ticktext=month_names,
             range=[1, 366],
-            gridcolor=theme['grid_color'],
-            gridwidth=0.5,
         ),
-        yaxis=dict(
-            title='Temperature Anomaly (°C)',
-            gridcolor=theme['grid_color'],
-            gridwidth=0.5,
-        ),
+        yaxis=dict(title='Temperature anomaly (°C)'),
         hovermode='x',
         template=theme['template'],
-        legend=dict(yanchor="bottom", y=0.01, xanchor="left", x=0.01),
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
     )
 
     return fig
@@ -434,6 +440,11 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
         x0=month_start, x1=month_end,
         fillcolor=theme['vrect_color'], opacity=0.5,
         layer="below", line_width=0,
+    )
+    fig.add_annotation(
+        x=(month_start + month_end) / 2, y=1, yref='paper', yanchor='bottom',
+        text='current month', showarrow=False, yshift=2,
+        font=dict(size=10.5, color=theme['text_dim']),
     )
 
     # Plot background years (not highlighted) first
@@ -472,30 +483,16 @@ def create_daily_absolutes_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
     fig.update_layout(
-        title=dict(
-            text='Daily Global Mean Temperature',
-            font=dict(size=20, color=theme['text_color'])
-        ),
         xaxis=dict(
             tickmode='array',
             tickvals=month_starts,
             ticktext=month_names,
             range=[1, 366],
-            gridcolor=theme['grid_color'],
-            gridwidth=0.5,
         ),
-        yaxis=dict(
-            title='Temperature (°C)',
-            gridcolor=theme['grid_color'],
-            gridwidth=0.5,
-        ),
+        yaxis=dict(title='Temperature (°C)'),
         hovermode='x',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
     )
 
     return fig
@@ -638,20 +635,30 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
 
+    # Direct labels on the prediction and month-to-date markers
+    if predicted_value is not None:
+        fig.add_annotation(
+            x=target_year, y=predicted_value + (error or 0),
+            text=f"{month_name} {target_year}<br>{predicted_value:.2f} ±{error:.2f}°C",
+            font=dict(size=11.5, color=theme['prediction_color']),
+            showarrow=False, xanchor='right', yanchor='bottom',
+            xshift=-6, align='right',
+        )
+        fig.add_annotation(
+            x=target_year, y=mtd_avg,
+            text=f"month-to-date ({days_so_far}d)",
+            font=dict(size=10.5, color=theme['mtd_color']),
+            showarrow=False, xanchor='right', yanchor='top',
+            xshift=-8, yshift=-4,
+        )
+
     fig.update_layout(
-        title=dict(
-            text=f'{month_name} Temperature Anomaly vs Preindustrial (1850-1900)',
-            font=dict(size=20, color=theme['text_color'])
-        ),
-        xaxis_title='Year',
-        yaxis_title='Temperature Anomaly (°C)',
+        xaxis=dict(title='', range=[min(historical_years) - 1, target_year + 1.5]),
+        yaxis_title='Temperature anomaly (°C)',
         hovermode='x',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        showlegend=False,
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
     )
 
     return fig
@@ -675,15 +682,15 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
     if data_type == 'anomaly':
         data = adjust_anomalies_to_preindustrial(df)
         column_to_use = 'anomaly'
-        cbar_label = 'Temperature Anomaly (°C)'
-        title = 'Daily Temperature Anomaly vs Preindustrial (1850-1900)'
+        cbar_label = 'Anomaly (°C)'
         hover_val_label = 'Anomaly'
-        zmid = 1.0  # Center around ~1°C warming
+        # Diverging scale centered on zero — blue genuinely means "below
+        # preindustrial", red above.
+        zmid = 0.0
     else:
         data = df.copy()
         column_to_use = 'temperature'
-        cbar_label = 'Temperature (°C)'
-        title = 'Daily Global Mean Temperature'
+        cbar_label = 'Temp (°C)'
         hover_val_label = 'Temp'
         zmid = 14.5  # Approximate global mean temperature
 
@@ -716,33 +723,24 @@ def create_daily_heatmap(df: pd.DataFrame, data_type: str = 'anomaly', dark_mode
         y=heatmap_data.index,
         colorscale='RdBu_r',
         zmid=zmid,
-        colorbar=dict(title=cbar_label, tickfont=dict(color=theme['text_color'])),
+        colorbar=dict(title=dict(text=cbar_label, side='right'), thickness=14,
+                      outlinewidth=0),
         text=hover_text,
         hoverinfo='text',
     ))
 
     fig.update_layout(
-        title=dict(
-            text=title,
-            font=dict(size=20, color=theme['text_color'])
-        ),
-        xaxis=dict(
-            title='Year',
-            dtick=10
-        ),
+        xaxis=dict(title='', dtick=10, showgrid=False),
         yaxis=dict(
             title='',
             tickmode='array',
             tickvals=month_starts,
             ticktext=month_names,
-            autorange='reversed'
+            autorange='reversed',
+            showgrid=False,
         ),
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
     )
 
     return fig
@@ -775,15 +773,17 @@ def generate_ridgeline_plot(df: pd.DataFrame, output_dir: Path, dark_mode: bool 
     # Grid for KDE evaluation
     x_grid = np.linspace(data_min - 0.5, data_max + 0.5, 300)
 
-    # Theme colors
+    # Theme colors (match the panel background from src/theme.py)
     if dark_mode:
-        bg_color = '#1a1a2e'
-        text_color = 'white'
+        bg_color = '#151a30'
+        text_color = '#e8eaf2'
         line_color = 'white'
     else:
-        bg_color = 'white'
-        text_color = 'black'
+        bg_color = '#ffffff'
+        text_color = '#1f2430'
         line_color = 'white'
+
+    plt.rcParams['font.family'] = ['IBM Plex Sans', 'sans-serif']
 
     # Setup figure
     fig = plt.figure(figsize=(12, 16))
@@ -837,9 +837,7 @@ def generate_ridgeline_plot(df: pd.DataFrame, output_dir: Path, dark_mode: bool 
                          verticalalignment='center', horizontalalignment='left',
                          fontsize=9, color=text_color, zorder=1000, fontweight='bold')
 
-    # Style main plot
-    ax_main.set_title(f'Global Temperature Anomaly Distribution ({year_min}-{year_max})',
-                      fontsize=16, pad=20, color=text_color)
+    # Style main plot (no title — the panel header carries it)
     ax_main.set_frame_on(False)
     ax_main.set_xticks([])
     ax_main.set_yticks([])
@@ -931,13 +929,15 @@ def generate_all_static_images(df: pd.DataFrame, output_dir: Path, enso_df: pd.D
                 logger.info(f"Generating {filename}...")
                 fig = create_func(dark_mode)
 
-                # Adjust dimensions based on plot type
+                # Adjust dimensions based on plot type. The monthly and
+                # annual projection charts render side by side (duo panels),
+                # so they export squarer.
                 if 'heatmap' in name:
                     fig.write_image(str(filepath), width=1200, height=600, scale=2)
-                elif name == 'timeseries':
-                    fig.write_image(str(filepath), width=1200, height=500, scale=2)
+                elif name in ('monthly_projections', 'annual_prediction'):
+                    fig.write_image(str(filepath), width=780, height=460, scale=2)
                 else:
-                    fig.write_image(str(filepath), width=1000, height=500, scale=2)
+                    fig.write_image(str(filepath), width=1200, height=500, scale=2)
 
             except Exception as e:
                 logger.error(f"Failed to generate {filename}: {e}")
@@ -1209,28 +1209,33 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="right")
 
+    # Direct labels on the prediction and YTD markers
+    if prediction_2026:
+        fig.add_annotation(
+            x=current_year, y=prediction_2026['ub'],
+            text=(f"{current_year} projection<br>"
+                  f"{prediction_2026['predicted']:.2f}°C"),
+            font=dict(size=11.5, color=theme['prediction_color']),
+            showarrow=False, xanchor='right', yanchor='bottom',
+            xshift=-6, align='right',
+        )
+    if len(current_year_data) > 0:
+        fig.add_annotation(
+            x=current_year, y=ytd_anomaly,
+            text="YTD",
+            font=dict(size=10.5, color=theme['ytd_color']),
+            showarrow=False, xanchor='right', yanchor='top',
+            xshift=-8, yshift=-4,
+        )
+
     # Layout
     fig.update_layout(
-        title=dict(
-            text='Annual Global Temperature Anomaly vs Preindustrial (1850-1900)',
-            font=dict(size=20, color=theme['text_color'])
-        ),
-        xaxis=dict(
-            title='Year',
-            range=[1938, current_year + 2],
-            dtick=10
-        ),
-        yaxis=dict(
-            title='Temperature Anomaly (°C)',
-            range=[-0.2, 1.8]
-        ),
+        xaxis=dict(title='', range=[1938, current_year + 2], dtick=10),
+        yaxis=dict(title='Temperature anomaly (°C)', range=[-0.2, 1.8]),
         hovermode='x',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        showlegend=False,
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
     )
 
     return fig
@@ -1461,10 +1466,6 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     if not history_file.exists():
         fig = go.Figure()
         fig.update_layout(
-            title=dict(
-                text=f'{current_year} Annual Projection Evolution (Generating...)',
-                font=dict(size=20, color=theme['text_color'])
-            ),
             annotations=[{
                 'text': 'Projection history will be available after the daily update runs.',
                 'xref': 'paper', 'yref': 'paper',
@@ -1472,9 +1473,7 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
                 'font': {'size': 16, 'color': theme['text_color']}
             }],
             height=500,
-            paper_bgcolor=theme['paper_color'],
-            plot_bgcolor=theme['bg_color'],
-            font=dict(color=theme['text_color'])
+            template=theme['template'],
         )
         return fig
 
@@ -1486,8 +1485,12 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
         # Return empty figure if no data
         fig = go.Figure()
         fig.update_layout(
-            title="No projection history available",
-            template=theme['template']
+            annotations=[{
+                'text': 'No projection history available',
+                'xref': 'paper', 'yref': 'paper',
+                'x': 0.5, 'y': 0.5, 'showarrow': False,
+            }],
+            template=theme['template'],
         )
         return fig
 
@@ -1495,13 +1498,13 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
 
     fig = go.Figure()
 
-    # Add uncertainty band
+    # Add uncertainty band (accent color at low alpha)
     fig.add_trace(go.Scatter(
         x=pd.concat([history['date'], history['date'][::-1]]),
         y=pd.concat([history['prediction'] + 2*history['uncertainty'],
                      (history['prediction'] - 2*history['uncertainty'])[::-1]]),
         fill='toself',
-        fillcolor=theme['prediction_color'].replace(')', ', 0.2)').replace('rgb', 'rgba') if 'rgb' in theme['prediction_color'] else f"rgba(255, 107, 107, 0.2)",
+        fillcolor=_hex_to_rgba(theme['prediction_color'], 0.13),
         line=dict(color='rgba(0,0,0,0)'),
         name='95% CI',
         hoverinfo='skip'
@@ -1558,12 +1561,19 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
                     name='Major ENSO Forecast Update',
                     marker=dict(
                         symbol='star',
-                        size=14,
+                        size=13,
                         color=theme['enso_update_color'],
                         line=dict(width=1, color=theme['text_color'])
                     ),
                     hovertemplate='%{x|%b %d}<br>Major ENSO Forecast Update<br>Projection: %{y:.2f}°C<extra></extra>'
                 ))
+                # Label the first star so the symbol is self-explanatory
+                fig.add_annotation(
+                    x=marker_x[0], y=marker_y[0],
+                    text='ENSO forecast<br>update',
+                    font=dict(size=10.5, color=theme['enso_update_color']),
+                    showarrow=False, yanchor='top', yshift=-12, align='center',
+                )
 
     # Add 1.5°C reference line
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
@@ -1582,26 +1592,32 @@ def create_projection_history_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     )
     y_padding = (y_max - y_min) * 0.05
 
+    # Direct end-of-line labels replace the legend
+    last_row = history.sort_values('date').iloc[-1]
+    fig.add_annotation(
+        x=last_row['date'], y=last_row['prediction'],
+        text=f"projection<br>{last_row['prediction']:.2f}°C",
+        font=dict(size=11.5, color=theme['prediction_color']),
+        showarrow=False, xanchor='left', xshift=8, align='left',
+    )
+    fig.add_annotation(
+        x=last_row['date'], y=last_row['ytd_anomaly'],
+        text=f"YTD<br>{last_row['ytd_anomaly']:.2f}°C",
+        font=dict(size=11.5, color=theme['ytd_color']),
+        showarrow=False, xanchor='left', xshift=8, align='left',
+    )
+
     fig.update_layout(
-        title=dict(
-            text=f'{current_year} Annual Projection Evolution',
-            font=dict(size=20, color=theme['text_color'])
-        ),
-        xaxis=dict(
-            title='Date',
-            tickformat='%b %d'
-        ),
+        xaxis=dict(title='', tickformat='%b %d'),
         yaxis=dict(
-            title='Temperature Anomaly (°C)',
+            title='Temperature anomaly (°C)',
             range=[y_min - y_padding, y_max + y_padding]
         ),
         hovermode='x unified',
         template=theme['template'],
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        showlegend=False,
         height=500,
-        paper_bgcolor=theme['paper_color'],
-        plot_bgcolor=theme['bg_color'],
-        font=dict(color=theme['text_color'])
+        margin=dict(r=100),
     )
 
     return fig
@@ -1689,7 +1705,8 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         except Exception:
             enso_file = DATA_DIR / "enso_combined.csv"
             if enso_file.exists():
-                import pandas as pd
+                # NB: pandas is imported at module level; a local import here
+                # would shadow `pd` for the whole function scope.
                 enso_df = pd.read_csv(enso_file)
                 enso_df['date'] = pd.to_datetime(enso_df['date'])
 
@@ -1900,10 +1917,21 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
     except Exception:
         pass
 
+    # 365-day rolling mean anomaly (current warming pulse)
+    rolling_365_str = None
+    try:
+        daily = df_adj.sort_values('date').set_index('date')['anomaly']
+        r365 = daily.rolling('365D').mean().iloc[-1]
+        if pd.notna(r365):
+            rolling_365_str = f"{r365:.2f}°C"
+    except Exception:
+        pass
+
     return {
         'latest_date': latest_date.strftime('%Y-%m-%d'),
         'latest_temp': f"{latest_row['temperature']:.2f}°C",
         'latest_anomaly': f"{latest_row['anomaly']:+.2f}°C",
+        'rolling_365': rolling_365_str,
         'daily_rank': daily_rank_str,
         'ytd_anomaly': f"{ytd_mean_anomaly:+.2f}°C",
         'prev_year_anomaly': f"{prev_year_mean:+.2f}°C",
@@ -1924,49 +1952,24 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
 
 
 def _build_rank_probability_table(stats: dict, dark_mode: bool = False) -> html.Div:
-    """Render the per-rank probability table for the annual prediction.
+    """Render the per-rank probability rows for the annual prediction.
 
     Reads ``stats['annual_rank_probs']`` (populated from the ENSO ensemble
-    Monte Carlo). The most-likely rank gets a tinted row + bold weight; each
-    row carries an inline horizontal bar proportional to its probability.
-    Re-rendered on dark-mode toggle via callback so the colour palette stays
-    consistent with the rest of the dashboard.
+    Monte Carlo). Theming is handled entirely by CSS classes (.ranktable in
+    assets/theme.css), so this renders once at startup; the ``dark_mode``
+    argument is kept for backward compatibility and ignored.
     """
     rows = stats.get('annual_rank_probs') or []
     if not rows:
         return html.P(
             "Rank probabilities unavailable — ENSO ensemble Monte Carlo "
             "did not run for this update.",
-            className="text-muted", style={'margin': 0},
+            style={'margin': 0},
         )
 
     max_prob = max((r.get('prob', 0.0) for r in rows), default=0.0)
 
-    if dark_mode:
-        text_color = '#e8e8e8'
-        muted_color = 'rgba(232,232,232,0.65)'
-        bar_track = 'rgba(255,255,255,0.08)'
-        bar_color = '#ff8c5a'
-        highlight_bg = 'rgba(255,140,90,0.12)'
-        border_color = 'rgba(255,255,255,0.10)'
-        header_border = 'rgba(255,255,255,0.18)'
-    else:
-        text_color = '#1a1a1a'
-        muted_color = 'rgba(26,26,26,0.55)'
-        bar_track = 'rgba(0,0,0,0.06)'
-        bar_color = '#cc4422'
-        highlight_bg = 'rgba(204,68,34,0.07)'
-        border_color = 'rgba(0,0,0,0.06)'
-        header_border = 'rgba(0,0,0,0.18)'
-
-    header_cell = {
-        'color': muted_color, 'fontSize': '0.72rem', 'fontWeight': '600',
-        'textTransform': 'uppercase', 'letterSpacing': '0.05em',
-        'borderBottom': f'1.5px solid {header_border}',
-        'padding': '0.5rem 0.6rem',
-    }
-
-    body_rows = []
+    out_rows = []
     for entry in rows:
         prob = entry.get('prob', 0.0)
         prob_pct = prob * 100
@@ -1974,80 +1977,31 @@ def _build_rank_probability_table(stats: dict, dark_mode: bool = False) -> html.
         is_max = prob == max_prob and max_prob > 0
 
         holder_year = entry.get('holder_year')
-        if holder_year is not None:
-            holder_text = (f"{holder_year} "
-                           f"({entry['holder_value']:+.2f}°C)")
-        else:
-            holder_text = "—"
+        holder_text = (f"{holder_year} ({entry['holder_value']:+.2f}°C)"
+                       if holder_year is not None else "—")
 
-        bar_fill = html.Div(style={
-            'width': f'{max(prob_pct, 0.4)}%' if prob > 0 else '0',
-            'height': '6px',
-            'backgroundColor': bar_color,
-            'borderRadius': '3px',
-            'opacity': 1.0 if is_max else 0.7,
-            'transition': 'width 0.25s ease',
-        })
-        bar_track_div = html.Div([bar_fill], style={
-            'width': '100%', 'height': '6px',
-            'backgroundColor': bar_track, 'borderRadius': '3px',
-        })
+        out_rows.append(html.Div([
+            html.Div(entry['rank_label'], className="rlabel",
+                     style={'fontWeight': '600'} if is_max else None),
+            html.Div(holder_text, className="rholder"),
+            html.Div(html.Div(className="rfill", style={
+                'width': f'{max(prob_pct, 0.6):.1f}%',
+                'opacity': 1.0 if is_max else 0.65,
+            }), className="rtrack"),
+            html.Div(prob_str, className="rpct"),
+        ], className="rrow"))
 
-        weight = '600' if is_max else '400'
-        cell_pad = '0.55rem 0.6rem'
-        body_rows.append(html.Tr([
-            html.Td(entry['rank_label'], style={
-                'color': text_color, 'fontWeight': weight, 'padding': cell_pad,
-                'borderBottom': f'1px solid {border_color}',
-            }),
-            html.Td(prob_str, style={
-                'fontFamily': 'SFMono-Regular, Menlo, Consolas, monospace',
-                'color': text_color, 'textAlign': 'right',
-                'fontWeight': weight, 'whiteSpace': 'nowrap',
-                'padding': cell_pad,
-                'borderBottom': f'1px solid {border_color}',
-            }),
-            html.Td(bar_track_div, style={
-                'verticalAlign': 'middle', 'minWidth': '90px',
-                'padding': f'{cell_pad}',
-                'borderBottom': f'1px solid {border_color}',
-            }),
-            html.Td(holder_text, style={
-                'color': muted_color, 'fontSize': '0.86rem',
-                'whiteSpace': 'nowrap', 'padding': cell_pad,
-                'borderBottom': f'1px solid {border_color}',
-            }),
-        ], style={'backgroundColor': highlight_bg if is_max else 'transparent'}))
-
-    # Drop the bottom border on the last row for a cleaner edge.
-    if body_rows:
-        last = body_rows[-1]
-        for cell in last.children:
-            cell.style['borderBottom'] = 'none'
-
-    header = html.Thead(html.Tr([
-        html.Th("Rank", style=header_cell),
-        html.Th("Probability",
-                style={**header_cell, 'textAlign': 'right'}),
-        html.Th("", style=header_cell),
-        html.Th("Currently held by", style=header_cell),
-    ]))
-
-    return html.Table(
-        [header, html.Tbody(body_rows)],
-        style={
-            'width': '100%',
-            'borderCollapse': 'collapse',
-            'tableLayout': 'auto',
-            'margin': 0,
-        },
-    )
+    return html.Div(out_rows, className="ranktable")
 
 
 def create_dashboard(df: pd.DataFrame) -> Dash:
     """Create the Dash application with dark mode support."""
     import logging
     logger = logging.getLogger(__name__)
+
+    # Make bundled fonts available to kaleido/matplotlib before any figure
+    # generation happens.
+    install_fonts()
 
     # Assets folder is at project root, not in src/
     assets_path = Path(__file__).parent.parent / 'assets'
@@ -2127,10 +2081,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     stats = create_statistics_cards(df)
 
-    # Closure-captured stats so the dark-mode rerender callback for the rank
-    # probability table doesn't have to recompute the Monte Carlo.
-    _stats_cache = stats
-
     # Store dataframe reference for callbacks (using closure)
     _df = df.copy()
 
@@ -2198,611 +2148,416 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 _cmip_lazy[gen] = pd.DataFrame()
         return _cmip_lazy[gen]
 
-    app.layout = dbc.Container([
-        # URL location for deep-linking tabs
+    # ── Hero data (computed once at startup) ────────────────────────────────
+    _enso_odds = None
+    try:
+        if _ENSO_AVAILABLE:
+            from src.enso_plots import compute_strength_probabilities
+            _centers, _probs, _nm_seas = compute_strength_probabilities(_enso_forecast_df)
+            _enso_odds = L.enso_peak_odds(_centers, _probs, _nm_seas)
+    except Exception as e:
+        logger.warning(f"Could not compute ENSO peak odds: {e}")
+
+    _alignment = None
+    try:
+        if _MODELS_AVAILABLE:
+            _alignment = L.models_alignment(_cmip6, _obs_models)
+    except Exception as e:
+        logger.warning(f"Could not compute model alignment: {e}")
+
+    # ── Temperature tab ─────────────────────────────────────────────────────
+    if stats.get('annual_prediction', 'N/A') != 'N/A':
+        temp_headline = [
+            "This year is on track for ",
+            html.Span([
+                stats['annual_prediction'].lstrip('+'), " ",
+                html.Span(stats['annual_error'], className="pm"),
+            ], className="num"),
+            " above preindustrial.",
+        ]
+    else:
+        temp_headline = ["Tracking global temperature, every day."]
+    temp_lede = [
+        "Year-to-date: ", html.Strong(stats['ytd_anomaly']), ". ",
+        "The projection combines the observed year so far with the ENSO "
+        "multi-model ensemble and is refreshed every morning from ERA5.",
+    ]
+
+    _enso_state_label, _enso_state_val, _enso_state_when = L.split_enso_state(
+        _enso_cards.get('current_state', 'N/A'))
+
+    temp_kpis = L.kpi_row([
+        L.kpi(f"Latest day · {stats['latest_date']}", stats['latest_anomaly'],
+              ([html.Span(stats['daily_rank'], className='rank'),
+                " for this calendar day"]
+               if stats.get('daily_rank') else f"Absolute: {stats['latest_temp']}")),
+        L.kpi(f"{stats['month_name']} projection",
+              [stats['month_prediction'],
+               html.Small(f" {stats['month_error']}")],
+              ([f"{stats['month_days']} days in · est. rank ",
+                html.Span(stats['month_rank'], className='rank')] +
+               ([f" ({stats['month_rank_range']})"]
+                if stats.get('month_rank_range')
+                and stats['month_rank_range'] != stats['month_rank'] else [])
+               if stats.get('month_rank') else [f"{stats['month_days']} days in"])),
+        L.kpi("365-day mean", stats.get('rolling_365') or "N/A",
+              "vs preindustrial 1850–1900"),
+        L.kpi("ENSO state", _enso_state_label,
+              (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
+               if _enso_state_val else "Forecast on the ENSO tab")),
+    ])
+
+    tab_global = html.Div(id='tab-content-global', children=[
+        L.hero(f"{stats['current_year']} Annual Projection", temp_headline,
+               temp_lede, right=L.temp_rank_strip(stats)),
+        temp_kpis,
+        L.section("01", "Right now", "ERA5 daily · 1940–present",
+                  "Daily global mean surface temperature against every year in the "
+                  "record. The 365-day running mean is the cleanest single measure "
+                  "of where we stand.", [
+            L.panel("Global mean anomaly vs preindustrial (1850–1900)",
+                    img_id='timeseries-img',
+                    img_src='/assets/images/timeseries_dark.png',
+                    graph_id='timeseries-plot', graph_height=500, tag="Daily",
+                    caption=[
+                        "Grey: daily anomalies. The ", html.B("365-day average"),
+                        " smooths out weather and the seasonal cycle.",
+                    ]),
+            L.panel("The year in context — daily anomalies by year",
+                    img_id='daily-anomalies-img',
+                    img_src='/assets/images/daily_anomalies_dark.png',
+                    graph_id='daily-anomalies-plot', graph_height=500, tag="Daily",
+                    caption=[
+                        "Recent years against the 1940–2022 range (grey). Dashed: ",
+                        html.B("EC46 46-day forecast"),
+                        ". Shaded band: the current month.",
+                    ]),
+            L.panel("Daily global mean temperature (absolute)",
+                    img_id='daily-temps-img',
+                    img_src='/assets/images/daily_temps_dark.png',
+                    graph_id='daily-absolutes-plot', graph_height=500, tag="Daily",
+                    caption="The same days in absolute terms — the seasonal cycle "
+                            "dominates, with recent years riding along the top."),
+        ], section_id='sec-now'),
+        L.section("02", f"Where {stats['current_year']} is heading",
+                  "Monte Carlo · refreshed daily",
+                  "Statistical projections built from year-to-date observations, "
+                  "the seasonal cycle, and the ENSO forecast ensemble. Uncertainty "
+                  "narrows as the year fills in.", [
+            L.duo(
+                L.panel(f"{stats['month_name']} {stats['current_year']} — monthly projection",
+                        img_id='monthly-projections-img',
+                        img_src='/assets/images/monthly_projections_dark.png',
+                        graph_id='monthly-projection', graph_height=460,
+                        caption=[f"Projected {stats['month_name']}: ",
+                                 html.B(f"{stats['month_prediction']} {stats['month_error']}"),
+                                 (f" — est. rank {stats['month_rank']}"
+                                  if stats.get('month_rank') else "")]),
+                L.panel(f"Annual anomaly & {stats['current_year']} prediction",
+                        img_id='annual-prediction-img',
+                        img_src='/assets/images/annual_prediction_dark.png',
+                        graph_id='annual-prediction', graph_height=460,
+                        caption=[f"Projected {stats['current_year']}: ",
+                                 html.B(f"{stats['annual_prediction']} {stats['annual_error']}"),
+                                 ((f" — est. rank {stats['annual_rank']}" +
+                                   (f" ({stats['annual_rank_range']})"
+                                    if stats.get('annual_rank_range')
+                                    and stats['annual_rank_range'] != stats['annual_rank']
+                                    else ""))
+                                  if stats.get('annual_rank') else "")]),
+            ),
+            L.panel(f"{stats['current_year']} ranking probabilities",
+                    body=html.Div(_build_rank_probability_table(stats),
+                                  style={'padding': '14px 20px'}),
+                    caption="Likelihood of each final rank against the historical "
+                            "record, from a Monte Carlo over the ENSO multi-model "
+                            "ensemble plus regression residuals."),
+            L.panel(f"How the {stats['current_year']} projection has evolved",
+                    img_id='projection-history-img',
+                    img_src='/assets/images/projection_history_dark.png',
+                    graph_id='projection-history', graph_height=460, tag="Daily",
+                    caption=["Step changes mark ",
+                             html.B("new seasonal ENSO forecasts"),
+                             "; the band is the 95% interval."]),
+        ], section_id='sec-projection'),
+        L.section("03", "The long view", "1940–present",
+                  "The full daily record in two frames: every day as a pixel, and "
+                  "every year as a distribution.", [
+            L.panel("Every day since 1940 — anomaly heatmap",
+                    img_id='heatmap-anomaly-img',
+                    img_src='/assets/images/heatmap_anomaly_dark.png',
+                    graph_id='daily-anomaly-heatmap', graph_height=500,
+                    caption="Columns are years, rows are days of the year."),
+            L.panel("Every day since 1940 — absolute temperature",
+                    img_id='heatmap-temp-img',
+                    img_src='/assets/images/heatmap_temp_dark.png',
+                    graph_id='daily-temp-heatmap', graph_height=500,
+                    caption="The seasonal cycle as horizontal bands, warming as "
+                            "the left-to-right drift."),
+            html.Div(
+                L.panel("The distribution slides warm",
+                        img_id='ridgeline-img',
+                        img_src='/assets/images/ridgeline_dark.png',
+                        caption=["Each ridge is one year's daily anomalies; the "
+                                 "current year is dashed."]),
+                style={'maxWidth': '880px', 'margin': '0 auto'}),
+        ], section_id='sec-history'),
+    ])
+
+    # ── ENSO tab ────────────────────────────────────────────────────────────
+    _peak_val = _enso_cards.get('peak_val')
+    _peak_month = _enso_cards.get('peak_month_label', '')
+    if _peak_val is not None and _enso_state_label.startswith('El Niño'):
+        _strength_word = ("A major" if _peak_val >= 2.0 else
+                          "A moderate" if _peak_val >= 1.0 else "A weak")
+        enso_headline = [
+            f"{_strength_word} El Niño is under way, forecast to peak near ",
+            html.Span(f"{_peak_val:+.1f} °C", className="num"),
+            f" in {_peak_month}.",
+        ]
+    elif _peak_val is not None and _enso_state_label.startswith('La Niña'):
+        enso_headline = [
+            "La Niña conditions, forecast to reach ",
+            html.Span(f"{_peak_val:+.1f} °C", className="num"),
+            f" in {_peak_month}.",
+        ]
+    elif _peak_val is not None:
+        enso_headline = [
+            "Neutral conditions now; the ensemble points to ",
+            html.Span(f"{_peak_val:+.1f} °C", className="num"),
+            f" by {_peak_month}.",
+        ]
+    else:
+        enso_headline = ["Seasonal ENSO forecasts, aggregated."]
+    enso_lede = [
+        "Observed Niño 3.4 is at ", html.Strong(_enso_state_val or "N/A"),
+        f" ({_enso_state_when})." if _enso_state_when else ".",
+        " Every seasonal forecast system's full ensemble is aggregated with "
+        "equal model weighting, updated as new runs arrive.",
+    ]
+
+    enso_strip = None
+    if _enso_odds:
+        enso_strip = L.prob_strip(
+            f"Peak-season odds · {_enso_odds['season_label']}",
+            f"{_enso_cards.get('n_models', '?')} models · equal weight",
+            _enso_odds['segments'], _enso_odds['legend'])
+
+    enso_kpis = L.kpi_row([
+        L.kpi("Current state", _enso_state_label,
+              (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
+               if _enso_state_val else "N/A"),
+              value_id='enso-card-1-value', sub_id='enso-card-1-sub'),
+        L.kpi("Forecast peak", _enso_cards.get('max_change_str', 'N/A'),
+              _enso_cards.get('max_change_range', 'N/A'),
+              value_id='enso-card-2-value', sub_id='enso-card-2-sub'),
+        L.kpi("P(very strong at peak)",
+              (L.fmt_prob(_enso_odds['p_very']) if _enso_odds else "N/A"),
+              (f"index ≥ 2.0°C · {_enso_odds['kind']}, {_enso_odds['season_label']}"
+               if _enso_odds else "multi-model ensemble")),
+        L.kpi("Ensemble",
+              [f"{_enso_cards.get('n_models', '?')} ", html.Small("models")],
+              f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS"),
+    ])
+
+    _enso_index_ctl = [
+        html.Span("Index", className="ctllabel"),
+        dbc.RadioItems(
+            id='enso-index-toggle',
+            className='segmented btn-group',
+            inputClassName='btn-check', labelClassName='btn',
+            options=[{'label': 'ONI', 'value': False},
+                     {'label': 'rONI', 'value': True}],
+            value=False,
+        ),
+    ]
+
+    tab_enso = html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
+        L.hero("El Niño Watch · Niño 3.4" if _enso_state_label.startswith('El Niño')
+               else "La Niña Watch · Niño 3.4" if _enso_state_label.startswith('La Niña')
+               else "ENSO Forecast · Niño 3.4",
+               enso_headline, enso_lede, right=enso_strip),
+        enso_kpis,
+        L.section("01", "The forecast", _enso_index_ctl,
+                  "Every seasonal forecast system's full ensemble, drawn as one "
+                  "plume. The dotted line is the model-equal-weighted median.", [
+            L.panel("Niño 3.4 combined forecast plume",
+                    img_id='enso-mega-plume-img',
+                    img_src='/assets/images/enso_mega_plume_dark.png',
+                    graph_id='enso-mega-plume-plot', graph_height=550, tag="Monthly",
+                    caption=["Individual members fade into the background; model "
+                             "means are drawn on top. Spread widens with lead time."]),
+        ], section_id='sec-plume'),
+        L.section("02", "How strong, when", "Model-equal weighting",
+                  "The same ensemble, sliced two ways: the monthly forecast "
+                  "distribution, and the seasonal odds of each ENSO category.", [
+            L.panel("Monthly forecast distribution",
+                    img_id='enso-box-distribution-img',
+                    img_src='/assets/images/enso_box_distribution_dark.png',
+                    graph_id='enso-box-distribution-plot', graph_height=550,
+                    caption="Boxes span the model-weighted interquartile range; "
+                            "whiskers the 5th–95th percentiles."),
+            L.panel("Strength probabilities by season",
+                    img_id='enso-strength-probs-img',
+                    img_src='/assets/images/enso_strength_probs_dark.png',
+                    graph_id='enso-strength-probs-plot', graph_height=500,
+                    caption="Model-weighted category odds per overlapping 3-month "
+                            "season; n drops at long leads as fewer systems "
+                            "forecast that far out."),
+        ], section_id='sec-odds'),
+        L.section("03", "In context", "1990–present",
+                  "The observed ENSO record with the current forecast appended. "
+                  "Red spans are El Niño events, blue La Niña.", [
+            L.panel("Historical record and current forecast",
+                    img_id='enso-historical-img',
+                    img_src='/assets/images/enso_historical_dark.png',
+                    graph_id='enso-historical-plot', graph_height=450,
+                    caption=["Dotted: multi-model median forecast with the "
+                             "25th–75th percentile band."]),
+        ], section_id='sec-context'),
+    ])
+
+    # ── Models tab ──────────────────────────────────────────────────────────
+    if _alignment:
+        models_headline = [
+            "Observations are running ",
+            html.Span(_alignment['phrase'], className="num"),
+            " of the model envelope.",
+        ]
+    else:
+        models_headline = ["Climate models vs. observations."]
+    models_lede = [
+        "Since 1970 the world has warmed at ",
+        html.Strong(_models_cards.get('obs_trend_1970', 'N/A')),
+        " against a model mean of ",
+        html.Strong(_models_cards.get('model_trend_1970', 'N/A')),
+        f"; over the last 15 years observations have run at ",
+        html.Strong(_models_cards.get('obs_trend_15', 'N/A')), ".",
+    ]
+
+    models_gauge = None
+    if _alignment:
+        models_gauge = L.percentile_gauge(
+            "Observed trend vs CMIP6 ensemble", "1970–present",
+            _alignment['percentile'],
+            f"obs · {ordinal(int(round(_alignment['percentile'])))} percentile")
+
+    models_kpis = L.kpi_row([
+        L.kpi([html.Span("Warming vs preindustrial", id='models-card-1-title')],
+              _models_cards.get('obs_warming', 'N/A'),
+              (f"Models: {_models_cards.get('model_warming', 'N/A')} "
+               f"({_models_cards.get('model_warming_range', 'N/A')})"),
+              value_id='models-card-1-value', sub_id='models-card-1-sub'),
+        L.kpi("Trend · 1970–present",
+              _models_cards.get('obs_trend_1970', 'N/A'),
+              (f"Models: {_models_cards.get('model_trend_1970', 'N/A')} "
+               f"({_models_cards.get('model_range_1970', 'N/A')})"),
+              value_id='models-card-2-value', sub_id='models-card-2-sub'),
+        L.kpi([html.Span(f"Trend · {_models_cards.get('start_25', '')}–present",
+                         id='models-card-3-title')],
+              _models_cards.get('obs_trend_25', 'N/A'),
+              (f"Models: {_models_cards.get('model_trend_25', 'N/A')} "
+               f"({_models_cards.get('model_range_25', 'N/A')})"),
+              value_id='models-card-3-value', sub_id='models-card-3-sub'),
+        L.kpi([html.Span(f"Trend · {_models_cards.get('start_15', '')}–present",
+                         id='models-card-4-title')],
+              _models_cards.get('obs_trend_15', 'N/A'),
+              (f"Models: {_models_cards.get('model_trend_15', 'N/A')} "
+               f"({_models_cards.get('model_range_15', 'N/A')})"),
+              value_id='models-card-4-value', sub_id='models-card-4-sub'),
+    ])
+
+    models_controls = html.Div(html.Div([
+        html.Span([
+            html.Span("Generation", className="ctllabel"),
+            dbc.RadioItems(
+                id='models-cmip-gen',
+                className='segmented btn-group',
+                inputClassName='btn-check', labelClassName='btn',
+                options=[{'label': 'CMIP6', 'value': 'cmip6'},
+                         {'label': 'CMIP5', 'value': 'cmip5'},
+                         {'label': 'CMIP3', 'value': 'cmip3'}],
+                value='cmip6',
+            ),
+        ], style={'display': 'inline-flex', 'alignItems': 'center'}),
+        html.Span([
+            html.Span("Baseline", className="ctllabel"),
+            dbc.Select(
+                id='models-baseline',
+                options=[
+                    {'label': '1850–1900 (preindustrial)', 'value': '1850-1900'},
+                    {'label': '1951–1980', 'value': '1951-1980'},
+                    {'label': '1961–1990', 'value': '1961-1990'},
+                    {'label': '1971–2000', 'value': '1971-2000'},
+                    {'label': '1981–2010', 'value': '1981-2010'},
+                ],
+                value='1850-1900',
+            ),
+        ], style={'display': 'inline-flex', 'alignItems': 'center'}),
+        html.Span([
+            html.Span("Smoothing", className="ctllabel"),
+            dbc.RadioItems(
+                id='models-smoothing',
+                className='segmented btn-group',
+                inputClassName='btn-check', labelClassName='btn',
+                options=[{'label': 'Monthly', 'value': 'monthly'},
+                         {'label': '12-month', 'value': 'rolling'}],
+                value='rolling',
+            ),
+        ], style={'display': 'inline-flex', 'alignItems': 'center'}),
+    ], className="controlbar"), className="block", style={'paddingBottom': '0'})
+
+    tab_models = html.Div(id='tab-content-models', style={'display': 'none'}, children=[
+        L.hero("CMIP6 · SSP2-4.5 · five observational records",
+               models_headline, models_lede, right=models_gauge),
+        models_kpis,
+        models_controls,
+        L.section("01", "The scorecard", "1900–2040 · SSP2-4.5",
+                  "Five independent observational records against the model "
+                  "ensemble mean and its 5th–95th percentile envelope.", [
+            L.panel("Climate models vs observations",
+                    img_id='models-timeseries-img',
+                    img_src='/assets/images/models_timeseries_dark.png',
+                    graph_id='models-timeseries-plot', graph_height=520, tag="Monthly",
+                    caption="All series referenced to the selected baseline."),
+        ], section_id='sec-scorecard'),
+        L.section("02", "Trends, however you slice them", "OLS · to present",
+                  "Pick any start year: how does the observed warming rate compare "
+                  "with each model's? The histograms show where observations fall "
+                  "within the full ensemble for three common windows.", [
+            L.panel("Warming trend by start year",
+                    img_id='models-trend-explorer-img',
+                    img_src='/assets/images/models_trend_explorer_dark.png',
+                    graph_id='models-trend-explorer-plot', graph_height=500,
+                    caption="Observed trends (dashed) vs the model distribution "
+                            "for every start year through 2010."),
+            L.panel("Where observations land in the model distribution",
+                    img_id='models-histograms-img',
+                    img_src='/assets/images/models_histograms_dark.png',
+                    graph_id='models-histograms-plot', graph_height=380,
+                    caption="Dashed lines are the five observational records."),
+        ], section_id='sec-trends'),
+    ])
+
+    app.layout = html.Div([
         dcc.Location(id='url', refresh=False),
-        # Store for mobile detection
         dcc.Store(id='is-mobile-store', data=False),
         dcc.Store(id='initial-load', data=True),
         dcc.Store(id='active-tab-store', storage_type='session', data='global'),
+        html.Div(id='theme-sync', style={'display': 'none'}),
 
-        # Header with tab nav and toggles
-        dbc.Row([
-            dbc.Col([
-                dbc.Nav([
-                    dbc.NavItem(dbc.NavLink(
-                        "Global Temperature", id='nav-global', href='#', n_clicks=0,
-                        style={'cursor': 'pointer'},
-                    )),
-                    dbc.NavItem(dbc.NavLink(
-                        "ENSO Forecast", id='nav-enso', href='#', n_clicks=0,
-                        style={'cursor': 'pointer'},
-                    )),
-                    dbc.NavItem(dbc.NavLink(
-                        "Models vs. Obs", id='nav-models', href='#', n_clicks=0,
-                        style={'cursor': 'pointer'},
-                    )),
-                ], id='main-nav', pills=True, className='gap-2'),
-            ], xs=12, md=9, className='d-flex align-items-center'),
-            dbc.Col([
-                html.Div([
-                    # Theme toggle row
-                    html.Div([
-                        html.I(className="fas fa-sun", id='sun-icon',
-                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                        dbc.Switch(
-                            id='dark-mode-switch',
-                            value=True,  # Dark mode is default
-                            className="mx-2",
-                        ),
-                        html.I(className="fas fa-moon", id='moon-icon',
-                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                    ], className="d-flex align-items-center justify-content-center justify-content-md-end mb-2"),
-                    # Plot mode toggle row
-                    html.Div([
-                        html.I(className="fas fa-image", id='static-icon',
-                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                        dbc.Switch(
-                            id='interactive-switch',
-                            value=True,  # Interactive is default (will be overridden for mobile)
-                            className="mx-2",
-                        ),
-                        html.I(className="fas fa-chart-line", id='interactive-icon',
-                               style={'fontSize': '16px', 'width': '24px', 'textAlign': 'center', 'cursor': 'pointer'}),
-                    ], className="d-flex align-items-center justify-content-center justify-content-md-end"),
-                ])
-            ], xs=12, md=3, className="mb-3 mb-md-0"),
-        ], className='align-items-center mb-2'),
+        L.topbar(stats['latest_date']),
 
-        # Tooltips for toggle icons
-        dbc.Tooltip("Light mode", target="sun-icon", placement="bottom"),
-        dbc.Tooltip("Dark mode", target="moon-icon", placement="bottom"),
-        dbc.Tooltip("Static images (fast loading)", target="static-icon", placement="bottom"),
-        dbc.Tooltip("Interactive plots (zoom, pan, hover)", target="interactive-icon", placement="bottom"),
-        dbc.Row([
-            dbc.Col([
-                html.H1("Global Temperature Dashboard", className="text-center mb-2", id='main-title',
-                        style={'fontSize': 'clamp(1.5rem, 5vw, 2.5rem)'}),
-                html.P("ERA5 Daily Global Mean 2m Temperature",
-                       className="text-center", id='subtitle',
-                       style={'fontSize': 'clamp(0.9rem, 2.5vw, 1.1rem)'}),
-            ], xs=12),
-        ]),
+        dbc.Tooltip("Light / dark mode", target="dark-mode-switch", placement="bottom"),
+        dbc.Tooltip("Static images (fast) / interactive plots",
+                    target="interactive-switch", placement="bottom"),
 
-        html.Div([  # tabs wrapper
-        html.Div(id='tab-content-global', children=[
+        tab_global,
+        tab_enso,
+        tab_models,
 
-        # Statistics Cards (2 per row on mobile, 4 per row on desktop)
-        dbc.Row([
-            dbc.Col([
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4("Latest Data", className="card-title", id='card-1-title', style={'fontSize': '1rem'}),
-                                html.P(stats['latest_date'], className="card-text", id='card-1-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                html.Small(f"Status: {stats['data_status']}", id='card-1-sub')
-                            ], id='card-1-body', className="p-2 p-md-3")
-                        ], id='card-1', className="h-100")
-                    ], xs=6, md=3),
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4("Latest Anomaly", className="card-title", id='card-2-title', style={'fontSize': '1rem'}),
-                                html.P(stats['latest_anomaly'], className="card-text", id='card-2-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                html.Small(f"{stats['daily_rank']} for this day" if stats['daily_rank'] else f"Absolute: {stats['latest_temp']}", id='card-2-sub')
-                            ], id='card-2-body', className="p-2 p-md-3")
-                        ], id='card-2', className="h-100")
-                    ], xs=6, md=3),
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4(f"{stats['month_name']} Proj.", className="card-title", id='card-3-title', style={'fontSize': '1rem'}),
-                                html.P(f"{stats['month_prediction']} {stats['month_error']}", className="card-text", id='card-3-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                html.Div([
-                                    html.Small(f"{stats['month_days']} days of data"),
-                                    *([html.Br(), html.Small(f"Est. rank: {stats['month_rank']} ({stats['month_rank_range']})")] if stats.get('month_rank') else []),
-                                ], id='card-3-sub')
-                            ], id='card-3-body', className="p-2 p-md-3")
-                        ], id='card-3', className="h-100")
-                    ], xs=6, md=3),
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4(f"{stats['current_year']} Proj.", className="card-title", id='card-4-title', style={'fontSize': '1rem'}),
-                                html.P(f"{stats['annual_prediction']} {stats['annual_error']}", className="card-text", id='card-4-value', style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                html.Div([
-                                    html.Small(f"YTD: {stats['ytd_anomaly']}"),
-                                    *([html.Br(), html.Small(f"Est. rank: {stats['annual_rank']} ({stats['annual_rank_range']})")] if stats.get('annual_rank') else []),
-                                ], id='card-4-sub')
-                            ], id='card-4-body', className="p-2 p-md-3")
-                        ], id='card-4', className="h-100")
-                    ], xs=6, md=3),
-                ], className="g-2"),
-            ], xs=12, md={'size': 10, 'offset': 1}),
-        ], className="mb-4"),
-
-        # Main time series plot
-        dbc.Row([
-            dbc.Col([
-                # Static image (shown by default)
-                html.Img(id='timeseries-img', src='/assets/images/timeseries_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                # Interactive graph (hidden by default)
-                dcc.Loading(
-                    id="loading-timeseries",
-                    type="circle",
-                    children=[dcc.Graph(id='timeseries-plot', style={'height': '500px', 'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Daily anomalies plot
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='daily-anomalies-img', src='/assets/images/daily_anomalies_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-daily-anomalies",
-                    type="circle",
-                    children=[dcc.Graph(id='daily-anomalies-plot', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Daily absolutes plot
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='daily-temps-img', src='/assets/images/daily_temps_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-daily-absolutes",
-                    type="circle",
-                    children=[dcc.Graph(id='daily-absolutes-plot', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Monthly projection plot
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='monthly-projections-img', src='/assets/images/monthly_projections_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-monthly",
-                    type="circle",
-                    children=[dcc.Graph(id='monthly-projection', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Annual prediction plot
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='annual-prediction-img', src='/assets/images/annual_prediction_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-annual",
-                    type="circle",
-                    children=[dcc.Graph(id='annual-prediction', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Annual rank probability table — refreshed daily with the ERA5 update.
-        dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        html.H5(
-                            f"{stats['current_year']} ranking probabilities",
-                            id='annual-rank-table-title',
-                            style={'fontSize': '1rem', 'fontWeight': '600',
-                                   'marginBottom': '0.25rem'},
-                        ),
-                        html.Small(
-                            f"Likelihood that {stats['current_year']} ends up "
-                            f"at each rank against the historical record. "
-                            f"Monte Carlo over the ENSO multi-model ensemble "
-                            f"plus regression residuals; refreshed daily.",
-                            id='annual-rank-table-subtitle',
-                        ),
-                        html.Div(
-                            _build_rank_probability_table(stats),
-                            id='annual-rank-table-body',
-                            style={'marginTop': '0.85rem'},
-                        ),
-                    ], style={'padding': '1rem 1.25rem'}),
-                ], id='annual-rank-card', className='mb-2'),
-            ], xs=12, md={'size': 6, 'offset': 3})
-        ], className="mb-4"),
-
-        # Annual projection evolution plot
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='projection-history-img', src='/assets/images/projection_history_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-projection-history",
-                    type="circle",
-                    children=[dcc.Graph(id='projection-history', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Daily anomaly heatmap
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='heatmap-anomaly-img', src='/assets/images/heatmap_anomaly_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-heatmap-anomaly",
-                    type="circle",
-                    children=[dcc.Graph(id='daily-anomaly-heatmap', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Daily temperature heatmap
-        dbc.Row([
-            dbc.Col([
-                html.Img(id='heatmap-temp-img', src='/assets/images/heatmap_temp_dark.png',
-                         style={'width': '100%', 'height': 'auto'}),
-                dcc.Loading(
-                    id="loading-heatmap-temp",
-                    type="circle",
-                    children=[dcc.Graph(id='daily-temp-heatmap', style={'display': 'none'},
-                                       config={'toImageButtonOptions': {'scale': 3}})]
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        # Ridgeline plot (always static image)
-        dbc.Row([
-            dbc.Col([
-                html.Img(
-                    id='ridgeline-img',
-                    src='/assets/images/ridgeline_dark.png',
-                    style={'width': '100%', 'height': 'auto', 'maxWidth': '900px', 'margin': '0 auto', 'display': 'block'}
-                )
-            ], xs=12, md={'size': 10, 'offset': 1})
-        ], className="mb-4"),
-
-        ]),  # end tab-content-global
-
-        html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
-
-            # rONI toggle (relative to tropical mean)
-            dbc.Row([
-                dbc.Col([
-                    dbc.Switch(
-                        id='enso-index-toggle',
-                        label='Show as rONI (relative to tropical mean)',
-                        value=False,
-                        style={'fontSize': '0.95rem', 'display': 'flex',
-                               'alignItems': 'center', 'gap': '0.5rem'},
-                        input_style={'marginTop': '0', 'flexShrink': '0'},
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}, className="mb-3"),
-            ]),
-
-            # ENSO Summary Cards
-            dbc.Row([
-                dbc.Col([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4("Current ENSO State", className="card-title",
-                                            id='enso-card-1-title', style={'fontSize': '1rem'}),
-                                    html.P(_enso_cards.get('current_state', 'N/A'),
-                                           className="card-text", id='enso-card-1-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"Updated: {_enso_cards.get('update_date', 'N/A')}",
-                                        id='enso-card-1-sub'),
-                                ], id='enso-card-1-body', className="p-2 p-md-3")
-                            ], id='enso-card-1', className="h-100")
-                        ], xs=6, md=4),
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4("Peak Forecast", className="card-title",
-                                            id='enso-card-2-title', style={'fontSize': '1rem'}),
-                                    html.P(_enso_cards.get('max_change_str', 'N/A'),
-                                           className="card-text", id='enso-card-2-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        _enso_cards.get('max_change_range', 'N/A'),
-                                        id='enso-card-2-sub'),
-                                ], id='enso-card-2-body', className="p-2 p-md-3")
-                            ], id='enso-card-2', className="h-100")
-                        ], xs=6, md=4),
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4("Forecast Sources", className="card-title",
-                                            id='enso-card-3-title', style={'fontSize': '1rem'}),
-                                    html.P("CFS, NMME, C3S, CanSIPS" if _ENSO_AVAILABLE else "N/A",
-                                           className="card-text", id='enso-card-3-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"{_enso_cards.get('n_models', '?')} models, {_enso_cards.get('n_members', '?')} members" if _ENSO_AVAILABLE else "N/A",
-                                        id='enso-card-3-sub'),
-                                ], id='enso-card-3-body', className="p-2 p-md-3")
-                            ], id='enso-card-3', className="h-100")
-                        ], xs=12, md=4),
-                    ], className="g-2"),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 1: Mega Plume
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='enso-mega-plume-img',
-                             src='/assets/images/enso_mega_plume_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-enso-mega-plume", type="circle",
-                        children=[dcc.Graph(id='enso-mega-plume-plot',
-                                            style={'height': '550px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 2: Box Distribution
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='enso-box-distribution-img',
-                             src='/assets/images/enso_box_distribution_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-enso-box-distribution", type="circle",
-                        children=[dcc.Graph(id='enso-box-distribution-plot',
-                                            style={'height': '550px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 3: Historical Context
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='enso-historical-img',
-                             src='/assets/images/enso_historical_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-enso-historical", type="circle",
-                        children=[dcc.Graph(id='enso-historical-plot',
-                                            style={'height': '450px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 4: Strength Probabilities (NOAA-CPC style)
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='enso-strength-probs-img',
-                             src='/assets/images/enso_strength_probs_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-enso-strength-probs", type="circle",
-                        children=[dcc.Graph(id='enso-strength-probs-plot',
-                                            style={'height': '500px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-        ]),  # end tab-content-enso
-
-        html.Div(id='tab-content-models', style={'display': 'none'}, children=[
-
-            # Statistics Cards
-            dbc.Row([
-                dbc.Col([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4(
-                                        f"{_models_cards.get('cmip_label', 'CMIP6')} "
-                                        f"(SSP2-4.5) vs Observed",
-                                        className="card-title",
-                                        id='models-card-1-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('obs_warming', 'N/A'),
-                                           className="card-text", id='models-card-1-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"Models: {_models_cards.get('model_warming', 'N/A')} "
-                                        f"({_models_cards.get('model_warming_range', 'N/A')})",
-                                        id='models-card-1-sub'),
-                                ], id='models-card-1-body', className="p-2 p-md-3")
-                            ], id='models-card-1', className="h-100")
-                        ], xs=6, md=3),
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4("1970–Present Trend", className="card-title",
-                                            id='models-card-2-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('obs_trend_1970', 'N/A'),
-                                           className="card-text", id='models-card-2-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"Models: {_models_cards.get('model_trend_1970', 'N/A')} "
-                                        f"({_models_cards.get('model_range_1970', 'N/A')})",
-                                        id='models-card-2-sub'),
-                                ], id='models-card-2-body', className="p-2 p-md-3")
-                            ], id='models-card-2', className="h-100")
-                        ], xs=6, md=3),
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4(f"{_models_cards.get('start_25', '')}–Present Trend",
-                                            className="card-title",
-                                            id='models-card-3-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('obs_trend_25', 'N/A'),
-                                           className="card-text", id='models-card-3-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"Models: {_models_cards.get('model_trend_25', 'N/A')} "
-                                        f"({_models_cards.get('model_range_25', 'N/A')})",
-                                        id='models-card-3-sub'),
-                                ], id='models-card-3-body', className="p-2 p-md-3")
-                            ], id='models-card-3', className="h-100")
-                        ], xs=6, md=3),
-                        dbc.Col([
-                            dbc.Card([
-                                dbc.CardBody([
-                                    html.H4(f"{_models_cards.get('start_15', '')}–Present Trend",
-                                            className="card-title",
-                                            id='models-card-4-title', style={'fontSize': '1rem'}),
-                                    html.P(_models_cards.get('obs_trend_15', 'N/A'),
-                                           className="card-text", id='models-card-4-value',
-                                           style={'fontSize': '1.1rem', 'fontWeight': 'bold'}),
-                                    html.Small(
-                                        f"Models: {_models_cards.get('model_trend_15', 'N/A')} "
-                                        f"({_models_cards.get('model_range_15', 'N/A')})",
-                                        id='models-card-4-sub'),
-                                ], id='models-card-4-body', className="p-2 p-md-3")
-                            ], id='models-card-4', className="h-100")
-                        ], xs=6, md=3),
-                    ], className="g-2"),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Controls card
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            dbc.Row([
-                                dbc.Col([
-                                    html.Label("Model Generation", id='models-label-gen',
-                                               className="mb-1",
-                                               style={'fontWeight': '500', 'fontSize': '0.9rem'}),
-                                    dbc.Select(
-                                        id='models-cmip-gen',
-                                        options=[
-                                            {'label': 'CMIP6 — SSP2-4.5 (2014–)', 'value': 'cmip6'},
-                                            {'label': 'CMIP5 — RCP4.5 (2008–)', 'value': 'cmip5'},
-                                            {'label': 'CMIP3 — SRES A1B (2001–)', 'value': 'cmip3'},
-                                        ],
-                                        value='cmip6',
-                                        style={'color': '#000'},
-                                    ),
-                                ], md=4, sm=6, className="mb-2"),
-                                dbc.Col([
-                                    html.Label("Baseline", id='models-label-baseline',
-                                               className="mb-1",
-                                               style={'fontWeight': '500', 'fontSize': '0.9rem'}),
-                                    dbc.Select(
-                                        id='models-baseline',
-                                        options=[
-                                            {'label': '1850–1900 (pre-industrial)', 'value': '1850-1900'},
-                                            {'label': '1951–1980', 'value': '1951-1980'},
-                                            {'label': '1961–1990', 'value': '1961-1990'},
-                                            {'label': '1971–2000', 'value': '1971-2000'},
-                                            {'label': '1981–2010', 'value': '1981-2010'},
-                                        ],
-                                        value='1850-1900',
-                                        style={'color': '#000'},
-                                    ),
-                                ], md=4, sm=6, className="mb-2"),
-                                dbc.Col([
-                                    html.Label("Smoothing", id='models-label-smoothing',
-                                               className="mb-1",
-                                               style={'fontWeight': '500', 'fontSize': '0.9rem'}),
-                                    dbc.RadioItems(
-                                        id='models-smoothing',
-                                        options=[
-                                            {'label': 'Monthly', 'value': 'monthly'},
-                                            {'label': '12-month average', 'value': 'rolling'},
-                                        ],
-                                        value='rolling',
-                                        inline=True,
-                                    ),
-                                ], md=4, sm=6, className="mb-2"),
-                            ], className="g-2"),
-                        ]),
-                    ], id='models-controls-card', className="mb-3 mt-3"),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ]),
-
-            # Viz 1: Model envelope vs. observations time series
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='models-timeseries-img',
-                             src='/assets/images/models_timeseries_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-models-timeseries", type="circle",
-                        children=[dcc.Graph(id='models-timeseries-plot',
-                                            style={'height': '520px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 2: Trend explorer
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='models-trend-explorer-img',
-                             src='/assets/images/models_trend_explorer_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-models-trend-explorer", type="circle",
-                        children=[dcc.Graph(id='models-trend-explorer-plot',
-                                            style={'height': '500px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-            # Viz 3: Histogram grid
-            dbc.Row([
-                dbc.Col([
-                    html.Img(id='models-histograms-img',
-                             src='/assets/images/models_histograms_dark.png',
-                             style={'width': '100%', 'height': 'auto'}),
-                    dcc.Loading(
-                        id="loading-models-histograms", type="circle",
-                        children=[dcc.Graph(id='models-histograms-plot',
-                                            style={'height': '600px', 'display': 'none'},
-                                            config={'toImageButtonOptions': {'scale': 3}})]
-                    ),
-                ], xs=12, md={'size': 10, 'offset': 1}),
-            ], className="mb-4"),
-
-        ]),  # end tab-content-models
-
-        ]),  # end tabs wrapper
-
-        # Footer (ERA5-specific, only shown on Global Temperature tab)
-        dbc.Row([
-            dbc.Col([
-                html.Hr(id='footer-hr'),
-                html.P([
-                    "Data source: ",
-                    html.A("ECMWF ERA5 Climate Pulse",
-                           href="https://pulse.climate.copernicus.eu/",
-                           target="_blank",
-                           id='footer-link'),
-                    f" | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-                ], className="text-center", id='footer-text')
-            ])
-        ], id='era5-footer')
-
-    ], fluid=True, id='main-container')
+        L.footer_block(stats['latest_date']),
+    ], id='main-container')
 
     # Clientside callback for mobile detection - sets interactive switch based on device
     app.clientside_callback(
@@ -2827,121 +2582,50 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # Chained callbacks - graphs load sequentially from top to bottom
 
-    # Callback for styling (fast - no heavy computation)
-    @app.callback(
-        [
-            Output('main-container', 'style'),
-            Output('main-title', 'style'),
-            Output('subtitle', 'style'),
-            Output('card-1', 'color'),
-            Output('card-2', 'color'),
-            Output('card-3', 'color'),
-            Output('card-4', 'color'),
-            Output('card-1', 'style'),
-            Output('card-2', 'style'),
-            Output('card-3', 'style'),
-            Output('card-4', 'style'),
-            Output('card-1-title', 'style'),
-            Output('card-2-title', 'style'),
-            Output('card-3-title', 'style'),
-            Output('card-4-title', 'style'),
-            Output('card-1-value', 'style'),
-            Output('card-2-value', 'style'),
-            Output('card-3-value', 'style'),
-            Output('card-4-value', 'style'),
-            Output('card-1-sub', 'style'),
-            Output('card-2-sub', 'style'),
-            Output('card-3-sub', 'style'),
-            Output('card-4-sub', 'style'),
-            Output('annual-rank-card', 'color'),
-            Output('annual-rank-card', 'style'),
-            Output('annual-rank-table-title', 'style'),
-            Output('annual-rank-table-subtitle', 'style'),
-            Output('footer-text', 'style'),
-            Output('sun-icon', 'style'),
-            Output('moon-icon', 'style'),
-        ],
-        [Input('dark-mode-switch', 'value')]
+    # Theme: toggle body.light so CSS variables drive all chrome colors.
+    app.clientside_callback(
+        """
+        function(dark) {
+            document.body.classList.toggle('light', !dark);
+            return '';
+        }
+        """,
+        Output('theme-sync', 'children'),
+        Input('dark-mode-switch', 'value'),
     )
-    def update_styles(dark_mode):
-        theme = get_theme(dark_mode)
 
-        container_style = {
-            'backgroundColor': theme['bg_color'],
-            'minHeight': '100vh',
-            'paddingBottom': '20px'
-        }
-        title_style = {'color': theme['text_color']}
-        subtitle_style = {'color': theme['text_color'], 'opacity': '0.7'}
-        card_color = theme['card_color']
-        card_style = {'backgroundColor': theme['card_color'] if dark_mode else None}
-        card_title_style = {'color': theme['text_color']}
-        card_value_style = {'color': theme['text_color']}
-        card_sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
-        footer_style = {'color': theme['text_color'], 'opacity': '0.7'}
-        sun_style = {
-            'color': '#feca57' if not dark_mode else theme['text_color'],
-            'opacity': 1 if not dark_mode else 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
-        }
-        moon_style = {
-            'color': '#a29bfe' if dark_mode else theme['text_color'],
-            'opacity': 1 if dark_mode else 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
-        }
-        # Rank-card title gets a slightly tighter weighting than the cards above
-        # but reuses the same colour palette.
-        rank_title_style = {
-            'fontSize': '1rem', 'fontWeight': '600',
-            'marginBottom': '0.25rem', 'color': theme['text_color'],
-        }
-        rank_subtitle_style = {
-            'color': theme['text_color'], 'opacity': '0.65',
-        }
+    # Toggle-cluster icon states (active side gets the accent color)
+    @app.callback(
+        [Output('sun-icon', 'className'),
+         Output('moon-icon', 'className'),
+         Output('static-icon', 'className'),
+         Output('interactive-icon', 'className')],
+        [Input('dark-mode-switch', 'value'),
+         Input('interactive-switch', 'value')],
+    )
+    def update_toggle_icons(dark_mode, interactive):
         return (
-            container_style, title_style, subtitle_style,
-            card_color, card_color, card_color, card_color,
-            card_style, card_style, card_style, card_style,
-            card_title_style, card_title_style, card_title_style, card_title_style,
-            card_value_style, card_value_style, card_value_style, card_value_style,
-            card_sub_style, card_sub_style, card_sub_style, card_sub_style,
-            card_color, card_style, rank_title_style, rank_subtitle_style,
-            footer_style, sun_style, moon_style,
+            'fas fa-sun' + ('' if dark_mode else ' tgl-on'),
+            'fas fa-moon' + (' tgl-on' if dark_mode else ''),
+            'fas fa-image' + ('' if interactive else ' tgl-on'),
+            'fas fa-chart-line' + (' tgl-on' if interactive else ''),
         )
 
-    # Re-render the rank-probability table itself when the user toggles dark
-    # mode so the bar colour, row highlight, and text contrast all stay in sync
-    # with the rest of the page.
-    @app.callback(
-        Output('annual-rank-table-body', 'children'),
-        [Input('dark-mode-switch', 'value')],
-    )
-    def _rerender_rank_table(dark_mode):
-        return _build_rank_probability_table(_stats_cache, dark_mode=bool(dark_mode))
-
-    # Tab titles and subtitles
-    _TAB_TITLES = {
-        'global': 'Global Temperature Dashboard',
-        'enso': 'ENSO Forecast Dashboard',
-        'models': 'Models vs. Observations',
-    }
-    _TAB_SUBTITLES = {
-        'global': 'ERA5 Daily Global Mean 2m Temperature',
-        'enso': 'ENSO Forecasts Compiled from CFS, NMME, C3S, and CanSIPS',
-        'models': 'CMIP3, CMIP5, and CMIP6 Models vs Observations',
-    }
-
     _VALID_TABS = {'global', 'enso', 'models'}
+    _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet'}
+    _NAV_ACTIVE = {'global': 'tab-active-temp', 'enso': 'tab-active-enso',
+                   'models': 'tab-active-models'}
 
     # Callback to switch between tab content divs
     @app.callback(
         [Output('tab-content-global', 'style'),
          Output('tab-content-enso', 'style'),
          Output('tab-content-models', 'style'),
-         Output('era5-footer', 'style'),
          Output('active-tab-store', 'data'),
-         Output('main-title', 'children'),
-         Output('subtitle', 'children'),
+         Output('main-container', 'className'),
+         Output('nav-global', 'className'),
+         Output('nav-enso', 'className'),
+         Output('nav-models', 'className'),
          Output('url', 'hash')],
         [Input('nav-global', 'n_clicks'),
          Input('nav-enso', 'n_clicks'),
@@ -2969,37 +2653,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 tab = h
             else:
                 tab = current_tab or 'global'
+        nav_cls = lambda t: ('nav-link ' + _NAV_ACTIVE[t]) if t == tab else 'nav-link'
         return (
             {} if tab == 'global' else {'display': 'none'},
             {} if tab == 'enso' else {'display': 'none'},
             {} if tab == 'models' else {'display': 'none'},
-            {} if tab == 'global' else {'display': 'none'},
             tab,
-            _TAB_TITLES[tab],
-            _TAB_SUBTITLES[tab],
+            _TAB_ACCENTS[tab],
+            nav_cls('global'),
+            nav_cls('enso'),
+            nav_cls('models'),
             f'#{tab}',
-        )
-
-    # Callback to style active/inactive nav links
-    @app.callback(
-        [Output('nav-global', 'style'),
-         Output('nav-enso', 'style'),
-         Output('nav-models', 'style')],
-        [Input('dark-mode-switch', 'value'),
-         Input('active-tab-store', 'data')],
-    )
-    def update_nav_styles(dark_mode, active_tab):
-        theme = get_theme(dark_mode)
-        active_tab = active_tab or 'global'
-        base = {'cursor': 'pointer', 'color': theme['text_color'], 'fontSize': '0.95rem'}
-        active = {**base, 'opacity': '1', 'fontWeight': '600',
-                  'borderBottom': f"2px solid {theme['highlight_colors'][2026]}",
-                  'borderRadius': '0', 'paddingBottom': '4px'}
-        inactive = {**base, 'opacity': '0.6', 'fontWeight': 'normal'}
-        return (
-            active if active_tab == 'global' else inactive,
-            active if active_tab == 'enso' else inactive,
-            active if active_tab == 'models' else inactive,
         )
 
     # Callback to toggle between static images and interactive graphs
@@ -3023,9 +2687,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('projection-history', 'style'),
             Output('daily-anomaly-heatmap', 'style'),
             Output('daily-temp-heatmap', 'style'),
-            # Toggle icons
-            Output('static-icon', 'style'),
-            Output('interactive-icon', 'style'),
             # Image visibility — ENSO tab (4)
             Output('enso-mega-plume-img', 'style'),
             Output('enso-box-distribution-img', 'style'),
@@ -3045,26 +2706,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('models-trend-explorer-plot', 'style'),
             Output('models-histograms-plot', 'style'),
         ],
-        [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
+        [Input('interactive-switch', 'value')]
     )
-    def toggle_interactive_mode(interactive, dark_mode):
-        theme = get_theme(dark_mode)
+    def toggle_interactive_mode(interactive):
         img_style_show = {'width': '100%', 'height': 'auto', 'display': 'block'}
         img_style_hide = {'display': 'none'}
         graph_style_show = {'height': '500px', 'display': 'block'}
         graph_style_hide = {'display': 'none'}
-
-        # Icon styles (similar to sun/moon)
-        icon_active = {
-            'color': '#54a0ff' if not interactive else '#10ac84',
-            'opacity': 1,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
-        }
-        icon_inactive = {
-            'color': theme['text_color'],
-            'opacity': 0.4,
-            'fontSize': '14px', 'width': '20px', 'textAlign': 'center', 'cursor': 'pointer'
-        }
 
         if interactive:
             return (
@@ -3074,8 +2722,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 # Show graphs — Global (8)
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
                 graph_style_show, graph_style_show, graph_style_show, graph_style_show,
-                # Icons (static inactive, interactive active)
-                icon_inactive, icon_active,
                 # Hide images — ENSO (4)
                 img_style_hide, img_style_hide, img_style_hide, img_style_hide,
                 # Show graphs — ENSO (4)
@@ -3098,8 +2744,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 # Hide graphs — Global (8)
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
                 graph_style_hide, graph_style_hide, graph_style_hide, graph_style_hide,
-                # Icons (static active, interactive inactive)
-                icon_active, icon_inactive,
                 # Show images — ENSO (4)
                 img_style_show, img_style_show, img_style_show, img_style_show,
                 # Hide graphs — ENSO (4)
@@ -3331,61 +2975,6 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
 
-    # Card + text styling for models tab (dark/light)
-    @app.callback(
-        [Output('models-card-1', 'color'),
-         Output('models-card-2', 'color'),
-         Output('models-card-3', 'color'),
-         Output('models-card-4', 'color'),
-         Output('models-card-1', 'style'),
-         Output('models-card-2', 'style'),
-         Output('models-card-3', 'style'),
-         Output('models-card-4', 'style'),
-         Output('models-card-1-title', 'style'),
-         Output('models-card-2-title', 'style'),
-         Output('models-card-3-title', 'style'),
-         Output('models-card-4-title', 'style'),
-         Output('models-card-1-value', 'style'),
-         Output('models-card-2-value', 'style'),
-         Output('models-card-3-value', 'style'),
-         Output('models-card-4-value', 'style'),
-         Output('models-card-1-sub', 'style'),
-         Output('models-card-2-sub', 'style'),
-         Output('models-card-3-sub', 'style'),
-         Output('models-card-4-sub', 'style'),
-         Output('models-controls-card', 'color'),
-         Output('models-label-gen', 'style'),
-         Output('models-label-baseline', 'style'),
-         Output('models-label-smoothing', 'style'),
-         Output('models-smoothing', 'labelStyle'),
-         Output('models-cmip-gen', 'style'),
-         Output('models-baseline', 'style')],
-        [Input('dark-mode-switch', 'value')],
-    )
-    def update_models_card_styles(dark_mode):
-        theme = get_theme(dark_mode)
-        card_color = theme['card_color']
-        card_style = {'backgroundColor': theme['card_color'] if dark_mode else None}
-        title_style = {'fontSize': '1rem', 'color': theme['text_color']}
-        value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
-        sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
-        label_style = {'fontWeight': '500', 'fontSize': '0.9rem', 'color': theme['text_color']}
-        select_style = {
-            'backgroundColor': theme['card_color'] if dark_mode else '#fff',
-            'color': theme['text_color'] if dark_mode else '#000',
-            'borderColor': '#555' if dark_mode else '#ced4da',
-        }
-        return (
-            card_color, card_color, card_color, card_color,
-            card_style, card_style, card_style, card_style,
-            title_style, title_style, title_style, title_style,
-            value_style, value_style, value_style, value_style,
-            sub_style, sub_style, sub_style, sub_style,
-            card_color,
-            label_style, label_style, label_style, {'color': theme['text_color']},
-            select_style, select_style,
-        )
-
     # Update cards when CMIP generation changes
     @app.callback(
         [Output('models-card-1-title', 'children'),
@@ -3432,54 +3021,22 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # ── ENSO Forecast callbacks ─────────────────────────────────────────────
 
-    # ENSO card styling (dark/light) + rONI toggle label color
-    @app.callback(
-        [Output('enso-card-1', 'color'),
-         Output('enso-card-2', 'color'),
-         Output('enso-card-3', 'color'),
-         Output('enso-card-1', 'style'),
-         Output('enso-card-2', 'style'),
-         Output('enso-card-3', 'style'),
-         Output('enso-card-1-title', 'style'),
-         Output('enso-card-2-title', 'style'),
-         Output('enso-card-3-title', 'style'),
-         Output('enso-card-1-value', 'style'),
-         Output('enso-card-2-value', 'style'),
-         Output('enso-card-3-value', 'style'),
-         Output('enso-card-1-sub', 'style'),
-         Output('enso-card-2-sub', 'style'),
-         Output('enso-card-3-sub', 'style'),
-         Output('enso-index-toggle', 'label_style')],
-        [Input('dark-mode-switch', 'value')],
-    )
-    def update_enso_card_styles(dark_mode):
-        theme = get_theme(dark_mode)
-        card_color = theme['card_color']
-        card_style = {'backgroundColor': theme['card_color'] if dark_mode else None}
-        title_style = {'fontSize': '1rem', 'color': theme['text_color']}
-        value_style = {'fontSize': '1.1rem', 'fontWeight': 'bold', 'color': theme['text_color']}
-        sub_style = {'color': theme['text_color'], 'opacity': '0.6'}
-        toggle_label_style = {'fontSize': '0.95rem', 'color': theme['text_color']}
-        return (
-            card_color, card_color, card_color,
-            card_style, card_style, card_style,
-            title_style, title_style, title_style,
-            value_style, value_style, value_style,
-            sub_style, sub_style, sub_style,
-            toggle_label_style,
-        )
-
     # ENSO card values follow the rONI toggle
     @app.callback(
         [Output('enso-card-1-value', 'children'),
+         Output('enso-card-1-sub', 'children'),
          Output('enso-card-2-value', 'children'),
          Output('enso-card-2-sub', 'children')],
         [Input('enso-index-toggle', 'value')],
     )
     def update_enso_card_values(roni_on):
         cards = _enso_cards_roni if roni_on else _enso_cards
+        label, val, when = L.split_enso_state(cards.get('current_state', 'N/A'))
+        idx_name = 'rONI' if roni_on else 'Niño 3.4'
+        sub = f"{idx_name} at {val} ({when})" if val else "N/A"
         return (
-            cards.get('current_state', 'N/A'),
+            label,
+            sub,
             cards.get('max_change_str', 'N/A'),
             cards.get('max_change_range', 'N/A'),
         )

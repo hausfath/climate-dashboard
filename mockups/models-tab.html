@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Dashboard — Models vs Obs (design mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body class="accent-violet">
+
+<header class="topbar">
+  <a class="brand" href="design-direction.html">
+    CLIMATE<span class="dot">&middot;</span>DASHBOARD
+    <span class="sub">ERA5 &middot; daily</span>
+  </a>
+  <nav class="tabs">
+    <a class="t-temp" href="design-direction.html">Temperature</a>
+    <a class="t-enso" href="enso-tab.html">ENSO Forecast</a>
+    <a class="t-models active" href="models-tab.html">Models vs Obs</a>
+  </nav>
+  <div class="right">
+    <div class="live"><span class="pulse"></span>Updated Jul 1 2026</div>
+    <button class="iconbtn" title="Light mode">&#9788;</button>
+    <button class="iconbtn" title="Static / interactive">&#8645;</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div>
+      <div class="kicker">CMIP6 &middot; SSP2-4.5 &middot; five observational records</div>
+      <h1>Observations are running
+        <span class="num">through the middle</span>
+        of the model envelope.</h1>
+      <p class="lede">Since 1970 the world has warmed at <strong>0.20&thinsp;&deg;C/decade</strong>
+        against a CMIP6 mean of <strong>0.24</strong>; over the last 15 years observations have
+        accelerated to <strong>0.39</strong> &mdash; still within the ensemble&rsquo;s spread.</p>
+    </div>
+    <div class="gauge">
+      <div class="label rankstrip-label" style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);margin-bottom:16px;display:flex;justify-content:space-between;">
+        <span>Observed trend vs CMIP6 ensemble</span><b style="color:var(--text-dim);font-weight:500;">1970&ndash;present</b>
+      </div>
+      <div class="track">
+        <div class="tick" style="left:50%;"></div>
+        <div class="marker" style="left:30%;"></div>
+      </div>
+      <div class="ends">
+        <span>Cooler than models</span>
+        <span style="color:var(--violet);">obs &middot; 30th percentile</span>
+        <span>Warmer than models</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KPI ROW ============ -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="k-label">Warming vs preindustrial</div>
+      <div class="k-value">+1.29&thinsp;<small>&deg;C</small></div>
+      <div class="k-sub">Models: +1.33 (1.02&ndash;1.68)</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Trend &middot; 1970&ndash;present</div>
+      <div class="k-value">0.20&thinsp;<small>&deg;C/dec</small></div>
+      <div class="k-sub">Models: 0.24 (0.17&ndash;0.32)</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Trend &middot; 2001&ndash;present</div>
+      <div class="k-value">0.25&thinsp;<small>&deg;C/dec</small></div>
+      <div class="k-sub">Models: 0.26 (0.15&ndash;0.42)</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Trend &middot; 2011&ndash;present</div>
+      <div class="k-value">0.39&thinsp;<small>&deg;C/dec</small></div>
+      <div class="k-sub">Models: 0.40 (0.22&ndash;0.61) &middot; last 12 mo obs&ndash;model gap <span class="rank">+0.04</span></div>
+    </div>
+  </div>
+
+  <!-- ============ CONTROLS ============ -->
+  <section class="block" style="padding-bottom:0;">
+    <div class="controlbar">
+      <span><span class="ctllabel">Generation</span>
+        <span class="segmented"><button class="on">CMIP6</button><button>CMIP5</button><button>CMIP3</button></span>
+      </span>
+      <span><span class="ctllabel">Baseline</span>
+        <span class="selectlike">1850&ndash;1900 (preindustrial) <span class="caret">&#9660;</span></span>
+      </span>
+      <span><span class="ctllabel">Smoothing</span>
+        <span class="segmented"><button>Monthly</button><button class="on">12-month</button></span>
+      </span>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 01 ============ -->
+  <section class="block" id="scorecard">
+    <div class="sechead">
+      <span class="no">01</span>
+      <h2>The scorecard</h2>
+      <span class="hint">1900&ndash;2040 &middot; SSP2-4.5</span>
+    </div>
+    <p class="secdesc">Five independent observational records against the CMIP6 ensemble mean and its
+      5th&ndash;95th percentile envelope, all referenced to 1850&ndash;1900.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Climate models vs observations</h3>
+        <span class="tag">Monthly</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/models_timeseries_dark.png" alt="CMIP6 models vs observations time series">
+      <div class="pcap">Observations have tracked the <b>ensemble mean</b> closely for five decades;
+        the 2023&ndash;24 spike briefly touched the envelope&rsquo;s upper half before easing back.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 02 ============ -->
+  <section class="block" id="trends">
+    <div class="sechead">
+      <span class="no">02</span>
+      <h2>Trends, however you slice them</h2>
+      <span class="hint">OLS &middot; to present</span>
+    </div>
+    <p class="secdesc">Pick any start year: how does the observed warming rate compare with each model&rsquo;s?
+      The histograms show where observations fall within the full ensemble for three common windows.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Warming trend by start year</h3>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/models_trend_explorer_dark.png" alt="Warming trend by start year">
+      <div class="pcap">For start years before ~2005 observations sit in the ensemble&rsquo;s <b>lower half</b>;
+        for recent start years they converge on the model mean.</div>
+    </div>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Where observations land in the model distribution</h3>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/models_histograms_dark.png" alt="CMIP6 trend histograms vs observations">
+      <div class="pcap">Dashed lines are the five observational records. For <b>2011&ndash;present</b> they fall
+        near the center of the CMIP6 distribution.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>DATA&nbsp;&middot;&nbsp;<a href="#">CMIP3/5/6 &middot; ERA5 &middot; Berkeley Earth &middot; NOAA &middot; GISTEMP &middot; HadCRUT5</a></span>
+  <span>METHOD&nbsp;&middot;&nbsp;<a href="#">baselines &amp; blending</a></span>
+  <span class="right">CLIMATE&middot;DASHBOARD &mdash; rebuilt nightly 06:00 UTC</span>
+</footer>
+
+</body>
+</html>

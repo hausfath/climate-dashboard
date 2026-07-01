@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Dashboard — Temperature (design mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body class="accent-ember">
+
+<header class="topbar">
+  <a class="brand" href="design-direction.html">
+    CLIMATE<span class="dot">&middot;</span>DASHBOARD
+    <span class="sub">ERA5 &middot; daily</span>
+  </a>
+  <nav class="tabs">
+    <a class="t-temp active" href="design-direction.html">Temperature</a>
+    <a class="t-enso" href="enso-tab.html">ENSO Forecast</a>
+    <a class="t-models" href="models-tab.html">Models vs Obs</a>
+  </nav>
+  <div class="right">
+    <div class="live"><span class="pulse"></span>Updated Jul 1 2026</div>
+    <button class="iconbtn" title="Light mode">&#9788;</button>
+    <button class="iconbtn" title="Static / interactive">&#8645;</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div>
+      <div class="kicker">2026 Annual Projection</div>
+      <h1>This year is on track for
+        <span class="num">1.54&thinsp;&deg;C <span class="pm">&plusmn;0.06</span></span>
+        above preindustrial.</h1>
+      <p class="lede">Year-to-date: <strong>1.46&thinsp;&deg;C</strong>. The projection combines
+        the observed year so far with the ENSO multi-model ensemble, updated
+        every morning from ERA5. The <span class="gold">1.5&thinsp;&deg;C</span> line is now the coin-flip,
+        not the ceiling.</p>
+    </div>
+    <div class="rankstrip">
+      <div class="label"><span>Where 2026 likely ranks</span><b>Monte Carlo &middot; n=10,000</b></div>
+      <div class="bar">
+        <div class="seg" style="width:55%;background:#b5432c;color:#ffe3da;">55%</div>
+        <div class="seg" style="width:32%;background:#7d3a2e;color:#f4c9bd;">32%</div>
+        <div class="seg" style="width:13%;background:#3c2f3d;color:#b8a8be;">13%</div>
+      </div>
+      <div class="barlegend">
+        <span><i style="color:#d95c3f;">&#9632;</i>Warmest on record</span>
+        <span><i style="color:#9c5442;">&#9632;</i>2nd warmest</span>
+        <span><i style="color:#6d5b73;">&#9632;</i>3rd or lower</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KPI ROW ============ -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="k-label">Latest day &middot; Jun 29</div>
+      <div class="k-value">+1.41&thinsp;<small>&deg;C</small></div>
+      <div class="k-sub"><span class="rank">2nd warmest</span> for this calendar day</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">June projection</div>
+      <div class="k-value">1.38&thinsp;<small>&deg;C &plusmn;0.02</small></div>
+      <div class="k-sub">28 days in &middot; est. rank <span class="rank">2nd</span></div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">365-day mean</div>
+      <div class="k-value">1.44&thinsp;<small>&deg;C</small></div>
+      <div class="k-sub"><span class="up">&#9650;</span> above 1.5&thinsp;&deg;C for 9 of last 24 months</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">ENSO state</div>
+      <div class="k-value">El Ni&ntilde;o</div>
+      <div class="k-sub">Ni&ntilde;o 3.4 forecast peak +3.3&thinsp;&deg;C (DJF)</div>
+    </div>
+  </div>
+
+  <!-- ============ SECTION 01 ============ -->
+  <section class="block" id="now">
+    <div class="sechead">
+      <span class="no">01</span>
+      <h2>Right now</h2>
+      <span class="hint">ERA5 daily &middot; 1940&ndash;present</span>
+    </div>
+    <p class="secdesc">Daily global mean surface temperature against every year in the record.
+      Recent years ride well above the historical envelope; the 365-day running mean is the
+      cleanest single measure of where we stand.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Global mean anomaly vs preindustrial (1850&ndash;1900)</h3>
+        <span class="tag">Daily</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/timeseries_dark.png" alt="Global mean temperature anomaly time series">
+      <div class="pcap">The <b>365-day average</b> peaked at <b>1.63&thinsp;&deg;C</b> in late 2024 during El Ni&ntilde;o
+        and has since eased to 1.44&thinsp;&deg;C &mdash; still warmer than any point before 2023.</div>
+    </div>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>The year in context &mdash; daily anomalies by year</h3>
+        <span class="tag">Daily</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/daily_anomalies_dark.png" alt="Daily anomalies spaghetti plot">
+      <div class="pcap"><b>2026</b> (violet) is tracking just below 2024&rsquo;s record pace and just above 2025.
+        Dashed violet: EC46 46-day forecast. Shaded band: current month.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 02 ============ -->
+  <section class="block" id="projection">
+    <div class="sechead">
+      <span class="no">02</span>
+      <h2>Where 2026 is heading</h2>
+      <span class="hint">Monte Carlo &middot; refreshed daily</span>
+    </div>
+    <p class="secdesc">Statistical projections built from year-to-date observations, the seasonal cycle,
+      and the ENSO forecast ensemble. Uncertainty narrows as the year fills in.</p>
+
+    <div class="duo">
+      <div class="panel">
+        <div class="phead">
+          <h3>June 2026 &mdash; monthly projection</h3>
+          <div class="tools"><button title="Expand">&#8599;</button></div>
+        </div>
+        <img src="../assets/images/monthly_projections_dark.png" alt="June projection">
+        <div class="pcap">June lands near <b>1.38&thinsp;&deg;C</b> &mdash; likely 2nd warmest June on record.</div>
+      </div>
+      <div class="panel">
+        <div class="phead">
+          <h3>Annual anomaly &amp; 2026 prediction</h3>
+          <div class="tools"><button title="Expand">&#8599;</button></div>
+        </div>
+        <img src="../assets/images/annual_prediction_dark.png" alt="Annual prediction">
+        <div class="pcap">The 2026 central estimate sits <b>above the 1.5&thinsp;&deg;C line</b>, between 2023 and 2024.</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>How the 2026 projection has evolved</h3>
+        <span class="tag">Daily</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/projection_history_dark.png" alt="Projection evolution">
+      <div class="pcap">Each step change marks a <b>new seasonal ENSO forecast</b>; the strengthening El Ni&ntilde;o
+        signal has pushed the projection up ~0.1&thinsp;&deg;C since February.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 03 ============ -->
+  <section class="block" id="history">
+    <div class="sechead">
+      <span class="no">03</span>
+      <h2>The long view</h2>
+      <span class="hint">1940&ndash;2026</span>
+    </div>
+    <p class="secdesc">Eighty-six years of daily data in two frames: every day as a pixel, and every
+      year as a distribution sliding warm.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Every day since 1940</h3>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/heatmap_anomaly_dark.png" alt="Daily anomaly heatmap">
+      <div class="pcap">Columns are years, rows are days. The abrupt shift around <b>2023</b> is visible as
+        the hard edge on the right.</div>
+    </div>
+
+    <div class="panel" style="max-width:820px; margin-inline:auto;">
+      <div class="phead">
+        <h3>The distribution slides warm</h3>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/ridgeline_dark.png" alt="Ridgeline distribution plot">
+      <div class="pcap">Each ridge is one year&rsquo;s daily anomalies. <b>2026</b> (dashed) sits almost entirely
+        to the right of anything before 2015.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>DATA&nbsp;&middot;&nbsp;<a href="https://pulse.climate.copernicus.eu/">ECMWF ERA5</a></span>
+  <span>METHOD&nbsp;&middot;&nbsp;<a href="#">projection methodology</a></span>
+  <span class="right">CLIMATE&middot;DASHBOARD &mdash; rebuilt nightly 06:00 UTC</span>
+</footer>
+
+</body>
+</html>

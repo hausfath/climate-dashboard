@@ -6,12 +6,6 @@
     overflow-x: auto;
 }
 
-/* Improve touch targets for toggles */
-.form-switch .form-check-input {
-    width: 3em;
-    height: 1.5em;
-}
-
 /* Better spacing on mobile */
 @media (max-width: 767.98px) {
     /* Reduce container padding on mobile */
@@ -55,14 +49,4 @@ html {
 /* Prevent horizontal scroll */
 body {
     overflow-x: hidden;
-}
-
-/* Tab nav — override Bootstrap pill active background so inline styles take precedence */
-#main-nav.nav-pills .nav-link.active {
-    background-color: transparent !important;
-    color: inherit !important;
-}
-#main-nav.nav-pills .nav-link {
-    padding: 5px 12px;
-    transition: opacity 0.15s;
 }
