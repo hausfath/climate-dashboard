@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Dashboard — ENSO Forecast (design mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body class="accent-teal">
+
+<header class="topbar">
+  <a class="brand" href="design-direction.html">
+    CLIMATE<span class="dot">&middot;</span>DASHBOARD
+    <span class="sub">ERA5 &middot; daily</span>
+  </a>
+  <nav class="tabs">
+    <a class="t-temp" href="design-direction.html">Temperature</a>
+    <a class="t-enso active" href="enso-tab.html">ENSO Forecast</a>
+    <a class="t-models" href="models-tab.html">Models vs Obs</a>
+  </nav>
+  <div class="right">
+    <div class="live"><span class="pulse"></span>Updated Jul 1 2026</div>
+    <button class="iconbtn" title="Light mode">&#9788;</button>
+    <button class="iconbtn" title="Static / interactive">&#8645;</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div>
+      <div class="kicker">El Ni&ntilde;o Watch &middot; Ni&ntilde;o 3.4</div>
+      <h1>A major El Ni&ntilde;o is building, forecast to peak near
+        <span class="num">+3.3&thinsp;&deg;C</span>
+        this winter.</h1>
+      <p class="lede">Observed Ni&ntilde;o 3.4 crossed the <strong>+0.5&thinsp;&deg;C</strong> El Ni&ntilde;o
+        threshold in April and reached <strong>+1.5&thinsp;&deg;C</strong> in June. If the multi-model
+        median verifies, this event would rival <strong>2015&ndash;16</strong> and
+        <strong>1997&ndash;98</strong> as the strongest on record.</p>
+    </div>
+    <div class="rankstrip">
+      <div class="label"><span>Peak-season odds &middot; NDJ 2026-27</span><b>13 models &middot; equal weight</b></div>
+      <div class="bar">
+        <div class="seg" style="width:84%;background:#8f1d1d;color:#ffd9d4;">84%</div>
+        <div class="seg" style="width:11%;background:#c94b3a;color:#ffe9e4;">11%</div>
+        <div class="seg" style="width:5%;background:#4a3040;color:#c6b3c8;"></div>
+      </div>
+      <div class="barlegend">
+        <span><i style="color:#b04040;">&#9632;</i>Very strong (&ge;2.0&deg;C)</span>
+        <span><i style="color:#d97a6a;">&#9632;</i>Strong (1.5&ndash;2.0)</span>
+        <span><i style="color:#7d6a85;">&#9632;</i>Weaker</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KPI ROW ============ -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="k-label">Current state &middot; Jun 2026</div>
+      <div class="k-value">El Ni&ntilde;o</div>
+      <div class="k-sub">Ni&ntilde;o 3.4 at <span class="rank">+1.5&thinsp;&deg;C</span> and rising</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Forecast peak</div>
+      <div class="k-value">+3.3&thinsp;<small>&deg;C</small></div>
+      <div class="k-sub">Nov 2026 &ndash; Jan 2027 &middot; range +1.7 to +4.6</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">P(very strong at peak)</div>
+      <div class="k-value">84<small>%</small></div>
+      <div class="k-sub">index &ge; 2.0&thinsp;&deg;C &middot; would rank top-3 all time</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Ensemble</div>
+      <div class="k-value">13 <small>models</small></div>
+      <div class="k-sub">650 members &middot; CFS, NMME, C3S, CanSIPS</div>
+    </div>
+  </div>
+
+  <!-- ============ SECTION 01 ============ -->
+  <section class="block" id="plume">
+    <div class="sechead">
+      <span class="no">01</span>
+      <h2>The forecast</h2>
+      <span class="hint" style="display:flex;align-items:center;gap:14px;">
+        <span class="ctllabel" style="margin:0;">Index</span>
+        <span class="segmented"><button class="on">ONI</button><button>RONI</button></span>
+      </span>
+    </div>
+    <p class="secdesc">Every seasonal forecast system&rsquo;s full ensemble, drawn as one plume.
+      The dotted line is the model-equal-weighted median; individual members fade into the background.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Ni&ntilde;o 3.4 combined forecast plume</h3>
+        <span class="tag">Monthly</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/enso_mega_plume_dark.png" alt="ENSO combined forecast plume">
+      <div class="pcap">The median crosses <b>+2.0&thinsp;&deg;C (very strong)</b> by August and keeps climbing into
+        boreal winter. Model spread widens past October &mdash; from +1.7&thinsp;&deg;C (DWD) to +4.6&thinsp;&deg;C (NASA GEOS).</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 02 ============ -->
+  <section class="block" id="odds">
+    <div class="sechead">
+      <span class="no">02</span>
+      <h2>How strong, when</h2>
+      <span class="hint">Model-equal weighting</span>
+    </div>
+    <p class="secdesc">The same ensemble, sliced two ways: the monthly forecast distribution, and the
+      seasonal odds of each ENSO category.</p>
+
+    <div class="duo">
+      <div class="panel">
+        <div class="phead">
+          <h3>Monthly forecast distribution</h3>
+          <div class="tools"><button title="Expand">&#8599;</button></div>
+        </div>
+        <img src="../assets/images/enso_box_distribution_dark.png" alt="ENSO forecast box distribution">
+        <div class="pcap">Boxes span the model-weighted IQR; the spread nearly <b>triples</b> between July and January.</div>
+      </div>
+      <div class="panel">
+        <div class="phead">
+          <h3>Strength probabilities by season</h3>
+          <div class="tools"><button title="Expand">&#8599;</button></div>
+        </div>
+        <img src="../assets/images/enso_strength_probs_dark.png" alt="ENSO strength probabilities">
+        <div class="pcap">By <b>OND</b>, models put ~93% odds on a very strong event &mdash; but n drops late as
+          fewer systems forecast that far out.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 03 ============ -->
+  <section class="block" id="context">
+    <div class="sechead">
+      <span class="no">03</span>
+      <h2>In context</h2>
+      <span class="hint">1990&ndash;present &middot; ONI</span>
+    </div>
+    <p class="secdesc">Thirty-five years of observed ENSO, with the current forecast appended. Red spans are
+      El Ni&ntilde;o events, blue La Ni&ntilde;a.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Historical record and current forecast</h3>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../assets/images/enso_historical_dark.png" alt="ENSO historical record with forecast">
+      <div class="pcap">The forecast trajectory (dotted) would top <b>2015&ndash;16 (+2.6)</b> and
+        <b>1997&ndash;98 (+2.4)</b> &mdash; unprecedented in the instrumental record, so treat the tails with caution.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>DATA&nbsp;&middot;&nbsp;<a href="#">NOAA CPC &middot; NMME &middot; Copernicus C3S &middot; CanSIPS</a></span>
+  <span>METHOD&nbsp;&middot;&nbsp;<a href="#">forecast aggregation</a></span>
+  <span class="right">CLIMATE&middot;DASHBOARD &mdash; rebuilt nightly 06:00 UTC</span>
+</footer>
+
+</body>
+</html>

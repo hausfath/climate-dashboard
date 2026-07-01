@@ -161,6 +161,15 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"ENSO forecast fetch failed: {e}")
 
+    # Daily Niño 3.4 / RONI from OISSTv2.1 (drives the "daily index" status
+    # on the dashboard cards). Requires the committed climatology CSV.
+    logger.info("Updating daily Niño 3.4 / RONI from OISST...")
+    try:
+        from src.nino_daily import update_nino34_daily
+        update_nino34_daily(force=force)
+    except Exception as e:
+        logger.error(f"Daily Niño 3.4 update failed: {e}")
+
     # Fetch ECMWF EC46 global-mean GSAT forecast (drives the daily-anomaly
     # plot's 46-day forecast tail). Cheap and idempotent on cron repeats.
     logger.info("Fetching ECMWF EC46 GSAT forecast...")
