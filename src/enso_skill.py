@@ -14,9 +14,10 @@ past plumes are recovered two ways:
 * **Going forward (cron):** ``update_enso_skill`` reads the *live* on-disk
   forecasts each run and archives the current month's plume only once its
   runs are all in (maturity auto-detected, with a day-of-month fallback);
-  immature months never appear in the figures. The figures themselves are
-  rebuilt every run so the observed line — daily OISSTv2.1 Niño 3.4 / RONI
-  from ``data/nino34_daily.csv`` — extends daily. Runtime never touches git
+  immature months never appear in the figures. The observed line is the
+  monthly mean of the daily OISSTv2.1 Niño 3.4 / RONI series
+  (``data/nino34_daily.csv``), complete months only, so truth and forecast
+  are both monthly quantities. Runtime never touches git
   history, so it works under the shallow ``actions/checkout`` used by the
   GitHub Actions cron — mirroring how ``ec46_skill.py`` reads its own
   committed archive.
@@ -312,17 +313,32 @@ def _archived_is_mature(archive_dir: Path, init_month: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def _load_observed(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
-    """Daily Niño 3.4 / RONI from OISSTv2.1 (data/nino34_daily.csv, refreshed
-    by the same cron via src.nino_daily). Falls back to the monthly NOAA CSVs
+    """Monthly-mean Niño 3.4 / RONI computed from the daily OISSTv2.1 series
+    (data/nino34_daily.csv, refreshed by the same cron via src.nino_daily).
+
+    Monthly means keep the comparison apples-to-apples with the plumes'
+    monthly targets; only *complete* months are included (a partial month's
+    mean would misrepresent the month). Falls back to the monthly NOAA CSVs
     if the daily series is unavailable."""
     meta = INDEX_META[index_mode]
     daily_path = ROOT / "data" / "nino34_daily.csv"
     if daily_path.exists():
         df = pd.read_csv(daily_path, parse_dates=["date"])
         if meta["obs_col"] in df.columns and not df.empty:
-            df = df[df["date"] >= pd.Timestamp(start)].copy()
             df = df.rename(columns={meta["obs_col"]: "value"})
-            return df[["date", "value"]].sort_values("date").reset_index(drop=True)
+            monthly = (df.set_index("date")["value"]
+                         .resample("MS").agg(["mean", "count"]).reset_index())
+            # A month counts once it has ENDED (not a partial running mean)
+            # and has enough days for a robust mean (the OISST series has
+            # occasional single-day ERDDAP gaps).
+            month_end = monthly["date"] + pd.offsets.MonthEnd(0)
+            ended = month_end <= df["date"].max()
+            enough = monthly["count"] >= 0.8 * monthly["date"].dt.days_in_month
+            monthly = monthly[ended & enough]
+            monthly = monthly.rename(columns={"mean": "value"})
+            monthly = monthly[monthly["date"] >= pd.Timestamp(start)]
+            return (monthly[["date", "value"]]
+                    .sort_values("date").reset_index(drop=True))
 
     fallback = {"oni": ("nino34_monthly.csv", "nino34_anom"),
                 "roni": ("rnino_monthly.csv", "rnino34")}[index_mode]
@@ -376,9 +392,9 @@ def make_plot(index_mode: str, style: str, forecasts, output_path: Path) -> Path
                 zorder=5 + i, marker="o", markersize=2.5)
 
     if not obs.empty:
-        # Daily series: line only (markers would smear at ~300 points)
-        ax.plot(obs["date"], obs["value"], color="black", linewidth=2.0,
-                label="Observed (daily, OISSTv2.1)", zorder=100)
+        ax.plot(obs["date"], obs["value"], color="black", linewidth=2.6,
+                marker="o", markersize=4,
+                label="Observed (monthly mean, OISSTv2.1)", zorder=100)
         ax.axvline(obs["date"].max(), color="0.4", linestyle="--", linewidth=1, zorder=1)
         ax.text(obs["date"].max(), ax.get_ylim()[1], "  obs frontier",
                 color="0.4", fontsize=8, va="top", ha="left")
@@ -451,9 +467,9 @@ def update_enso_skill(today: date | None = None, force: bool = False,
     the figures), so a partial plume — e.g. C3S in but NMME/CanSIPS still on
     last month — never shows up in the verification.
 
-    Figure cadence: rebuilt on every run regardless, because the observed
-    line is the daily OISSTv2.1 Niño 3.4 / RONI series and should extend as
-    each day's data arrives.
+    Figure cadence: rebuilt on every run (cheap); the observed line — monthly
+    means of the daily OISSTv2.1 series, complete months only — gains a point
+    as each month closes out.
     """
     today = today or date.today()
     plume, init_month, mature = _current_plume_live()
