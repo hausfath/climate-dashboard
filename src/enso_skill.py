@@ -12,11 +12,14 @@ past plumes are recovered two ways:
   quantiles), and writes one archive CSV per month.
 
 * **Going forward (cron):** ``update_enso_skill`` reads the *live* on-disk
-  forecasts each run, archives the current month's plume once its runs are in
-  (maturity auto-detected, with a day-of-month fallback), and regenerates the
-  figures. Runtime never touches git history, so it works under the shallow
-  ``actions/checkout`` used by the GitHub Actions cron — mirroring how
-  ``ec46_skill.py`` reads its own committed archive.
+  forecasts each run and archives the current month's plume only once its
+  runs are all in (maturity auto-detected, with a day-of-month fallback);
+  immature months never appear in the figures. The figures themselves are
+  rebuilt every run so the observed line — daily OISSTv2.1 Niño 3.4 / RONI
+  from ``data/nino34_daily.csv`` — extends daily. Runtime never touches git
+  history, so it works under the shallow ``actions/checkout`` used by the
+  GitHub Actions cron — mirroring how ``ec46_skill.py`` reads its own
+  committed archive.
 
 Renders, per (index, style), to ``forecast_skill/``:
     enso_skill_{oni,roni}_{lines,plumes,hybrid}.png
@@ -77,21 +80,19 @@ QUANTILE_COLS = [
     "roni_q25", "roni_q50", "roni_q75",
 ]
 
-# Per-index metadata: forecast column + observed CSV + observed value column.
+# Per-index metadata: forecast column + observed (daily OISSTv2.1) column.
 INDEX_META = {
     "oni": {
         "col": "nino34_anom",
-        "obs_file": "nino34_monthly.csv",
         "obs_col": "nino34_anom",
         "label": "Niño 3.4 SST anomaly (ONI basis, °C)",
         "title": "Niño 3.4 (ONI)",
     },
     "roni": {
         "col": "roni_anom",
-        "obs_file": "rnino_monthly.csv",
-        "obs_col": "rnino34",
-        "label": "Niño 3.4 relative SST anomaly (rONI, °C)",
-        "title": "Relative Niño 3.4 (rONI)",
+        "obs_col": "roni_anom",
+        "label": "Niño 3.4 relative SST anomaly (RONI, °C)",
+        "title": "Relative Niño 3.4 (RONI)",
     },
 }
 
@@ -274,12 +275,22 @@ def _write_archive(path: Path, plume: pd.DataFrame) -> None:
     plume[cols].to_csv(path, index=False)
 
 
-def load_archived_forecasts(archive_dir: Path = ARCHIVE_DIR) -> list[tuple[str, pd.DataFrame]]:
-    """Return [(init_month, plume_df), ...] sorted by init_month."""
+def load_archived_forecasts(archive_dir: Path = ARCHIVE_DIR,
+                            mature_only: bool = True) -> list[tuple[str, pd.DataFrame]]:
+    """Return [(init_month, plume_df), ...] sorted by init_month.
+
+    By default only *mature* plumes (all core sources reporting) are
+    returned, so a month whose runs are still arriving never shows up in
+    the figures with a partial ensemble.
+    """
     out = []
     for fp in sorted(archive_dir.glob("enso_plume_*.csv")):
         im = fp.stem.replace("enso_plume_", "")
         df = pd.read_csv(fp)
+        if mature_only and "mature" in df.columns and len(df):
+            if not bool(df["mature"].iloc[0]):
+                logger.info("ENSO skill: skipping immature archive %s", im)
+                continue
         df["date"] = pd.to_datetime(df["target_month"].astype(str) + "-01")
         out.append((im, df.sort_values("date").reset_index(drop=True)))
     return out
@@ -301,15 +312,28 @@ def _archived_is_mature(archive_dir: Path, init_month: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def _load_observed(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
+    """Daily Niño 3.4 / RONI from OISSTv2.1 (data/nino34_daily.csv, refreshed
+    by the same cron via src.nino_daily). Falls back to the monthly NOAA CSVs
+    if the daily series is unavailable."""
     meta = INDEX_META[index_mode]
-    path = OBSERVED_DIR / meta["obs_file"]
+    daily_path = ROOT / "data" / "nino34_daily.csv"
+    if daily_path.exists():
+        df = pd.read_csv(daily_path, parse_dates=["date"])
+        if meta["obs_col"] in df.columns and not df.empty:
+            df = df[df["date"] >= pd.Timestamp(start)].copy()
+            df = df.rename(columns={meta["obs_col"]: "value"})
+            return df[["date", "value"]].sort_values("date").reset_index(drop=True)
+
+    fallback = {"oni": ("nino34_monthly.csv", "nino34_anom"),
+                "roni": ("rnino_monthly.csv", "rnino34")}[index_mode]
+    path = OBSERVED_DIR / fallback[0]
     if not path.exists():
         logger.warning("ENSO skill: observed file missing: %s", path)
         return pd.DataFrame(columns=["date", "value"])
     df = pd.read_csv(path)
     df["date"] = pd.to_datetime(df["date"])
     df = df[df["date"] >= pd.Timestamp(start)].copy()
-    df = df.rename(columns={meta["obs_col"]: "value"})
+    df = df.rename(columns={fallback[1]: "value"})
     return df[["date", "value"]].sort_values("date").reset_index(drop=True)
 
 
@@ -352,8 +376,9 @@ def make_plot(index_mode: str, style: str, forecasts, output_path: Path) -> Path
                 zorder=5 + i, marker="o", markersize=2.5)
 
     if not obs.empty:
-        ax.plot(obs["date"], obs["value"], color="black", linewidth=2.6,
-                marker="o", markersize=4, label="Observed", zorder=100)
+        # Daily series: line only (markers would smear at ~300 points)
+        ax.plot(obs["date"], obs["value"], color="black", linewidth=2.0,
+                label="Observed (daily, OISSTv2.1)", zorder=100)
         ax.axvline(obs["date"].max(), color="0.4", linestyle="--", linewidth=1, zorder=1)
         ax.text(obs["date"].max(), ax.get_ylim()[1], "  obs frontier",
                 color="0.4", fontsize=8, va="top", ha="left")
@@ -414,44 +439,50 @@ def generate_all(archive_dir: Path = ARCHIVE_DIR, output_dir: Path = OUTPUT_DIR)
 def update_enso_skill(today: date | None = None, force: bool = False,
                       archive_dir: Path = ARCHIVE_DIR,
                       output_dir: Path = OUTPUT_DIR) -> bool:
-    """Archive the current month's plume (once mature / past the fallback day)
-    and regenerate the figures. Cheap no-op on days with nothing new.
+    """Archive the current month's plume *only once its runs are all in*, and
+    regenerate the figures every run.
 
-    Returns True if it (re)archived a month and rebuilt the figures.
+    Returns True if it (re)archived a month.
 
-    Detection: the current month is archived & frozen once all core monthly
-    sources carry its init-month (auto-detected), with a day-of-month fallback
-    so a lagging source can't stall the update indefinitely. A month already
-    archived as *mature* is left frozen; the figures then change only when a
-    new month arrives — i.e. a monthly cadence.
+    Forecast cadence: a month is archived once every core monthly source
+    (NMME/C3S/CanSIPS) carries its init-month, with a day-of-month fallback
+    so a lagging source can't stall the update indefinitely. Until then the
+    month is NOT archived (and any immature archive on disk is excluded from
+    the figures), so a partial plume — e.g. C3S in but NMME/CanSIPS still on
+    last month — never shows up in the verification.
+
+    Figure cadence: rebuilt on every run regardless, because the observed
+    line is the daily OISSTv2.1 Niño 3.4 / RONI series and should extend as
+    each day's data arrives.
     """
     today = today or date.today()
     plume, init_month, mature = _current_plume_live()
+    archived = False
+
     if plume.empty or init_month is None:
-        logger.warning("ENSO skill: no live plume; skipping update")
-        return False
+        logger.warning("ENSO skill: no live plume; figures only")
+    else:
+        already_mature = _archived_is_mature(archive_dir, init_month)
+        fallback = today.day >= MATURITY_FALLBACK_DAY
+        if already_mature and not force:
+            logger.info("ENSO skill: %s already archived (mature)", init_month)
+        elif mature or fallback or force:
+            # The maturity flag always reflects reality; ``force`` re-archives
+            # but must not falsely freeze an immature month.
+            plume = plume.copy()
+            plume["mature"] = bool(mature or fallback)
+            _write_archive(archive_dir / f"enso_plume_{init_month}.csv", plume)
+            archived = True
+            logger.info("ENSO skill: archived %s (mature=%s, fallback=%s)",
+                        init_month, mature, fallback)
+        else:
+            logger.info(
+                "ENSO skill: %s runs not all in yet; holding off archiving",
+                init_month)
 
-    already_mature = _archived_is_mature(archive_dir, init_month)
-    fallback = today.day >= MATURITY_FALLBACK_DAY
-    figures_missing = not any(output_dir.glob("enso_skill_*.png"))
-
-    if already_mature and not force and not figures_missing:
-        logger.info("ENSO skill: %s already archived (mature); nothing to do", init_month)
-        return False
-
-    # The maturity flag always reflects reality (whether the month's runs are
-    # in / past the fallback day). ``force`` only bypasses the skip-guard to
-    # trigger a re-archive + regen — it must not falsely freeze an immature
-    # month, or the current month would never refresh as its runs arrive.
-    plume = plume.copy()
-    plume["mature"] = bool(mature or fallback)
-    _write_archive(archive_dir / f"enso_plume_{init_month}.csv", plume)
     paths = generate_all(archive_dir, output_dir)
-    logger.info(
-        "ENSO skill: archived %s (mature=%s, fallback=%s) and rebuilt %d figures",
-        init_month, mature, fallback, len(paths),
-    )
-    return True
+    logger.info("ENSO skill: rebuilt %d figures", len(paths))
+    return archived
 
 
 if __name__ == "__main__":
