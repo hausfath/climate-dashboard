@@ -312,44 +312,48 @@ def _archived_is_mature(archive_dir: Path, init_month: str) -> bool:
 # Observed truth
 # ---------------------------------------------------------------------------
 
-def _load_observed(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
+def _load_observed_oisst(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
     """Monthly-mean Niño 3.4 / RONI computed from the daily OISSTv2.1 series
     (data/nino34_daily.csv, refreshed by the same cron via src.nino_daily).
 
     Monthly means keep the comparison apples-to-apples with the plumes'
-    monthly targets; only *complete* months are included (a partial month's
-    mean would misrepresent the month). Falls back to the monthly NOAA CSVs
-    if the daily series is unavailable."""
+    monthly targets. A month counts once it has ENDED (never a partial
+    running mean) and has ≥80% of days present (the series has occasional
+    single-day ERDDAP gaps)."""
     meta = INDEX_META[index_mode]
     daily_path = ROOT / "data" / "nino34_daily.csv"
-    if daily_path.exists():
-        df = pd.read_csv(daily_path, parse_dates=["date"])
-        if meta["obs_col"] in df.columns and not df.empty:
-            df = df.rename(columns={meta["obs_col"]: "value"})
-            monthly = (df.set_index("date")["value"]
-                         .resample("MS").agg(["mean", "count"]).reset_index())
-            # A month counts once it has ENDED (not a partial running mean)
-            # and has enough days for a robust mean (the OISST series has
-            # occasional single-day ERDDAP gaps).
-            month_end = monthly["date"] + pd.offsets.MonthEnd(0)
-            ended = month_end <= df["date"].max()
-            enough = monthly["count"] >= 0.8 * monthly["date"].dt.days_in_month
-            monthly = monthly[ended & enough]
-            monthly = monthly.rename(columns={"mean": "value"})
-            monthly = monthly[monthly["date"] >= pd.Timestamp(start)]
-            return (monthly[["date", "value"]]
-                    .sort_values("date").reset_index(drop=True))
+    if not daily_path.exists():
+        logger.warning("ENSO skill: daily OISST series missing: %s", daily_path)
+        return pd.DataFrame(columns=["date", "value"])
+    df = pd.read_csv(daily_path, parse_dates=["date"])
+    if meta["obs_col"] not in df.columns or df.empty:
+        return pd.DataFrame(columns=["date", "value"])
+    df = df.rename(columns={meta["obs_col"]: "value"})
+    monthly = (df.set_index("date")["value"]
+                 .resample("MS").agg(["mean", "count"]).reset_index())
+    month_end = monthly["date"] + pd.offsets.MonthEnd(0)
+    ended = month_end <= df["date"].max()
+    enough = monthly["count"] >= 0.8 * monthly["date"].dt.days_in_month
+    monthly = monthly[ended & enough]
+    monthly = monthly.rename(columns={"mean": "value"})
+    monthly = monthly[monthly["date"] >= pd.Timestamp(start)]
+    return monthly[["date", "value"]].sort_values("date").reset_index(drop=True)
 
-    fallback = {"oni": ("nino34_monthly.csv", "nino34_anom"),
-                "roni": ("rnino_monthly.csv", "rnino34")}[index_mode]
-    path = OBSERVED_DIR / fallback[0]
+
+def _load_observed_ersst(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
+    """Monthly Niño 3.4 / rNINO3.4 from NOAA's ERSSTv5-based products (the
+    pre-OISST observed truth). Lags OISST by roughly a month; plotted
+    alongside it to show observational uncertainty."""
+    fname, col = {"oni": ("nino34_monthly.csv", "nino34_anom"),
+                  "roni": ("rnino_monthly.csv", "rnino34")}[index_mode]
+    path = OBSERVED_DIR / fname
     if not path.exists():
         logger.warning("ENSO skill: observed file missing: %s", path)
         return pd.DataFrame(columns=["date", "value"])
     df = pd.read_csv(path)
     df["date"] = pd.to_datetime(df["date"])
     df = df[df["date"] >= pd.Timestamp(start)].copy()
-    df = df.rename(columns={fallback[1]: "value"})
+    df = df.rename(columns={col: "value"})
     return df[["date", "value"]].sort_values("date").reset_index(drop=True)
 
 
@@ -369,7 +373,8 @@ def make_plot(index_mode: str, style: str, forecasts, output_path: Path) -> Path
         logger.warning("ENSO skill: no inits with %s data for %s", index_mode, style)
         return None
 
-    obs = _load_observed(index_mode)
+    obs = _load_observed_oisst(index_mode)
+    obs_ersst = _load_observed_ersst(index_mode)
     n = len(usable)
     latest_idx = n - 1
     norm = Normalize(vmin=0, vmax=max(n - 1, 1))
@@ -391,12 +396,23 @@ def make_plot(index_mode: str, style: str, forecasts, output_path: Path) -> Path
         ax.plot(f["date"], f[med], color=color, alpha=alpha, linewidth=lw,
                 zorder=5 + i, marker="o", markersize=2.5)
 
+    # Two observed lines — OISSTv2.1 (fresher) and ERSSTv5 (the traditional
+    # index basis, ~1 month behind) — so observational uncertainty is visible.
+    if not obs_ersst.empty:
+        ax.plot(obs_ersst["date"], obs_ersst["value"], color="0.35",
+                linewidth=1.8, linestyle="--", marker="s", markersize=3.5,
+                label="Observed (ERSSTv5)", zorder=99)
     if not obs.empty:
         ax.plot(obs["date"], obs["value"], color="black", linewidth=2.6,
                 marker="o", markersize=4,
                 label="Observed (monthly mean, OISSTv2.1)", zorder=100)
-        ax.axvline(obs["date"].max(), color="0.4", linestyle="--", linewidth=1, zorder=1)
-        ax.text(obs["date"].max(), ax.get_ylim()[1], "  obs frontier",
+    frontier = max([d for d in (
+        obs["date"].max() if not obs.empty else None,
+        obs_ersst["date"].max() if not obs_ersst.empty else None,
+    ) if d is not None], default=None)
+    if frontier is not None:
+        ax.axvline(frontier, color="0.4", linestyle="--", linewidth=1, zorder=1)
+        ax.text(frontier, ax.get_ylim()[1], "  obs frontier",
                 color="0.4", fontsize=8, va="top", ha="left")
 
     ax.axhline(0, color="0.6", linewidth=0.8, zorder=1)
