@@ -2549,7 +2549,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
               sub_id='enso-card-3-sub'),
         L.kpi("Ensemble",
               [f"{_enso_cards.get('n_models', '?')} ", html.Small("models")],
-              f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS"),
+              f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS, SINTEX-F"),
     ])
 
     _enso_index_ctl = [

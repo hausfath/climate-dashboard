@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 DASHBOARD = Path(__file__).resolve().parent.parent
-SOURCES = ["CFS", "NMME", "C3S", "CanSIPS"]
+SOURCES = ["CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"]
 
 
 def load_enso_future_members(year: int, current_month: int) -> pd.DataFrame:

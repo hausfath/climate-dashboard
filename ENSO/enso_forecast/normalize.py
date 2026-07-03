@@ -194,8 +194,10 @@ def _compute_roni_baseline_adjustment(
     return offsets
 
 
-def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
-    """Adjust C3S anomalies from 1993-2016 to 1991-2020 baseline.
+def _adjust_source_baseline(df: pd.DataFrame, source: str,
+                            source_period: tuple[int, int],
+                            base_label: str) -> pd.DataFrame:
+    """Shift ``source`` anomalies from ``source_period`` to 1991-2020.
 
     Adjusts both ``nino34_anom`` and ``tropical_mean_anom`` (when present);
     ``roni_anom`` is recomputed as nino34 − tropical_mean afterward so the
@@ -204,15 +206,15 @@ def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    c3s_mask = (df["source"] == "C3S") & (df["anomaly_base_period"] == "1993-2016")
-    if not c3s_mask.any():
+    mask = (df["source"] == source) & (df["anomaly_base_period"] == base_label)
+    if not mask.any():
         return df
 
     n34_offsets = compute_baseline_adjustment(
-        source_period=(1993, 2016),
+        source_period=source_period,
         target_period=(1991, 2020),
     )
-    roni_offsets = _compute_roni_baseline_adjustment(source_period=(1993, 2016))
+    roni_offsets = _compute_roni_baseline_adjustment(source_period=source_period)
     # tropical_mean offset = nino34 offset - roni offset (since roni = nino34 - tropical_mean)
     trop_offsets = {m: n34_offsets.get(m, 0.0) - roni_offsets.get(m, 0.0) for m in range(1, 13)}
 
@@ -220,7 +222,7 @@ def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
     has_tropical = "tropical_mean_anom" in df.columns
     has_roni = "roni_anom" in df.columns
 
-    for idx in df[c3s_mask].index:
+    for idx in df[mask].index:
         target_month_str = df.loc[idx, "target_month"]
         try:
             cal_month = int(target_month_str.split("-")[1])
@@ -232,9 +234,20 @@ def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
         if has_roni and has_tropical and pd.notna(df.loc[idx, "tropical_mean_anom"]):
             df.loc[idx, "roni_anom"] = df.loc[idx, "nino34_anom"] - df.loc[idx, "tropical_mean_anom"]
 
-    df.loc[c3s_mask, "anomaly_base_period"] = "1991-2020 (adjusted)"
-    logger.info("Adjusted %d C3S records from 1993-2016 to 1991-2020 baseline", c3s_mask.sum())
+    df.loc[mask, "anomaly_base_period"] = "1991-2020 (adjusted)"
+    logger.info("Adjusted %d %s records from %s to 1991-2020 baseline",
+                mask.sum(), source, base_label)
     return df
+
+
+def adjust_c3s_baseline(df: pd.DataFrame) -> pd.DataFrame:
+    """Adjust C3S anomalies from 1993-2016 to 1991-2020 baseline."""
+    return _adjust_source_baseline(df, "C3S", (1993, 2016), "1993-2016")
+
+
+def adjust_sintexf_baseline(df: pd.DataFrame) -> pd.DataFrame:
+    """Adjust SINTEX-F anomalies from 1983-2015 to 1991-2020 baseline."""
+    return _adjust_source_baseline(df, "SINTEX-F", (1983, 2015), "1983-2015")
 
 
 def apply_roni_scaling(df: pd.DataFrame) -> pd.DataFrame:
@@ -323,7 +336,7 @@ def load_all_forecasts(
             init_date falls in that month.
     """
     if sources is None:
-        sources = ["IRI", "CFS", "NMME", "C3S", "CanSIPS"]
+        sources = ["IRI", "CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"]
 
     dfs = []
     for src in sources:
@@ -352,6 +365,9 @@ def load_all_forecasts(
 
     # Adjust C3S baseline from 1993-2016 to 1991-2020
     combined = adjust_c3s_baseline(combined)
+
+    # Adjust SINTEX-F baseline from 1983-2015 to 1991-2020
+    combined = adjust_sintexf_baseline(combined)
 
     # Apply L'Heureux variance-restoration scaling to rONI for sources where
     # we computed it from (n34 − tropical_mean); CFSv2 ships rNINO3.4

@@ -52,6 +52,7 @@ def update_enso_forecasts(force: bool = False) -> None:
     from enso_forecast.fetchers.c3s import save_c3s
     from enso_forecast.fetchers.iri import save_iri
     from enso_forecast.fetchers.cansips import save_cansips
+    from enso_forecast.fetchers.sintexf import save_sintexf
     from enso_forecast.config import FORECASTS_DIR
 
     sources = [
@@ -60,6 +61,7 @@ def update_enso_forecasts(force: bool = False) -> None:
         ("NMME", save_nmme),
         ("C3S", save_c3s),
         ("CanSIPS", save_cansips),
+        ("SINTEX-F", save_sintexf),
         ("IRI", save_iri),
     ]
 
@@ -97,7 +99,7 @@ def update_enso_forecasts(force: bool = False) -> None:
             # trickles in over ~10 days. To force-repull a current run (e.g.
             # after a bad fetch), delete the source's latest CSV so this
             # guard falls through.
-            if name in ("NMME", "C3S", "CanSIPS", "IRI"):
+            if name in ("NMME", "C3S", "CanSIPS", "IRI", "SINTEX-F"):
                 src_dir = FORECASTS_DIR / name
                 existing = sorted(src_dir.glob("*.csv")) if src_dir.exists() else []
                 if existing:

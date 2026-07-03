@@ -42,7 +42,7 @@ def load_enso_forecast_data():
     Returns (forecast_df, obs_df, oni_df).
     """
     try:
-        forecast_df = load_all_forecasts(sources=["CFS", "NMME", "C3S", "CanSIPS"])
+        forecast_df = load_all_forecasts(sources=["CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"])
     except Exception as e:
         logger.error(f"Failed to load ENSO forecasts: {e}")
         forecast_df = pd.DataFrame()

@@ -863,6 +863,7 @@ MEGA_COLORS = {
     "NCAR-CESM1": "#8c564b",
     "NCAR-CCSM4": "#7f7f7f",
     "NASA-GEOS-S2S-2": "#aec7e8",
+    "SINTEX-F": "#00a89d",
 }
 
 

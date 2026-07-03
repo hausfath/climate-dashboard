@@ -55,6 +55,7 @@ if str(ENSO_ROOT) not in sys.path:
 
 from enso_forecast.normalize import (  # noqa: E402
     adjust_c3s_baseline,
+    adjust_sintexf_baseline,
     apply_roni_scaling,
     load_all_forecasts,
 )
@@ -70,7 +71,7 @@ OUTPUT_DIR = ROOT / "forecast_skill"
 ARCHIVE_DIR = OUTPUT_DIR / "enso_archive"
 OBSERVED_DIR = ENSO_ROOT / "data" / "observed"
 FORECAST_REL = "ENSO/data/forecasts"               # repo-relative forecast root
-SOURCES = ["CFS", "NMME", "C3S", "CanSIPS"]         # IRI excluded (stale; not in central est.)
+SOURCES = ["CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"]  # IRI excluded (stale; not in central est.)
 CORE_MONTHLY = ["NMME", "C3S", "CanSIPS"]           # sources whose new run defines a "month"
 MIN_MODELS = 3                                       # match dashboard's ≥3-model floor
 MATURITY_FALLBACK_DAY = 20                            # archive the month by here even if a source lags
@@ -199,6 +200,7 @@ def _combined_at_commit(commit: str) -> pd.DataFrame:
         return pd.DataFrame()
     combined = pd.concat(frames, ignore_index=True)
     combined = adjust_c3s_baseline(combined)
+    combined = adjust_sintexf_baseline(combined)
     combined = apply_roni_scaling(combined)
     return combined
 

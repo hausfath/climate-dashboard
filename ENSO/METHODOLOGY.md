@@ -2,7 +2,7 @@
 
 ## Overview
 
-This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface temperature (SST) anomaly forecasts from four major operational forecasting systems (CFSv2, NMME, C3S, and CanSIPS), combines them into a unified dataset with consistent anomaly baselines, and produces a suite of comparison visualizations. The goal is to provide a comprehensive, multi-model view of the current ENSO forecast that accounts for structural uncertainty across independent modeling centers.
+This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface temperature (SST) anomaly forecasts from five operational forecasting systems (CFSv2, NMME, C3S, CanSIPS, and SINTEX-F), combines them into a unified dataset with consistent anomaly baselines, and produces a suite of comparison visualizations. The goal is to provide a comprehensive, multi-model view of the current ENSO forecast that accounts for structural uncertainty across independent modeling centers.
 
 ## Data Sources
 
@@ -75,7 +75,20 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **Update frequency**: Monthly
 - **Role**: CanSIPS is fetched directly from ECCC as a standalone source and is used in place of the NMME ECCC-CanESM5 / ECCC-GEM5.2-NEMO streams, which originate from the same physical models but use an older initialization cadence in the NMME feed.
 
-### 5. Observed Nino3.4
+### 5. SINTEX-F (JAMSTEC)
+
+- **Provider**: JAMSTEC Application Laboratory (APL VirtualEarth service)
+- **Indices URL**: `https://www.jamstec.go.jp/virtualearth/data/SINTEX/SINTEX_Nino34.csv` (monthly Nino3.4 SSTA per member)
+- **Gridded URL pattern**: `https://www.jamstec.go.jp/virtualearth/data/SINTEX/SINTEX_sst_{member}_all_{period}.json` (global 1.125-degree seasonal SSTA per member; periods from `SINTEX_catalog.json`)
+- **Ensemble**: 24 members (SINTEX-F2 initialization x physics variants, N1K1 ... N3K2hiV)
+- **Lead time**: ~10 months of monthly Nino3.4; gridded fields cover three seasonal windows (~9 months)
+- **Anomaly baseline**: 1983-2015, adjusted to 1991-2020 (same observed-offset method as C3S)
+- **rONI**: computed per member from the gridded fields' 20S-20N cos-weighted tropical mean, assigned to each month of the season. Forecast months beyond the gridded seasonal windows carry Nino3.4 only (rONI is NaN there).
+- **Update frequency**: Monthly; the new run appears within the first days of the month, with the observed bridge running through the prior month
+- **Initialization detection**: observed "bridge" months carry identical values in every member column; the init month is taken as the month before the first diverging (forecast) month
+- **Fetch note**: JAMSTEC redirects non-browser user agents to an error page, so this fetcher sends a browser-like UA
+
+### 6. Observed Nino3.4
 
 - **Provider**: NOAA CPC
 - **Monthly Nino3.4**: `https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices` (OISSTv2-based)
@@ -83,6 +96,32 @@ This tool aggregates ENSO (El Nino-Southern Oscillation) Nino3.4 sea surface tem
 - **RONI (Relative ONI)**: `https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt` (3-month running mean of Niño 3.4 SSTA minus tropical-mean (20°S-20°N) SSTA, ERSSTv5-based)
 - **Anomaly baseline**: 1991-2020 (centered 30-year base period)
 - **Note on file format**: The sstoi.indices file orders the Nino regions as NINO1+2, NINO3, NINO4, NINO3.4 (NINO4 comes before NINO3.4), with SST and anomaly as separate columns. The NINO3.4 anomaly is the 10th column (index 9).
+
+## Criteria for Source Inclusion
+
+New forecast sources are added to the multi-model ensemble when they meet all of:
+
+1. **Regular operational updates** — a new run every month, published on a
+   dependable schedule (verified over several cycles before inclusion).
+   Sources that appear sporadically (e.g. GFDL SPEAR via the IRI plume) are
+   excluded because a model that blinks in and out changes the ensemble's
+   composition month to month.
+2. **Individual ensemble members** — per-member trajectories, not just an
+   ensemble mean. Single-trajectory feeds contribute no within-model spread
+   and would enter the model-weighted statistics as false certainty.
+3. **Gridded fields (or a published tropical-mean) sufficient to compute
+   rONI** — every model in the ensemble must appear in both ONI and RONI
+   views; an ONI-only source would silently drop out of half the dashboard.
+4. **Documented anomaly baseline** — so anomalies can be harmonized to
+   1991-2020.
+
+These criteria are why, of the IRI plume's regularly-updating dynamical
+models not already in our ensemble (IOCAS ICM, LDEO, SINTEX-F, BCC DIAP,
+KMA, CS-IRI-MM as of mid-2026), only **SINTEX-F** was added directly:
+JAMSTEC publishes per-member indices and gridded SSTA. The others publish
+single trajectories without tropical-mean data (BCC DIAP's text feed,
+IOCAS ICM and LDEO via IRI only), fail the member/rONI criteria, and
+CS-IRI-MM is itself a multi-model blend (including it would double-count).
 
 ## Anomaly Baseline Harmonization
 
@@ -94,6 +133,7 @@ Different sources compute anomalies relative to different climatological base pe
 | NMME | Model-specific | None (assumed approximately consistent) |
 | C3S | 1993-2016 | Adjusted to 1991-2020 |
 | CanSIPS | 1991-2020 | None (reference baseline) |
+| SINTEX-F | 1983-2015 | Adjusted to 1991-2020 |
 | Observed | 1991-2020 | None (reference baseline) |
 
 ### C3S Baseline Adjustment Method
@@ -158,7 +198,7 @@ Specifically, the `MEGA_PLUME_DROP` set excludes these (source, model) pairs:
 - `("C3S", "NCEP")` — duplicate of CFSv2
 - `("C3S", "ECCC")` — duplicate of CanSIPS-GEM-NEMO family
 
-After deduplication, **13 unique models** remain with a total of **~650 individual ensemble members**.
+After deduplication, **14 unique models** remain with a total of **~675 individual ensemble members**.
 
 ### Deduplicated Model Inventory
 
@@ -177,6 +217,7 @@ After deduplication, **13 unique models** remain with a total of **~650 individu
 | NCAR-CESM1 | NMME | 10 | 8 |
 | NCAR-CCSM4 | NMME | 10 | 8 |
 | NASA-GEOS-S2S-2 | NMME | 10 | 8 |
+| SINTEX-F | SINTEX-F | 24 | 10 |
 
 Member counts reflect the June 2026 initialization cycle; they can vary month-to-month as models add or drop realizations. CFSv2 reflects the 40 rotating E3 runs; slot 41 (the stable control) is additionally excluded from strength-probability calculations.
 
