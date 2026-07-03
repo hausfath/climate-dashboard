@@ -194,9 +194,9 @@ def build_enso_combined(oni_df, forecast_df, obs_df=None, index_mode="oni"):
             members = mega[mega["member_id"] != "mean"].copy()
             if not members.empty and fc_value_col in members.columns:
                 members = members.dropna(subset=[fc_value_col])
-                # Only include months with ≥3 models reporting
+                # Only include months with ≥4 models reporting
                 models_per_month = members.groupby("target_month")["model"].nunique()
-                valid_months = models_per_month[models_per_month >= 3].index
+                valid_months = models_per_month[models_per_month >= 4].index
                 members = members[members["target_month"].isin(valid_months)]
 
                 mm = _multimodel_weighted_median(members, value_col=fc_value_col)
@@ -436,10 +436,10 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
         fig.update_layout(title="No forecast data available")
         return fig
 
-    # Limit to target months with at least 3 distinct models reporting
+    # Limit to target months with at least 4 distinct models reporting
     if not means.empty:
         models_per_month = means.groupby("target_month")["model"].nunique()
-        valid_months = models_per_month[models_per_month >= 3].index
+        valid_months = models_per_month[models_per_month >= 4].index
         means = means[means["target_month"].isin(valid_months)].copy()
         members = members[members["target_month"].isin(valid_months)].copy()
 
@@ -663,9 +663,9 @@ def create_enso_box_distribution(forecast_df, dark_mode=False, index_mode="oni")
         fig.update_layout(title="No member data available")
         return fig
 
-    # Limit to target months with at least 3 distinct models reporting
+    # Limit to target months with at least 4 distinct models reporting
     models_per_month = members.groupby("target_month")["model"].nunique()
-    valid_months = models_per_month[models_per_month >= 3].index
+    valid_months = models_per_month[models_per_month >= 4].index
     members = members[members["target_month"].isin(valid_months)].copy()
 
     members["date"] = members["target_month"].apply(_target_month_to_date)
@@ -882,10 +882,10 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
             means = mega[mega["member_id"] == "mean"].copy()
             fc_members = mega[mega["member_id"] != "mean"].copy()
 
-            # Limit to months with at least 3 distinct models reporting
+            # Limit to months with at least 4 distinct models reporting
             if not means.empty:
                 models_per_month = means.groupby("target_month")["model"].nunique()
-                valid_months = models_per_month[models_per_month >= 3].index
+                valid_months = models_per_month[models_per_month >= 4].index
                 means = means[means["target_month"].isin(valid_months)].copy()
                 fc_members = fc_members[fc_members["target_month"].isin(valid_months)].copy()
 

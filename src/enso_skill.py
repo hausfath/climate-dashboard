@@ -73,7 +73,7 @@ OBSERVED_DIR = ENSO_ROOT / "data" / "observed"
 FORECAST_REL = "ENSO/data/forecasts"               # repo-relative forecast root
 SOURCES = ["CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"]  # IRI excluded (stale; not in central est.)
 CORE_MONTHLY = ["NMME", "C3S", "CanSIPS"]           # sources whose new run defines a "month"
-MIN_MODELS = 3                                       # match dashboard's ≥3-model floor
+MIN_MODELS = 4                                       # match dashboard's ≥4-model floor
 MATURITY_FALLBACK_DAY = 20                            # archive the month by here even if a source lags
 STYLES = ("lines", "plumes", "hybrid")
 
@@ -370,6 +370,13 @@ def make_plot(index_mode: str, style: str, forecasts, output_path: Path) -> Path
 
     # Keep only inits that actually have data for this index (e.g. rONI didn't
     # exist in the earliest months) so the colorbar/title stay honest.
+    # Render-time floor as well: archives written before the floor was
+    # raised may carry months with fewer models.
+    forecasts = [
+        (lbl, fc[fc["n_models"] >= MIN_MODELS].reset_index(drop=True)
+         if "n_models" in fc.columns else fc)
+        for lbl, fc in forecasts
+    ]
     usable = [(lbl, fc) for lbl, fc in forecasts if fc[med].notna().any()]
     if not usable:
         logger.warning("ENSO skill: no inits with %s data for %s", index_mode, style)
