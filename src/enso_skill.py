@@ -248,7 +248,16 @@ def _current_plume_live() -> tuple[pd.DataFrame, str | None, bool]:
     for src in CORE_MONTHLY:
         sub = combined[combined["source"] == src]
         if not sub.empty:
-            max_init = str(sub["init_date"].astype(str).max())
+            # C3S is a multi-centre panel whose members trickle onto CDS over
+            # ~10 days (ECMWF typically first). Its month is the LAGGARD's:
+            # min over centres of each centre's newest init. Taking the
+            # source-wide max instead let a lone early centre mark the whole
+            # panel current, freezing a mixed-month plume into the archive.
+            if src == "C3S":
+                max_init = str(sub.groupby("model")["init_date"]
+                               .max().astype(str).min())
+            else:
+                max_init = str(sub["init_date"].astype(str).max())
             # Normalize to ISSUANCE month: CanSIPS stamps the run issued in
             # month M as init = last day of M-1 (end-of-month ICs), so shift
             # by one day before taking the month. No-op for first-of-month
