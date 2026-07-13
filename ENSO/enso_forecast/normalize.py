@@ -322,12 +322,38 @@ def load_source_forecasts(source: str, fetch_date: str | None = None) -> pd.Data
     return pd.DataFrame()
 
 
+def _forecasts_data_version() -> float:
+    """Cache key for load_all_forecasts: max mtime across the forecast CSVs.
+
+    Forecast files change at most once per cron run, but the dashboard's
+    interactive callbacks re-load them on every render; keying a cache on
+    the newest file mtime makes reuse exact (any fetch that writes a file
+    invalidates the cache) rather than time-based."""
+    latest = 0.0
+    if FORECASTS_DIR.exists():
+        for f in FORECASTS_DIR.glob("*/*.csv"):
+            try:
+                latest = max(latest, f.stat().st_mtime)
+            except OSError:
+                continue
+    return latest
+
+
+# {(fetch_date, sources, init_month, data_version): combined DataFrame}
+_LOAD_ALL_CACHE: dict[tuple, pd.DataFrame] = {}
+_LOAD_ALL_CACHE_MAX = 8
+
+
 def load_all_forecasts(
     fetch_date: str | None = None,
     sources: list[str] | None = None,
     init_month: str | None = None,
 ) -> pd.DataFrame:
     """Load and combine forecasts from specified sources.
+
+    Results are cached per (arguments, forecast-file mtimes), so repeated
+    calls between data updates skip the disk reads and re-normalization.
+    A defensive copy is returned — callers may mutate freely.
 
     Args:
         fetch_date: Date string YYYY-MM-DD for the fetch to load.
@@ -337,6 +363,11 @@ def load_all_forecasts(
     """
     if sources is None:
         sources = ["IRI", "CFS", "NMME", "C3S", "CanSIPS", "SINTEX-F"]
+
+    key = (fetch_date, tuple(sources), init_month, _forecasts_data_version())
+    cached = _LOAD_ALL_CACHE.get(key)
+    if cached is not None:
+        return cached.copy()
 
     dfs = []
     for src in sources:
@@ -374,7 +405,10 @@ def load_all_forecasts(
     # pre-scaled and is excluded.
     combined = apply_roni_scaling(combined)
 
-    return combined
+    if len(_LOAD_ALL_CACHE) >= _LOAD_ALL_CACHE_MAX:
+        _LOAD_ALL_CACHE.clear()  # tiny cache; stale keys die on data updates
+    _LOAD_ALL_CACHE[key] = combined
+    return combined.copy()
 
 
 def load_observed_roni() -> pd.DataFrame:
