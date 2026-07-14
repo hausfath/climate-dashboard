@@ -2552,7 +2552,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
               f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS, SINTEX-F"),
     ])
 
-    _enso_index_ctl = [
+    # Page-level ONI/RONI switch: pinned to the tab's upper right, above the
+    # hero, so it reads as controlling the whole page (it does — every card,
+    # title, and figure follows it) rather than just section 01.
+    _enso_index_ctl = html.Div([
         html.Span("Index", className="ctllabel"),
         dbc.RadioItems(
             id='enso-index-toggle',
@@ -2562,15 +2565,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                      {'label': 'RONI', 'value': True}],
             value=False,
         ),
-    ]
+    ], className='index-switch')
 
     tab_enso = html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
+        _enso_index_ctl,
         L.hero(enso_kicker, enso_headline, enso_lede,
                kicker_id='enso-kicker', headline_id='enso-headline',
                lede_id='enso-lede',
                right=enso_strip, right_id='enso-odds-wrap'),
         enso_kpis,
-        L.section("01", "The forecast", _enso_index_ctl,
+        L.section("01", "The forecast", "Model-equal weighting",
                   "Every seasonal forecast system's full ensemble, drawn as one "
                   "plume. The dotted line is the model-equal-weighted median.", [
             L.panel("Combined forecast plume · ONI (Niño 3.4)",
