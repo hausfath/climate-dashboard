@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import logging
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -36,6 +37,16 @@ DAILY_FILE = DATA_DIR / 'nino34_daily.csv'
 ERDDAP = "https://coastwatch.pfeg.noaa.gov/erddap/griddap"
 DS_FINAL = "ncdcOisst21Agg_LonPM180"      # lags ~2 weeks
 DS_NRT = "ncdcOisst21NrtAgg_LonPM180"     # near-real-time
+
+# NCEI hosts the per-day source files the ERDDAP aggregates; used as a
+# fallback since 2026-07-14, when CoastWatch started 403ing GitHub runners.
+NCEI_BASE = ("https://www.ncei.noaa.gov/data/"
+             "sea-surface-temperature-optimum-interpolation/v2.1/access/avhrr")
+
+# CoastWatch blocks anonymous default UAs; identify ourselves politely.
+HEADERS = {"User-Agent": ("climate-dashboard/1.0 "
+                          "(github.com/hausfath/climate-dashboard; "
+                          "hausfath@gmail.com)")}
 
 # Box definitions: (lat0, lat1, lat_stride, lon0, lon1, lon_stride).
 # Grid cells sit at *.875/*.625/… (0.25° centered); strides subsample to
@@ -71,7 +82,7 @@ def _fetch_box_means(dataset: str, start: str, end: str, box: tuple,
                      time_stride: int = 1) -> pd.Series:
     """Fetch a box subset and return the cos-weighted daily spatial mean."""
     url = _griddap_url(dataset, start, end, box, time_stride)
-    resp = requests.get(url, timeout=300)
+    resp = requests.get(url, headers=HEADERS, timeout=300)
     resp.raise_for_status()
     with xr.open_dataset(io.BytesIO(resp.content)) as ds:
         sst = ds['sst'].squeeze('zlev', drop=True)
@@ -82,9 +93,67 @@ def _fetch_box_means(dataset: str, start: str, end: str, box: tuple,
     return s.dropna()
 
 
+def _box_coords(box: tuple) -> tuple[np.ndarray, np.ndarray]:
+    """Exact strided grid centers ERDDAP would return for a box, with
+    longitudes mapped to NCEI's 0–360 convention."""
+    lat0, lat1, lat_s, lon0, lon1, lon_s = box
+    lats = np.arange(lat0, lat1 + 1e-6, 0.25 * lat_s)
+    lons = np.arange(lon0, lon1 + 1e-6, 0.25 * lon_s) % 360
+    return lats, lons
+
+
+def _fetch_daily_means_ncei(start: date, end: date) -> pd.DataFrame:
+    """ERDDAP-free fallback: NCEI's per-day OISST v2.1 files (the same data
+    the ERDDAP aggregates), sampled on the identical strided grid so
+    anomalies stay consistent with the committed climatology. Returns a
+    date-indexed frame with 'nino34' and 'tropics' columns."""
+    boxes = {name: _box_coords(box) for name, box in
+             [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]}
+    rows = {}
+    misses = 0
+    d = start
+    while d <= end and misses < 3:
+        content = None
+        for suffix in ('', '_preliminary'):
+            url = (f"{NCEI_BASE}/{d:%Y%m}/"
+                   f"oisst-avhrr-v02r01.{d:%Y%m%d}{suffix}.nc")
+            resp = requests.get(url, headers=HEADERS, timeout=120)
+            if resp.status_code == 404:
+                continue
+            resp.raise_for_status()
+            content = resp.content
+            break
+        if content is None:
+            misses += 1
+            d += timedelta(days=1)
+            continue
+        misses = 0
+        # NetCDF4/HDF5 can't be opened from memory without h5netcdf;
+        # round-trip through a temp file for the netCDF4 engine.
+        with tempfile.NamedTemporaryFile(suffix='.nc') as tmp:
+            tmp.write(content)
+            tmp.flush()
+            with xr.open_dataset(tmp.name, engine='netcdf4') as ds:
+                sst = ds['sst'].squeeze(('time', 'zlev'), drop=True)
+                row = {}
+                for name, (lats, lons) in boxes.items():
+                    sub = sst.sel(lat=lats, lon=lons)
+                    w = np.cos(np.deg2rad(sub.lat))
+                    row[name] = float(
+                        sub.weighted(w).mean(dim=('lat', 'lon')))
+                rows[pd.Timestamp(d)] = row
+        d += timedelta(days=1)
+    if not rows:
+        raise RuntimeError(f"NCEI fallback: no OISST files found "
+                           f"for {start}..{end}")
+    df = pd.DataFrame.from_dict(rows, orient='index').sort_index()
+    logger.info(f"NCEI fallback: {len(df)} days through {df.index.max().date()}")
+    return df
+
+
 def _dataset_end(dataset: str) -> date:
     url = f"{ERDDAP}/{dataset}.json?time%5Blast%5D"
-    resp = requests.get(url, timeout=60)
+    resp = requests.get(url, headers=HEADERS, timeout=60)
     resp.raise_for_status()
     return pd.Timestamp(resp.json()['table']['rows'][0][0]).date()
 
@@ -151,24 +220,30 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
             start = max(start,
                         (existing['date'].max() - pd.Timedelta(days=21)).date())
 
-    final_end = _dataset_end(DS_FINAL)
-    nrt_end = _dataset_end(DS_NRT)
+    try:
+        final_end = _dataset_end(DS_FINAL)
+        nrt_end = _dataset_end(DS_NRT)
 
-    series = {}
-    for name, box in [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]:
-        parts = []
-        if start <= final_end:
-            parts.append(_fetch_box_means(
-                DS_FINAL, str(start), str(final_end), box))
-        nrt_start = max(start, final_end + timedelta(days=1))
-        if nrt_start <= nrt_end:
-            parts.append(_fetch_box_means(
-                DS_NRT, str(nrt_start), str(nrt_end), box))
-        series[name] = pd.concat(parts).sort_index()
-    df = pd.DataFrame({'nino34': series['nino34'],
-                       'tropics': series['tropics']}).dropna()
+        series = {}
+        for name, box in [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]:
+            parts = []
+            if start <= final_end:
+                parts.append(_fetch_box_means(
+                    DS_FINAL, str(start), str(final_end), box))
+            nrt_start = max(start, final_end + timedelta(days=1))
+            if nrt_start <= nrt_end:
+                parts.append(_fetch_box_means(
+                    DS_NRT, str(nrt_start), str(nrt_end), box))
+            series[name] = pd.concat(parts).sort_index()
+        df = pd.DataFrame({'nino34': series['nino34'],
+                           'tropics': series['tropics']}).dropna()
+    except Exception as e:
+        logger.warning(f"ERDDAP fetch failed ({e}); "
+                       f"falling back to NCEI daily files")
+        df = _fetch_daily_means_ncei(start, today).dropna()
     df.index.name = 'date'
-    df = df.reset_index()
+    # float32 from the NetCDF would defeat .round(4) in the CSV output
+    df = df.astype('float64').reset_index()
 
     doy = _doy_key(pd.DatetimeIndex(df['date']))
     df['nino34_anom'] = df['nino34'].values - clim.loc[doy, 'nino34_clim'].values
