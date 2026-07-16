@@ -165,10 +165,14 @@ def update_data(force: bool = False) -> None:
 
     # Daily Niño 3.4 / RONI from OISSTv2.1 (drives the "daily index" status
     # on the dashboard cards). Requires the committed climatology CSV.
+    # Always incremental: the 21-day overlap refetch already replaces NRT
+    # days with final data, and a forced full rebuild via the NCEI
+    # fallback means 560+ file downloads (rebuild via
+    # `python -m src.nino_daily --force` if ever needed).
     logger.info("Updating daily Niño 3.4 / RONI from OISST...")
     try:
         from src.nino_daily import update_nino34_daily
-        update_nino34_daily(force=force)
+        update_nino34_daily(force=False)
     except Exception as e:
         logger.error(f"Daily Niño 3.4 update failed: {e}")
 
