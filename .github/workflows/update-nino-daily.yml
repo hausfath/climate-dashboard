@@ -27,7 +27,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install requests pandas numpy xarray netCDF4
+          # scipy: xarray backend for ERDDAP's NetCDF3 responses
+          pip install requests pandas numpy xarray netCDF4 scipy
 
       - name: Update daily Niño 3.4 / RONI
         timeout-minutes: 30
