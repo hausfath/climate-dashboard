@@ -1,0 +1,50 @@
+name: Afternoon Niño 3.4 Update
+
+# NCEI posts yesterday's preliminary OISST file ~13:30 UTC, hours after
+# the 6 AM UTC main run — which leaves the daily Niño 3.4 index a day
+# behind sites that update in the afternoon (e.g. Climate Reanalyzer).
+# This lightweight top-up refreshes only data/nino34_daily.csv.
+
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub UI
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests pandas numpy xarray netCDF4
+
+      - name: Update daily Niño 3.4 / RONI
+        timeout-minutes: 30
+        run: |
+          python -m src.nino_daily
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --quiet -- data/nino34_daily.csv || echo "changes=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: ${{ steps.git-check.outputs.changes == 'true' }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/nino34_daily.csv
+          git commit -m "Afternoon Niño 3.4 update $(date -u +'%Y-%m-%d')"
+          git pull --rebase
+          git push
