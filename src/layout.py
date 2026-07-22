@@ -44,6 +44,11 @@ def topbar(last_updated: str) -> html.Header:
                 dbc.Switch(id='interactive-switch', value=True, className="mb-0"),
                 html.I(className="fas fa-chart-line tgl-on", id='interactive-icon'),
             ], className="toggle-cluster"),
+            html.Div([
+                html.Span("°C", className="unit-label unit-c", id='unit-c-label'),
+                dbc.Switch(id='unit-switch', value=False, className="mb-0"),
+                html.Span("°F", className="unit-label unit-f", id='unit-f-label'),
+            ], className="toggle-cluster unit-cluster"),
         ], className="topbar-right"),
     ], className="topbar")
 

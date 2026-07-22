@@ -204,6 +204,26 @@ body.light::after { opacity: .35; }
   border-color: var(--accent-line);
 }
 .toggle-cluster .form-check-input:focus { box-shadow: none; border-color: var(--accent-line); }
+/* Bootstrap's unchecked switch knob is rgba(0,0,0,.25) — invisible on the
+   dark bg-raised track. The other toggles default to on, so only the °C/°F
+   switch (default °C = unchecked) surfaces this. */
+.toggle-cluster .form-check-input:not(:checked) {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%2361677f'/%3e%3c/svg%3e");
+}
+body.light .toggle-cluster .form-check-input:not(:checked) {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%239198a8'/%3e%3c/svg%3e");
+}
+
+/* °C/°F unit toggle: highlight whichever side is active (body.fahrenheit
+   is maintained by the unit-switch clientside callback) */
+.unit-cluster .unit-label {
+  font-size: 12px; font-weight: 600; width: 18px; text-align: center;
+  cursor: default; user-select: none;
+}
+.unit-cluster .unit-c { color: var(--accent); }
+.unit-cluster .unit-f { color: var(--text-faint); }
+body.fahrenheit .unit-cluster .unit-c { color: var(--text-faint); }
+body.fahrenheit .unit-cluster .unit-f { color: var(--accent); }
 
 /* ------------------------------------------------------------------ hero */
 .hero {

@@ -14,6 +14,7 @@ from sklearn.linear_model import LinearRegression
 from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
 from src import layout as L
 from src.theme import install_fonts, template_name, tokens
+from src.units import convert_figure_units
 
 
 # Theme configurations for light and dark modes.
@@ -2768,12 +2769,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         dcc.Store(id='initial-load', data=True),
         dcc.Store(id='active-tab-store', storage_type='session', data='global'),
         html.Div(id='theme-sync', style={'display': 'none'}),
+        html.Div(id='unit-sync', style={'display': 'none'}),
 
         L.topbar(stats['latest_date']),
 
         dbc.Tooltip("Light / dark mode", target="dark-mode-switch", placement="bottom"),
         dbc.Tooltip("Static images (fast) / interactive plots",
                     target="interactive-switch", placement="bottom"),
+        dbc.Tooltip("Temperatures in °C / °F (°F switches to interactive plots)",
+                    target="unit-switch", placement="bottom"),
 
         tab_global,
         tab_enso,
@@ -2820,6 +2824,47 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         """,
         Output('theme-sync', 'children'),
         Input('dark-mode-switch', 'value'),
+    )
+
+    # Units: toggle body.fahrenheit — assets/units.js converts chrome text
+    # off this class, and CSS highlights the active °C/°F label.
+    app.clientside_callback(
+        """
+        function(fahrenheit) {
+            document.body.classList.toggle('fahrenheit', !!fahrenheit);
+            return '';
+        }
+        """,
+        Output('unit-sync', 'children'),
+        Input('unit-switch', 'value'),
+    )
+
+    # °F needs interactive plots (static PNGs are pre-rendered in °C only),
+    # so the two switches guard each other: turning °F on forces interactive
+    # mode, and dropping back to static images reverts to °C.
+    app.clientside_callback(
+        """
+        function(fahrenheit, interactive) {
+            if (fahrenheit && !interactive) { return true; }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('interactive-switch', 'value', allow_duplicate=True),
+        Input('unit-switch', 'value'),
+        State('interactive-switch', 'value'),
+        prevent_initial_call=True,
+    )
+    app.clientside_callback(
+        """
+        function(interactive, fahrenheit) {
+            if (!interactive && fahrenheit) { return false; }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('unit-switch', 'value', allow_duplicate=True),
+        Input('interactive-switch', 'value'),
+        State('unit-switch', 'value'),
+        prevent_initial_call=True,
     )
 
     # Toggle-cluster icon states (active side gets the accent color)
@@ -3053,91 +3098,111 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     from dash.exceptions import PreventUpdate
 
     # Graph 1: Time series
+    # unit-switch is an Input on each chain head only: toggling units
+    # re-renders the head and the rest of the chain cascades off it.
     @app.callback(
         Output('timeseries-plot', 'figure'),
-        [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value')]
+        [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value'),
+         Input('unit-switch', 'value')]
     )
-    def update_timeseries(interactive, dark_mode):
+    def update_timeseries(interactive, dark_mode, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_time_series_plot(_df, dark_mode)
+        return convert_figure_units(
+            create_time_series_plot(_df, dark_mode), fahrenheit)
 
     # Graph 2: Daily anomalies (chained)
     @app.callback(
         Output('daily-anomalies-plot', 'figure'),
         [Input('timeseries-plot', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_daily_anomalies(_, dark_mode, interactive):
+    def update_daily_anomalies(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_daily_anomalies_plot(_df, dark_mode)
+        return convert_figure_units(
+            create_daily_anomalies_plot(_df, dark_mode), fahrenheit)
 
     # Graph 3: Daily absolutes (chained)
     @app.callback(
         Output('daily-absolutes-plot', 'figure'),
         [Input('daily-anomalies-plot', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_daily_absolutes(_, dark_mode, interactive):
+    def update_daily_absolutes(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_daily_absolutes_plot(_df, dark_mode)
+        return convert_figure_units(
+            create_daily_absolutes_plot(_df, dark_mode), fahrenheit,
+            absolute=True)
 
     # Graph 4: Monthly projection (chained)
     @app.callback(
         Output('monthly-projection', 'figure'),
         [Input('daily-absolutes-plot', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_monthly(_, dark_mode, interactive):
+    def update_monthly(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_monthly_projection_plot(_df, dark_mode)
+        return convert_figure_units(
+            create_monthly_projection_plot(_df, dark_mode), fahrenheit)
 
     # Graph 5: Annual prediction (chained)
     @app.callback(
         Output('annual-prediction', 'figure'),
         [Input('monthly-projection', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_annual(_, dark_mode, interactive):
+    def update_annual(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_annual_prediction_plot(_df, dark_mode=dark_mode)
+        return convert_figure_units(
+            create_annual_prediction_plot(_df, dark_mode=dark_mode), fahrenheit)
 
     # Graph 6: Projection history (chained)
     @app.callback(
         Output('projection-history', 'figure'),
         [Input('annual-prediction', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_projection_history(_, dark_mode, interactive):
+    def update_projection_history(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_projection_history_plot(_df, dark_mode)
+        return convert_figure_units(
+            create_projection_history_plot(_df, dark_mode), fahrenheit)
 
     # Graph 7: Anomaly heatmap (chained)
     @app.callback(
         Output('daily-anomaly-heatmap', 'figure'),
         [Input('projection-history', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_heatmap_anomaly(_, dark_mode, interactive):
+    def update_heatmap_anomaly(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_daily_heatmap(_df, 'anomaly', dark_mode)
+        return convert_figure_units(
+            create_daily_heatmap(_df, 'anomaly', dark_mode), fahrenheit)
 
     # Graph 8: Temperature heatmap (chained)
     @app.callback(
         Output('daily-temp-heatmap', 'figure'),
         [Input('daily-anomaly-heatmap', 'figure')],
-        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value')]
+        [State('dark-mode-switch', 'value'), State('interactive-switch', 'value'),
+         State('unit-switch', 'value')]
     )
-    def update_heatmap_temp(_, dark_mode, interactive):
+    def update_heatmap_temp(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return create_daily_heatmap(_df, 'temperature', dark_mode)
+        return convert_figure_units(
+            create_daily_heatmap(_df, 'temperature', dark_mode), fahrenheit,
+            absolute=True)
 
     # (Spatial tab removed — source files kept locally for future use)
 
@@ -3152,9 +3217,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Input('models-cmip-gen', 'value'),
          Input('models-smoothing', 'value'),
          Input('models-baseline', 'value'),
-         Input('dark-mode-switch', 'value')],
+         Input('dark-mode-switch', 'value'),
+         Input('unit-switch', 'value')],
     )
-    def update_models_timeseries(interactive, cmip_gen, smoothing, baseline, dark_mode):
+    def update_models_timeseries(interactive, cmip_gen, smoothing, baseline, dark_mode,
+                                 fahrenheit):
         from dash.exceptions import PreventUpdate
         from src.models_vs_obs import scenario_for
         if not interactive:
@@ -3167,8 +3234,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             rolling = (smoothing == 'rolling')
             bl = baseline or '1850-1900'
-            return _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode,
-                                             gen_label, bl, scenario=scenario_for(gen))
+            return convert_figure_units(
+                _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode,
+                                          gen_label, bl, scenario=scenario_for(gen)),
+                fahrenheit)
         except Exception as e:
             logger.error(f"Models timeseries error: {e}")
             return go.Figure()
@@ -3179,9 +3248,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('models-timeseries-plot', 'figure')],
         [State('models-cmip-gen', 'value'),
          State('dark-mode-switch', 'value'),
-         State('interactive-switch', 'value')],
+         State('interactive-switch', 'value'),
+         State('unit-switch', 'value')],
     )
-    def update_models_trend_explorer(_, cmip_gen, dark_mode, interactive):
+    def update_models_trend_explorer(_, cmip_gen, dark_mode, interactive, fahrenheit):
         from dash.exceptions import PreventUpdate
         from src.models_vs_obs import scenario_for
         if not interactive:
@@ -3192,8 +3262,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label,
-                                          scenario=scenario_for(gen))
+            return convert_figure_units(
+                _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label,
+                                       scenario=scenario_for(gen)),
+                fahrenheit)
         except Exception as e:
             logger.error(f"Models trend explorer error: {e}")
             return go.Figure()
@@ -3204,9 +3276,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('models-trend-explorer-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
          State('interactive-switch', 'value'),
-         State('models-cmip-gen', 'value')],
+         State('models-cmip-gen', 'value'),
+         State('unit-switch', 'value')],
     )
-    def update_models_histograms(_, dark_mode, interactive, cmip_gen):
+    def update_models_histograms(_, dark_mode, interactive, cmip_gen, fahrenheit):
         from dash.exceptions import PreventUpdate
         from src.models_vs_obs import scenario_for
         if not interactive:
@@ -3217,8 +3290,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label,
-                                     scenario=scenario_for(gen))
+            return convert_figure_units(
+                _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label,
+                                  scenario=scenario_for(gen)),
+                fahrenheit)
         except Exception as e:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
@@ -3349,9 +3424,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         Output('enso-mega-plume-plot', 'figure'),
         [Input('interactive-switch', 'value'),
          Input('dark-mode-switch', 'value'),
-         Input('enso-index-toggle', 'value')],
+         Input('enso-index-toggle', 'value'),
+         Input('unit-switch', 'value')],
     )
-    def update_enso_mega_plume(interactive, dark_mode, roni_on):
+    def update_enso_mega_plume(interactive, dark_mode, roni_on, fahrenheit):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
@@ -3359,7 +3435,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode, index_mode=index_mode)
+            return convert_figure_units(
+                _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode,
+                                        index_mode=index_mode),
+                fahrenheit)
         except Exception as e:
             logger.error(f"ENSO mega plume error: {e}")
             return go.Figure()
@@ -3370,9 +3449,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('enso-mega-plume-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
          State('interactive-switch', 'value'),
-         State('enso-index-toggle', 'value')],
+         State('enso-index-toggle', 'value'),
+         State('unit-switch', 'value')],
     )
-    def update_enso_box_distribution(_, dark_mode, interactive, roni_on):
+    def update_enso_box_distribution(_, dark_mode, interactive, roni_on, fahrenheit):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
@@ -3380,7 +3460,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return _create_enso_box_distribution(_enso_forecast_df, dark_mode, index_mode=index_mode)
+            return convert_figure_units(
+                _create_enso_box_distribution(_enso_forecast_df, dark_mode,
+                                              index_mode=index_mode),
+                fahrenheit)
         except Exception as e:
             logger.error(f"ENSO box distribution error: {e}")
             return go.Figure()
@@ -3391,9 +3474,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('enso-box-distribution-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
          State('interactive-switch', 'value'),
-         State('enso-index-toggle', 'value')],
+         State('enso-index-toggle', 'value'),
+         State('unit-switch', 'value')],
     )
-    def update_enso_historical(_, dark_mode, interactive, roni_on):
+    def update_enso_historical(_, dark_mode, interactive, roni_on, fahrenheit):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
@@ -3401,7 +3485,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return _create_enso_historical_context(_enso_forecast_df, dark_mode, index_mode=index_mode)
+            return convert_figure_units(
+                _create_enso_historical_context(_enso_forecast_df, dark_mode,
+                                                index_mode=index_mode),
+                fahrenheit)
         except Exception as e:
             logger.error(f"ENSO historical context error: {e}")
             return go.Figure()
@@ -3412,9 +3499,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('enso-historical-plot', 'figure')],
         [State('dark-mode-switch', 'value'),
          State('interactive-switch', 'value'),
-         State('enso-index-toggle', 'value')],
+         State('enso-index-toggle', 'value'),
+         State('unit-switch', 'value')],
     )
-    def update_enso_strength_probs(_, dark_mode, interactive, roni_on):
+    def update_enso_strength_probs(_, dark_mode, interactive, roni_on, fahrenheit):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
@@ -3422,7 +3510,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return _create_enso_strength_probs(_enso_forecast_df, dark_mode, index_mode=index_mode)
+            return convert_figure_units(
+                _create_enso_strength_probs(_enso_forecast_df, dark_mode,
+                                            index_mode=index_mode),
+                fahrenheit)
         except Exception as e:
             logger.error(f"ENSO strength probs error: {e}")
             return go.Figure()
