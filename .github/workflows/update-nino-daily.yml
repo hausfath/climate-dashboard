@@ -38,14 +38,14 @@ jobs:
       - name: Check for changes
         id: git-check
         run: |
-          git diff --quiet -- data/nino34_daily.csv || echo "changes=true" >> $GITHUB_OUTPUT
+          git diff --quiet -- data/nino34_daily.csv data/nino34_daily_history.csv || echo "changes=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
         if: ${{ steps.git-check.outputs.changes == 'true' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/nino34_daily.csv
+          git add data/nino34_daily.csv data/nino34_daily_history.csv
           git commit -m "Afternoon Niño 3.4 update $(date -u +'%Y-%m-%d')"
           git pull --rebase
           git push
