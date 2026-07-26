@@ -215,60 +215,108 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return s  # fall back to whatever we got
 
 
-def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Figure:
-    """Create a time series plot of global temperature anomalies relative to preindustrial."""
+def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False,
+                            resolution: str = 'daily',
+                            enso_removed: bool = False) -> go.Figure:
+    """Time series of global temperature anomalies relative to preindustrial.
+
+    resolution: 'daily' (daily trace + 365-day mean) or 'annual' (calendar-
+    year means, current partial year as an open YTD marker).
+    enso_removed: subtract the lagged-ONI ENSO component (src.enso_removal).
+    """
     theme = get_theme(dark_mode)
 
     # Adjust anomalies to preindustrial baseline
     df_adj = adjust_anomalies_to_preindustrial(df)
+    if enso_removed:
+        from src.enso_removal import remove_enso
+        df_adj = remove_enso(df_adj)
+    rm_tag = ', ENSO removed' if enso_removed else ''
 
     fig = go.Figure()
 
-    # Add anomaly line (using Scattergl for better performance with large datasets)
-    fig.add_trace(go.Scattergl(
-        x=df_adj['date'],
-        y=df_adj['anomaly'],
-        mode='lines',
-        name='Daily Anomaly',
-        line=dict(color=theme['line_color'], width=0.5),
-        hovertemplate='%{x|%Y-%m-%d}<br>Anomaly: %{y:.2f}°C<extra></extra>'
-    ))
+    if resolution == 'annual':
+        yearly = (df_adj.groupby(df_adj['date'].dt.year)['anomaly']
+                  .agg(['mean', 'size']))
+        cur_year = int(yearly.index.max())
+        complete = yearly[(yearly['size'] >= 360) & (yearly.index < cur_year)]
 
-    # Add 365-day rolling mean
-    df_rolling = df_adj.copy()
-    df_rolling['rolling_365'] = df_rolling['anomaly'].rolling(window=365, center=True).mean()
+        fig.add_trace(go.Scatter(
+            x=complete.index, y=complete['mean'],
+            mode='lines+markers',
+            name=f'Annual mean{rm_tag}',
+            line=dict(color=theme['rolling_color'], width=2.5),
+            marker=dict(size=5),
+            hovertemplate='%{x}<br>Annual mean'
+                          f'{rm_tag}: ' '%{y:.2f}°C<extra></extra>'
+        ))
+        ytd = float(yearly.loc[cur_year, 'mean'])
+        fig.add_trace(go.Scatter(
+            x=[cur_year], y=[ytd],
+            mode='markers',
+            name=f'{cur_year} year-to-date',
+            marker=dict(size=9, symbol='circle-open',
+                        color=theme['rolling_color'],
+                        line=dict(width=2)),
+            hovertemplate=f'{cur_year} year-to-date{rm_tag}: '
+                          '%{y:.2f}°C<extra></extra>'
+        ))
+        fig.add_annotation(
+            x=cur_year, y=ytd,
+            text=f"{cur_year} YTD<br>{ytd:.2f}°C",
+            font=dict(size=12, color=theme['rolling_color']),
+            showarrow=False, xanchor='left', xshift=10, align='left',
+        )
+        xaxis = dict(title='', range=[yearly.index.min() - 1, cur_year + 6])
+    else:
+        # Daily trace (Scattergl for performance with large datasets)
+        fig.add_trace(go.Scattergl(
+            x=df_adj['date'],
+            y=df_adj['anomaly'],
+            mode='lines',
+            name=f'Daily anomaly{rm_tag}',
+            line=dict(color=theme['line_color'], width=0.5),
+            hovertemplate='%{x|%Y-%m-%d}<br>Anomaly'
+                          f'{rm_tag}: ' '%{y:.2f}°C<extra></extra>'
+        ))
 
-    fig.add_trace(go.Scattergl(
-        x=df_rolling['date'],
-        y=df_rolling['rolling_365'],
-        mode='lines',
-        name='365-day Average',
-        line=dict(color=theme['rolling_color'], width=2.5),
-        hovertemplate='%{x|%Y-%m-%d}<br>365-day avg: %{y:.2f}°C<extra></extra>'
-    ))
+        df_rolling = df_adj.copy()
+        df_rolling['rolling_365'] = (df_rolling['anomaly']
+                                     .rolling(window=365, center=True).mean())
+        fig.add_trace(go.Scattergl(
+            x=df_rolling['date'],
+            y=df_rolling['rolling_365'],
+            mode='lines',
+            name='365-day Average',
+            line=dict(color=theme['rolling_color'], width=2.5),
+            hovertemplate='%{x|%Y-%m-%d}<br>365-day avg'
+                          f'{rm_tag}: ' '%{y:.2f}°C<extra></extra>'
+        ))
+
+        # Direct label on the rolling mean's endpoint (replaces the legend)
+        tail = df_rolling.dropna(subset=['rolling_365'])
+        if len(tail) > 0:
+            last = tail.iloc[-1]
+            end_label = ("365-day avg"
+                         + ("<br>ENSO removed" if enso_removed else "")
+                         + f"<br>{last['rolling_365']:.2f}°C")
+            fig.add_annotation(
+                x=last['date'], y=last['rolling_365'],
+                text=end_label,
+                font=dict(size=12, color=theme['rolling_color']),
+                showarrow=False, xanchor='left', xshift=8, align='left',
+            )
+        xaxis = dict(title='',
+                     range=[df_adj['date'].min(),
+                            df_adj['date'].max() + pd.Timedelta(days=150)])
 
     # Add 1.5°C reference line (label on the left so the right edge stays
-    # free for the rolling-mean end label)
+    # free for the endpoint label)
     fig.add_hline(y=1.5, line_dash="dash", line_color=theme['threshold_color'], opacity=0.7,
                   annotation_text="1.5°C", annotation_position="top left")
 
-    # Direct label on the rolling mean's endpoint (replaces the legend)
-    tail = df_rolling.dropna(subset=['rolling_365'])
-    if len(tail) > 0:
-        last = tail.iloc[-1]
-        fig.add_annotation(
-            x=last['date'], y=last['rolling_365'],
-            text=f"365-day avg<br>{last['rolling_365']:.2f}°C",
-            font=dict(size=12, color=theme['rolling_color']),
-            showarrow=False, xanchor='left', xshift=8, align='left',
-        )
-
     fig.update_layout(
-        xaxis=dict(
-            title='',
-            range=[df_adj['date'].min(),
-                   df_adj['date'].max() + pd.Timedelta(days=150)],
-        ),
+        xaxis=xaxis,
         yaxis_title='Temperature anomaly (°C)',
         template=theme['template'],
         showlegend=False,
@@ -953,6 +1001,13 @@ def generate_all_static_images(df: pd.DataFrame, output_dir: Path, enso_df: pd.D
     # Plot configurations: (name, function, extra_args)
     plot_configs = [
         ('timeseries', lambda dm: create_time_series_plot(df, dm), {}),
+        ('timeseries_annual',
+         lambda dm: create_time_series_plot(df, dm, resolution='annual'), {}),
+        ('timeseries_ensorm',
+         lambda dm: create_time_series_plot(df, dm, enso_removed=True), {}),
+        ('timeseries_annual_ensorm',
+         lambda dm: create_time_series_plot(df, dm, resolution='annual',
+                                            enso_removed=True), {}),
         ('daily_anomalies', lambda dm: create_daily_anomalies_plot(df, dm), {}),
         ('daily_temps', lambda dm: create_daily_absolutes_plot(df, dm), {}),
         ('monthly_projections', lambda dm: create_monthly_projection_plot(df, dm), {}),
@@ -2316,11 +2371,30 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             L.panel("Global mean anomaly vs preindustrial (1850–1900)",
                     img_id='timeseries-img',
                     img_src='/assets/images/timeseries_dark.png',
-                    graph_id='timeseries-plot', graph_height=500, tag="Daily",
-                    caption=[
+                    graph_id='timeseries-plot', graph_height=500,
+                    caption=html.Span(id='timeseries-caption', children=[
                         "Grey: daily anomalies. The ", html.B("365-day average"),
                         " smooths out weather and the seasonal cycle.",
                     ]),
+                    head_extra=html.Div([
+                        dbc.RadioItems(
+                            id='timeseries-res-toggle',
+                            className='segmented btn-group',
+                            inputClassName='btn-check', labelClassName='btn',
+                            options=[{'label': 'Daily', 'value': 'daily'},
+                                     {'label': 'Annual', 'value': 'annual'}],
+                            value='daily',
+                        ),
+                        dbc.RadioItems(
+                            id='timeseries-series-toggle',
+                            className='segmented btn-group',
+                            inputClassName='btn-check', labelClassName='btn',
+                            options=[{'label': 'Observed', 'value': 'observed'},
+                                     {'label': 'ENSO removed', 'value': 'ensorm'}],
+                            value='observed',
+                        ),
+                    ], style={'display': 'flex', 'gap': '8px',
+                              'flexWrap': 'wrap'})),
             L.panel("The year in context — recent years vs the historical range",
                     body=html.Div([
                         html.Img(id='daily-anomalies-img',
@@ -3070,13 +3144,17 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('models-histograms-img', 'src'),
         ],
         [Input('dark-mode-switch', 'value'),
-         Input('enso-index-toggle', 'value')],
+         Input('enso-index-toggle', 'value'),
+         Input('timeseries-res-toggle', 'value'),
+         Input('timeseries-series-toggle', 'value')],
     )
-    def update_image_sources(dark_mode, roni_on):
+    def update_image_sources(dark_mode, roni_on, ts_res, ts_series):
         mode = 'dark' if dark_mode else 'light'
         enso_idx = 'roni_' if roni_on else ''
+        ts_suffix = (('_annual' if ts_res == 'annual' else '')
+                     + ('_ensorm' if ts_series == 'ensorm' else ''))
         return (
-            f'/assets/images/timeseries_{mode}.png',
+            f'/assets/images/timeseries{ts_suffix}_{mode}.png',
             f'/assets/images/daily_anomalies_{mode}.png',
             f'/assets/images/daily_temps_{mode}.png',
             f'/assets/images/monthly_projections_{mode}.png',
@@ -3103,13 +3181,44 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     @app.callback(
         Output('timeseries-plot', 'figure'),
         [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value'),
-         Input('unit-switch', 'value')]
+         Input('unit-switch', 'value'),
+         Input('timeseries-res-toggle', 'value'),
+         Input('timeseries-series-toggle', 'value')]
     )
-    def update_timeseries(interactive, dark_mode, fahrenheit):
+    def update_timeseries(interactive, dark_mode, fahrenheit, res, series):
         if not interactive:
             raise PreventUpdate
         return convert_figure_units(
-            create_time_series_plot(_df, dark_mode), fahrenheit)
+            create_time_series_plot(_df, dark_mode,
+                                    resolution=res or 'daily',
+                                    enso_removed=series == 'ensorm'),
+            fahrenheit)
+
+    # Keep the timeseries caption accurate for the toggled state
+    @app.callback(
+        Output('timeseries-caption', 'children'),
+        [Input('timeseries-res-toggle', 'value'),
+         Input('timeseries-series-toggle', 'value')]
+    )
+    def update_timeseries_caption(res, series):
+        removed = series == 'ensorm'
+        if (res or 'daily') == 'annual':
+            cap = ["Calendar-year means; the current year is shown "
+                   "year-to-date (open marker) and will move as the "
+                   "year fills in."]
+        else:
+            cap = ["Grey: daily anomalies. The ", html.B("365-day average"),
+                   " smooths out weather and the seasonal cycle."]
+        if removed:
+            cap += [
+                " The ", html.B("ENSO removed"), " view subtracts the "
+                "temperature response to El Niño/La Niña (≈0.1°C per unit "
+                "ONI at a ≈3-month lag, consistent with published "
+                "estimates); the long-term trend is untouched. Dips in "
+                "1964, 1983 and 1992 are volcanic cooling, which is not "
+                "removed.",
+            ]
+        return cap
 
     # Graph 2: Daily anomalies (chained)
     @app.callback(
