@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent / 'data'
 CLIM_FILE = DATA_DIR / 'nino34_daily_climatology.csv'
 DAILY_FILE = DATA_DIR / 'nino34_daily.csv'
+HISTORY_FILE = DATA_DIR / 'nino34_daily_history.csv'
 
 ERDDAP = "https://coastwatch.pfeg.noaa.gov/erddap/griddap"
 DS_FINAL = "ncdcOisst21Agg_LonPM180"      # lags ~2 weeks
@@ -251,6 +252,7 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
     months = pd.DatetimeIndex(df['date']).month
     scale = np.array([RONI_SCALING_MONTHLY[m] for m in months])
     df['roni_anom'] = (df['nino34_anom'].values - trop_anom) * scale
+    _merge_into_history(df[['date', 'nino34', 'tropics']])
     df = df[['date', 'nino34', 'nino34_anom', 'roni_anom']].round(4)
 
     if existing is not None and not existing.empty:
@@ -262,6 +264,24 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
     logger.info(f"Wrote {DAILY_FILE}: {len(df)} rows through "
                 f"{df['date'].max().date()}")
     return df
+
+
+def _merge_into_history(new_rows: pd.DataFrame) -> None:
+    """Fold freshly fetched absolute box means into the full-record history
+    file (date, nino34, tropics) that feeds the daily year-lines figure.
+    New rows win on overlap, so NRT days get replaced once final data land.
+    No-op if the history file hasn't been built yet (one-time local build;
+    see temp_files/build_tropics_history.py)."""
+    if not HISTORY_FILE.exists():
+        logger.warning("%s missing — skipping history top-up", HISTORY_FILE)
+        return
+    hist = pd.read_csv(HISTORY_FILE, parse_dates=['date'])
+    merged = (pd.concat([hist, new_rows.round(4)], ignore_index=True)
+              .drop_duplicates(subset='date', keep='last')
+              .sort_values('date'))
+    merged.to_csv(HISTORY_FILE, index=False)
+    logger.info("Topped up %s: %d rows through %s", HISTORY_FILE.name,
+                len(merged), merged['date'].max().date())
 
 
 def load_daily_status() -> dict | None:

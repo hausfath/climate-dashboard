@@ -1363,17 +1363,185 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
 
 
 # ---------------------------------------------------------------------------
+# Daily Niño 3.4 year-lines (era-relative anomalies)
+# ---------------------------------------------------------------------------
+
+NINO_HISTORY_FILE = Path(__file__).resolve().parent.parent / 'data' / 'nino34_daily_history.csv'
+FIRST_NINO_YEAR = 1982   # first complete OISST year (record starts Sep 1981)
+
+
+def load_nino34_history() -> pd.DataFrame:
+    """Full daily Niño 3.4 + tropics box-mean history (see src.nino_daily,
+    which keeps the file topped up with each daily refresh)."""
+    if not NINO_HISTORY_FILE.exists():
+        return pd.DataFrame()
+    return pd.read_csv(NINO_HISTORY_FILE, parse_dates=['date'])
+
+
+def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str) -> pd.DataFrame:
+    """Daily anomalies vs centered 30-year day-of-year climatologies.
+
+    The same era-relative convention ONI uses, so the warming trend is
+    removed and years are comparable as ENSO states across the record.
+    Windows are clamped at the record edges and NEVER include the current
+    (incomplete) year, so this year's values can't deflate their own
+    baseline. For RONI, both boxes get the same treatment and the
+    difference is scaled by the L'Heureux et al. (2024) monthly factors.
+    """
+    from src.nino_daily import _doy_key, RONI_SCALING_MONTHLY
+
+    df = hist_df.copy()
+    df['year'] = df['date'].dt.year
+    df['doy'] = _doy_key(pd.DatetimeIndex(df['date']))
+    df = df[df['year'] >= FIRST_NINO_YEAR]
+
+    y0 = FIRST_NINO_YEAR
+    y1c = int(df['year'].max()) - 1   # last complete year: current excluded
+
+    cols = ['nino34', 'tropics'] if index_mode == 'roni' else ['nino34']
+    anoms = {}
+    for col in cols:
+        doy_mean = df[df['year'] <= y1c].pivot_table(
+            index='year', columns='doy', values=col)
+        clims = {}
+        for yr in range(y0, y1c + 2):   # +2: current year uses the last window
+            lo = int(np.clip(yr - 15, y0, y1c - 29))
+            window = doy_mean.loc[lo:lo + 29].mean()
+            # 15-day circular smooth (matches src.nino_daily climatology)
+            ext = pd.concat([window.iloc[-15:], window, window.iloc[:15]])
+            smooth = ext.rolling(15, center=True, min_periods=1).mean()
+            clims[yr] = smooth.iloc[15:-15]
+        anoms[col] = np.array(
+            [df[col].iloc[i] - clims[y].get(d, np.nan)
+             for i, (y, d) in enumerate(zip(df['year'], df['doy']))])
+
+    if index_mode == 'roni':
+        scale = df['date'].dt.month.map(RONI_SCALING_MONTHLY).values
+        df['anom'] = (anoms['nino34'] - anoms['tropics']) * scale
+    else:
+        df['anom'] = anoms['nino34']
+    return df.dropna(subset=['anom'])
+
+
+# Highlighted reference years: the two strongest developing El Niños in the
+# OISST record. (2015 blue / 1997 violet — deliberately not green, which
+# pairs badly with the current-year red for deuteranopes.)
+_NINO_HIGHLIGHTS = {
+    2015: {'light': '#2a7fa8', 'dark': '#7cc7e8', 'label_doy': 330},
+    1997: {'light': '#6c5ce7', 'dark': '#a29bfe', 'label_doy': 285},
+}
+_NINO_MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+_NINO_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
+                "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni") -> go.Figure:
+    """Every year's daily Niño 3.4 (or RONI) anomaly by day of year, the
+    current year highlighted against 1997 and 2015."""
+    theme = get_theme(dark_mode)
+    fig = go.Figure()
+    if hist_df is None or hist_df.empty:
+        return fig
+
+    df = _era_relative_anomalies(hist_df, index_mode)
+    cur_year = int(df['year'].max())
+    mode = 'dark' if dark_mode else 'light'
+    gray = '#3d434b' if dark_mode else '#d3cec4'
+    cur_color = '#e4572e' if dark_mode else '#d94f25'
+    fg_soft = '#9a958d' if dark_mode else '#8a857c'
+    idx_label = 'RONI' if index_mode == 'roni' else 'Niño 3.4'
+
+    # ONI event-category bands (reference shading only — official
+    # classifications use 3-month means, not daily values)
+    y_max = max(3.4, float(df['anom'].max()) + 0.35)
+    band_alphas = ((0.035, 0.055, 0.075, 0.10) if dark_mode
+                   else (0.030, 0.050, 0.070, 0.095))
+    edges = [0.5, 1.0, 1.5, 2.0, y_max]
+    for i, a in enumerate(band_alphas):
+        fig.add_hrect(y0=edges[i], y1=edges[i + 1], line_width=0,
+                      fillcolor=f'rgba(228, 87, 46, {a})', layer='below')
+    for cy, name in [(0.75, "WEAK"), (1.25, "MODERATE"), (1.75, "STRONG"),
+                     (min(2.4, y_max - 0.5), "VERY STRONG")]:
+        fig.add_annotation(x=363, y=cy, text=name, showarrow=False,
+                           xanchor='right', font=dict(size=9, color=fg_soft))
+    fig.add_hline(y=0, line_dash='dash', line_color=fg_soft, opacity=0.5,
+                  line_width=1)
+
+    for yr, g in df.groupby('year'):
+        if yr == cur_year:
+            continue
+        hl = _NINO_HIGHLIGHTS.get(yr)
+        fig.add_trace(go.Scattergl(
+            x=g['doy'], y=g['anom'], mode='lines',
+            name=str(yr),
+            line=dict(color=hl[mode] if hl else gray,
+                      width=1.8 if hl else 0.8),
+            opacity=0.95 if hl else 0.75,
+            customdata=g['date'].dt.strftime('%Y-%m-%d'),
+            hovertemplate='%{customdata}<br>' + idx_label
+                          + ': %{y:.2f}°C<extra></extra>',
+        ))
+
+    g_cur = df[df['year'] == cur_year]
+    fig.add_trace(go.Scattergl(
+        x=g_cur['doy'], y=g_cur['anom'], mode='lines',
+        name=str(cur_year),
+        line=dict(color=cur_color, width=3.2),
+        customdata=g_cur['date'].dt.strftime('%Y-%m-%d'),
+        hovertemplate='%{customdata}<br>' + idx_label
+                      + ': %{y:.2f}°C<extra></extra>',
+    ))
+
+    fig.add_annotation(
+        x=float(g_cur['doy'].iloc[-1]), y=float(g_cur['anom'].iloc[-1]),
+        text=f"{cur_year} to date  {g_cur['anom'].iloc[-1]:+.1f}°C",
+        showarrow=False, xanchor='left', xshift=8, yshift=8,
+        font=dict(size=13, color=cur_color, weight='bold'),
+        bgcolor=('rgba(21, 24, 28, 0.75)' if dark_mode
+                 else 'rgba(251, 250, 247, 0.75)'))
+    for yr, hl in _NINO_HIGHLIGHTS.items():
+        g = df[df['year'] == yr]
+        if g.empty:
+            continue
+        i = int(np.argmax(g['doy'].values > hl['label_doy']))
+        fig.add_annotation(
+            x=float(g['doy'].iloc[i]), y=float(g['anom'].iloc[i]),
+            text=str(yr), showarrow=False, yshift=10,
+            font=dict(size=11, color=hl[mode], weight='bold'))
+
+    fig.update_layout(
+        xaxis=dict(title='', tickvals=_NINO_MONTH_STARTS,
+                   ticktext=_NINO_MONTHS, range=[1, 366], showgrid=False),
+        yaxis=dict(title=f'{idx_label} anomaly (°C, vs centered 30-yr '
+                         'climatology)',
+                   range=[min(-2.8, float(df['anom'].min()) - 0.2), y_max]),
+        template=theme['template'],
+        showlegend=False,
+        height=500,
+        hovermode='closest',
+        hoverlabel=dict(bgcolor=theme['paper_color'],
+                        bordercolor=theme['grid_color']),
+        margin=dict(l=60, r=30, t=30, b=40),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Static image generation
 # ---------------------------------------------------------------------------
 
 def generate_enso_static_images(forecast_df, obs_df, assets_dir):
-    """Render 16 static PNGs: 4 plots × 2 themes × 2 indices (ONI / RONI)."""
+    """Render 20 static PNGs: 5 plots × 2 themes × 2 indices (ONI / RONI)."""
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
     # (name, figure factory, height, width) — box distribution and strength
     # probs render side by side in the layout, so they export squarer.
+    _nino_hist = load_nino34_history()
     plot_configs = [
+        ("nino34_daily_years",
+         lambda dm, idx: create_nino34_daily_years(_nino_hist, dm, index_mode=idx),
+         500, 1200),
         ("enso_mega_plume",
          lambda dm, idx: create_enso_mega_plume(forecast_df, obs_df, dm, index_mode=idx),
          550, 1200),

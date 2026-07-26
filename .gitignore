@@ -21,6 +21,9 @@ data/*.csv
 # (one-time ~40MB ERDDAP pull) and the daily CSV is refreshed by the cron
 !data/nino34_daily.csv
 !data/nino34_daily_climatology.csv
+# Full daily box-mean history (1981-present) feeding the ENSO year-lines
+# figure: one-time ERDDAP build, topped up by the daily cron
+!data/nino34_daily_history.csv
 
 # IDE
 .idea/

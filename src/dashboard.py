@@ -2218,16 +2218,20 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     _ENSO_AVAILABLE = False
     _enso_forecast_df = _enso_obs_df = _enso_oni_df = pd.DataFrame()
     _enso_combined_df = pd.DataFrame()
+    _nino_history_df = pd.DataFrame()
     _enso_cards = {}
     _enso_cards_roni = {}
     try:
         from src.enso_plots import (
             load_enso_forecast_data, compute_enso_cards, build_enso_combined,
+            load_nino34_history,
             create_enso_mega_plume as _create_enso_mega_plume,
             create_enso_box_distribution as _create_enso_box_distribution,
             create_enso_historical_context as _create_enso_historical_context,
             create_enso_strength_probs as _create_enso_strength_probs,
+            create_nino34_daily_years as _create_nino34_daily_years,
         )
+        _nino_history_df = load_nino34_history()
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
         _enso_cards = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df)
         _enso_cards_roni = compute_enso_cards(_enso_forecast_df, _enso_oni_df, _enso_obs_df, index_mode="roni")
@@ -2649,7 +2653,27 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                lede_id='enso-lede',
                right=enso_strip, right_id='enso-odds-wrap'),
         enso_kpis,
-        L.section("01", "The forecast", "Model-equal weighting",
+        L.section("01", "Right now", "OISSTv2.1 daily · 1982–present",
+                  "The daily index against every year in the satellite record, "
+                  "each year measured against its own era's climatology so "
+                  "lines are comparable as ENSO states across the record.", [
+            L.panel("This year vs every year since 1982 · ONI (Niño 3.4)",
+                    title_id='nino34-daily-title',
+                    img_id='nino34-daily-years-img',
+                    img_src='/assets/images/nino34_daily_years_dark.png',
+                    graph_id='nino34-daily-years-plot', graph_height=500,
+                    tag="Daily",
+                    caption=["Gray: every other year. ",
+                             html.B("1997 and 2015"),
+                             ", the two strongest developing El Niños in this "
+                             "record, highlighted. Anomalies are vs centered "
+                             "30-year day-of-year climatologies (the ONI "
+                             "convention, current year excluded), so the "
+                             "warming trend is removed. Category bands are "
+                             "ONI event thresholds (3-month means), shown "
+                             "for reference only."]),
+        ], section_id='sec-daily-nino'),
+        L.section("02", "The forecast", "Model-equal weighting",
                   "Every seasonal forecast system's full ensemble, drawn as one "
                   "plume. The dotted line is the model-equal-weighted median.", [
             L.panel("Combined forecast plume · ONI (Niño 3.4)",
@@ -2662,7 +2686,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                              " ranges across all members; colored lines are "
                              "per-model ensemble means."]),
         ], section_id='sec-plume'),
-        L.section("02", "How strong, when", "Model-equal weighting",
+        L.section("03", "How strong, when", "Model-equal weighting",
                   "The same ensemble, sliced two ways: the monthly forecast "
                   "distribution, and the seasonal odds of each ENSO category.", [
             L.panel("Monthly forecast distribution · ONI (Niño 3.4)",
@@ -2682,7 +2706,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             "season; n drops at long leads as fewer systems "
                             "forecast that far out."),
         ], section_id='sec-odds'),
-        L.section("03", "In context", "1990–present",
+        L.section("04", "In context", "1990–present",
                   "The observed ENSO record with the current forecast appended. "
                   "Red spans are El Niño events, blue La Niña.", [
             L.panel("Historical record and current forecast · ONI (Niño 3.4)",
@@ -3051,12 +3075,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('projection-history', 'style'),
             Output('daily-anomaly-heatmap', 'style'),
             Output('daily-temp-heatmap', 'style'),
-            # Image visibility — ENSO tab (4)
+            # Image visibility — ENSO tab (5)
+            Output('nino34-daily-years-img', 'style'),
             Output('enso-mega-plume-img', 'style'),
             Output('enso-box-distribution-img', 'style'),
             Output('enso-historical-img', 'style'),
             Output('enso-strength-probs-img', 'style'),
-            # Graph visibility — ENSO tab (4)
+            # Graph visibility — ENSO tab (5)
+            Output('nino34-daily-years-plot', 'style'),
             Output('enso-mega-plume-plot', 'style'),
             Output('enso-box-distribution-plot', 'style'),
             Output('enso-historical-plot', 'style'),
@@ -3107,8 +3133,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             graph(interactive and heatmap_mode == 'anomaly'),  # heatmap anomaly
             graph(interactive and heatmap_mode == 'absolute'), # heatmap temp
             # Images — ENSO
-            img(static), img(static), img(static), img(static),
+            img(static), img(static), img(static), img(static), img(static),
             # Graphs — ENSO
+            graph(interactive, 500),
             graph(interactive, 550),
             graph(interactive, 550),
             graph(interactive, 450),
@@ -3134,6 +3161,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('heatmap-temp-img', 'src'),
             Output('ridgeline-img', 'src'),
             # ENSO tab images
+            Output('nino34-daily-years-img', 'src'),
             Output('enso-mega-plume-img', 'src'),
             Output('enso-box-distribution-img', 'src'),
             Output('enso-historical-img', 'src'),
@@ -3163,6 +3191,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/heatmap_anomaly_{mode}.png',
             f'/assets/images/heatmap_temp_{mode}.png',
             f'/assets/images/ridgeline_{mode}.png',
+            f'/assets/images/nino34_daily_years_{enso_idx}{mode}.png',
             f'/assets/images/enso_mega_plume_{enso_idx}{mode}.png',
             f'/assets/images/enso_box_distribution_{enso_idx}{mode}.png',
             f'/assets/images/enso_historical_{enso_idx}{mode}.png',
@@ -3479,6 +3508,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-kicker', 'children'),
          Output('enso-headline', 'children'),
          Output('enso-lede', 'children'),
+         Output('nino34-daily-title', 'children'),
          Output('enso-plume-title', 'children'),
          Output('enso-box-title', 'children'),
          Output('enso-probs-title', 'children'),
@@ -3522,21 +3552,45 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             kicker,
             headline,
             lede,
+            f"This year vs every year since 1982 · {idx_title}",
             f"Combined forecast plume · {idx_title}",
             f"Monthly forecast distribution · {idx_title}",
             f"Strength probabilities by season · {idx_title}",
             f"Historical record and current forecast · {idx_title}",
         )
 
-    # ENSO Graph 1: Mega Plume (triggered by interactive switch + dark mode)
+    # ENSO Graph 0: Daily Niño 3.4 year-lines (chain head — first on the page)
     @app.callback(
-        Output('enso-mega-plume-plot', 'figure'),
+        Output('nino34-daily-years-plot', 'figure'),
         [Input('interactive-switch', 'value'),
          Input('dark-mode-switch', 'value'),
          Input('enso-index-toggle', 'value'),
          Input('unit-switch', 'value')],
     )
-    def update_enso_mega_plume(interactive, dark_mode, roni_on, fahrenheit):
+    def update_nino34_daily_years(interactive, dark_mode, roni_on, fahrenheit):
+        from dash.exceptions import PreventUpdate
+        if not interactive:
+            raise PreventUpdate
+        try:
+            index_mode = 'roni' if roni_on else 'oni'
+            return convert_figure_units(
+                _create_nino34_daily_years(_nino_history_df, dark_mode,
+                                           index_mode=index_mode),
+                fahrenheit)
+        except Exception as e:
+            logger.error(f"Nino34 daily years error: {e}")
+            return go.Figure()
+
+    # ENSO Graph 1: Mega Plume (chained from the daily year-lines)
+    @app.callback(
+        Output('enso-mega-plume-plot', 'figure'),
+        [Input('nino34-daily-years-plot', 'figure')],
+        [State('dark-mode-switch', 'value'),
+         State('interactive-switch', 'value'),
+         State('enso-index-toggle', 'value'),
+         State('unit-switch', 'value')],
+    )
+    def update_enso_mega_plume(_, dark_mode, interactive, roni_on, fahrenheit):
         from dash.exceptions import PreventUpdate
         if not interactive:
             raise PreventUpdate
