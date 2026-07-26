@@ -83,7 +83,7 @@ body.light {
 body.light .accent-teal { --accent-soft: rgba(15, 157, 148, 0.10); --accent-line: rgba(15, 157, 148, 0.35); }
 body.light .accent-violet { --accent-soft: rgba(108, 92, 231, 0.10); --accent-line: rgba(108, 92, 231, 0.35); }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 
 body {
   background: var(--bg) !important;
@@ -140,6 +140,7 @@ body.light::after { opacity: .35; }
 #main-nav .nav-link {
   font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
   text-transform: uppercase; text-decoration: none;
+  white-space: nowrap; flex-shrink: 0;
   color: var(--text-dim);
   padding: 6px 14px; border-radius: 999px;
   border: 1px solid transparent;
