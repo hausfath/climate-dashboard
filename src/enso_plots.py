@@ -1519,8 +1519,11 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni") -> go.
         showlegend=False,
         height=500,
         hovermode='closest',
+        # Fixed font color: Plotly otherwise colors hover text by trace,
+        # and the gray year-lines are unreadable on the dark background.
         hoverlabel=dict(bgcolor=theme['paper_color'],
-                        bordercolor=theme['grid_color']),
+                        bordercolor=theme['grid_color'],
+                        font=dict(color=theme['text_color'])),
         margin=dict(l=60, r=30, t=30, b=40),
     )
     return fig
