@@ -238,7 +238,7 @@ def fetch_cansips(
     for ensemble mean anomalies. Converts raw SST to anomalies using:
         anomaly_i = (SST_i - ensemble_mean_SST) + csv_mean_anomaly
 
-    Members 1-20 → CanSIPS-GEM-NEMO, members 21-40 → CanSIPS-CanESM5.
+    Members 1-20 → CanSIPS-CanESM5, members 21-40 → CanSIPS-GEM-NEMO.
 
     Returns DataFrame in standard forecast schema with both sub-models.
     """
@@ -266,9 +266,16 @@ def fetch_cansips(
             return pd.DataFrame()
 
     init_date_str = init_dt.isoformat()
-    yyyymm = f"{year}{month:02d}"
 
-    raw_dir = RAW_DIR / "cansips" / yyyymm
+    # Datamart labels GRIB files by the run's official init month, which is
+    # the month AFTER the CSV's init stamp: the run posted 2026-06-30 is CSV
+    # 2026063000 but GRIB 202607_* (reference time 2026-07-01 00Z), and P00M
+    # is valid for the label month itself. Using the CSV month here would
+    # silently pair the new CSV with the previous month's run.
+    grib_dt = pd.Timestamp(f"{year}-{month:02d}-01") + pd.DateOffset(months=1)
+    grib_yyyymm = f"{grib_dt.year}{grib_dt.month:02d}"
+
+    raw_dir = RAW_DIR / "cansips" / grib_yyyymm
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     # Persisted observed tropical-mean SSTA, used as the slowly-evolving
@@ -279,8 +286,8 @@ def fetch_cansips(
     all_records = []
 
     for lead_idx in range(12):
-        filename = f"{yyyymm}_MSC_CanSIPS_WaterTemp_Sfc_LatLon1.0_P{lead_idx:02d}M.grib2"
-        url = f"{CANSIPS_GRIB_BASE}/{year}/{month:02d}/{filename}"
+        filename = f"{grib_yyyymm}_MSC_CanSIPS_WaterTemp_Sfc_LatLon1.0_P{lead_idx:02d}M.grib2"
+        url = f"{CANSIPS_GRIB_BASE}/{grib_dt.year}/{grib_dt.month:02d}/{filename}"
         local_path = raw_dir / filename
 
         logger.info("Fetching CanSIPS lead %d from %s", lead_idx, url)
@@ -304,7 +311,8 @@ def fetch_cansips(
         )
         csv_mean_anom = csv_anomalies[lead_idx]
 
-        target_dt = pd.Timestamp(f"{year}-{month:02d}-01") + pd.DateOffset(months=lead_idx + 1)
+        # P{lead}M is valid for grib label month + lead, matching CSV lead order
+        target_dt = grib_dt + pd.DateOffset(months=lead_idx)
         target_month = target_dt.strftime("%Y-%m")
 
         for member_num, sst_val in member_n34_ssts.items():
