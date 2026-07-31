@@ -200,32 +200,42 @@ def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
 
 
 def _persisted_observed_tropical_anom(init_dt: date) -> float:
-    """Most recent observed tropical-mean SSTA (= obs Niño3.4 − obs RONI).
+    """Most recent observed tropical-mean SSTA in the BARE convention
+    (obs Niño 3.4 anomaly minus the de-scaled monthly relative index, both
+    from the same calendar month).
 
     Used as a slowly-evolving baseline for CanSIPS ensemble-mean tropical
     anomaly across all forecast leads (tropical SSTA evolves on multi-month
     timescales, so persistence is a reasonable first guess).
+
+    The de-scaling matters: NOAA's published rNINO3.4 (rnino_monthly.csv)
+    carries the L'Heureux et al. (2024) variance-restoration factor, while
+    the member rONI computed here is the bare difference that gets scaled
+    downstream in normalize.apply_roni_scaling. Subtracting *scaled* RONI
+    from Niño 3.4 — or pairing different months during a fast-evolving
+    event — inflated this baseline by up to ~0.4 °C (bug fixed 2026-07-31;
+    verified against tropical-box anomalies from the OISST daily pipeline).
     """
+    from enso_forecast.normalize import RONI_SCALING_MONTHLY
+
     nino_path = OBSERVED_DIR / "nino34_monthly.csv"
-    roni_path = OBSERVED_DIR / "roni.csv"
-    if not (nino_path.exists() and roni_path.exists()):
+    rnino_path = OBSERVED_DIR / "rnino_monthly.csv"
+    if not (nino_path.exists() and rnino_path.exists()):
         return 0.0
     obs = pd.read_csv(nino_path)
-    roni = pd.read_csv(roni_path)
+    rnino = pd.read_csv(rnino_path)
     obs["date"] = pd.to_datetime(obs["date"])
-    roni["date"] = pd.to_datetime(roni["date"])
+    rnino["date"] = pd.to_datetime(rnino["date"])
     cutoff = pd.Timestamp(init_dt)
-    obs_recent = obs[obs["date"] <= cutoff].sort_values("date").tail(1)
-    if obs_recent.empty:
+
+    merged = obs.merge(rnino[["date", "rnino34"]], on="date", how="inner")
+    merged = merged[merged["date"] <= cutoff].dropna(
+        subset=["nino34_anom", "rnino34"]).sort_values("date")
+    if merged.empty:
         return 0.0
-    last_date = obs_recent.iloc[0]["date"]
-    last_n34 = float(obs_recent.iloc[0]["nino34_anom"])
-    rmatch = roni[roni["date"] == last_date]
-    if rmatch.empty:
-        rmatch = roni[roni["date"] <= last_date].sort_values("date").tail(1)
-    if rmatch.empty:
-        return 0.0
-    return last_n34 - float(rmatch.iloc[0]["roni"])
+    last = merged.iloc[-1]
+    a = RONI_SCALING_MONTHLY[int(last["date"].month)]
+    return float(last["nino34_anom"]) - float(last["rnino34"]) / a
 
 
 def fetch_cansips(
