@@ -28,6 +28,16 @@ from enso_forecast.config import (
 # Tropical band for rONI denominator (L'Heureux et al. 2024)
 TROPICAL_LAT_BOUNDS = (-20.0, 20.0)
 
+# Observed ENSO -> tropical-mean teleconnection, used to evolve the
+# ensemble-mean tropical anomaly across forecast leads (see
+# _evolved_tropical_anomalies). Fit on OISSTv2.1 daily-box monthly means
+# 1982-2026, lowess-detrended: tropics lag Nino 3.4 by 2 months with
+# slope 0.192 C/C (r = 0.84). Caveat: linear extrapolation beyond the
+# fitted Nino 3.4 range (max ~2.6 C observed) — the 2026 forecast event
+# exceeds it, and dynamical models (NMME/C3S) suggest mild saturation.
+TROPICS_ENSO_SLOPE = 0.192
+TROPICS_ENSO_LAG = 2
+
 logger = logging.getLogger(__name__)
 
 # Month abbreviations used in the CanSIPS CSV (note: French "MAI" for May)
@@ -199,14 +209,20 @@ def _compute_nino34_per_member(grib_path: Path) -> dict[int, float]:
     return n34
 
 
-def _persisted_observed_tropical_anom(init_dt: date) -> float:
-    """Most recent observed tropical-mean SSTA in the BARE convention
-    (obs Niño 3.4 anomaly minus the de-scaled monthly relative index, both
-    from the same calendar month).
+def _load_obs_nino34_monthly() -> pd.Series:
+    """Observed monthly Niño 3.4 anomalies indexed by month start."""
+    path = OBSERVED_DIR / "nino34_monthly.csv"
+    if not path.exists():
+        return pd.Series(dtype=float)
+    obs = pd.read_csv(path)
+    obs["date"] = pd.to_datetime(obs["date"])
+    return obs.set_index("date")["nino34_anom"].dropna().sort_index()
 
-    Used as a slowly-evolving baseline for CanSIPS ensemble-mean tropical
-    anomaly across all forecast leads (tropical SSTA evolves on multi-month
-    timescales, so persistence is a reasonable first guess).
+
+def _observed_tropical_anchor(init_dt: date) -> tuple[float, pd.Timestamp | None]:
+    """(tropical-mean SSTA, anchor month) in the BARE convention: obs
+    Niño 3.4 anomaly minus the de-scaled monthly relative index, both from
+    the latest calendar month available in both observed files.
 
     The de-scaling matters: NOAA's published rNINO3.4 (rnino_monthly.csv)
     carries the L'Heureux et al. (2024) variance-restoration factor, while
@@ -221,7 +237,7 @@ def _persisted_observed_tropical_anom(init_dt: date) -> float:
     nino_path = OBSERVED_DIR / "nino34_monthly.csv"
     rnino_path = OBSERVED_DIR / "rnino_monthly.csv"
     if not (nino_path.exists() and rnino_path.exists()):
-        return 0.0
+        return 0.0, None
     obs = pd.read_csv(nino_path)
     rnino = pd.read_csv(rnino_path)
     obs["date"] = pd.to_datetime(obs["date"])
@@ -232,10 +248,57 @@ def _persisted_observed_tropical_anom(init_dt: date) -> float:
     merged = merged[merged["date"] <= cutoff].dropna(
         subset=["nino34_anom", "rnino34"]).sort_values("date")
     if merged.empty:
-        return 0.0
+        return 0.0, None
     last = merged.iloc[-1]
     a = RONI_SCALING_MONTHLY[int(last["date"].month)]
-    return float(last["nino34_anom"]) - float(last["rnino34"]) / a
+    return (float(last["nino34_anom"]) - float(last["rnino34"]) / a,
+            pd.Timestamp(last["date"]))
+
+
+def _evolved_tropical_anomalies(
+    init_dt: date,
+    csv_anomalies: dict[int, float],
+    first_month: pd.Timestamp,
+) -> dict[int, float]:
+    """Per-lead ensemble-mean tropical anomaly (BARE convention).
+
+    Starts from the observed anchor (_observed_tropical_anchor) and evolves
+    it along the observed ENSO->tropics teleconnection:
+
+        trop(T) = trop(anchor) + SLOPE * (n34(T - LAG) - n34(anchor - LAG))
+
+    where the Niño 3.4 trajectory splices observed monthly values with the
+    run's own CSV ensemble means (gaps, e.g. the init month, interpolated
+    linearly). A constant baseline was used before 2026-07-31; during the
+    2026 event that pinned the tropics ~0.3-0.6 °C below what NMME and C3S
+    members forecast for the same months and forced the two sub-models'
+    tropical anomalies to be mirror images around it (sending CanESM5's
+    tropics negative in mid-2027). The evolved form reproduces the observed
+    July-2026 tropical anomaly (+0.79 predicted vs +0.78 OISST daily).
+    """
+    anchor_trop, anchor_month = _observed_tropical_anchor(init_dt)
+    if anchor_month is None:
+        return {lead: anchor_trop for lead in csv_anomalies}
+
+    obs = _load_obs_nino34_monthly()
+    fc = pd.Series({first_month + pd.DateOffset(months=lead): val
+                    for lead, val in csv_anomalies.items()})
+    n34 = pd.concat([obs[~obs.index.isin(fc.index)], fc]).sort_index()
+    n34 = n34.resample("MS").mean().interpolate(limit_area="inside")
+
+    def n34_at(month: pd.Timestamp) -> float:
+        if month in n34.index:
+            return float(n34.loc[month])
+        prior = n34.loc[:month]
+        return float(prior.iloc[-1]) if not prior.empty else 0.0
+
+    ref = n34_at(anchor_month - pd.DateOffset(months=TROPICS_ENSO_LAG))
+    out = {}
+    for lead in csv_anomalies:
+        lag_month = (first_month + pd.DateOffset(months=lead)
+                     - pd.DateOffset(months=TROPICS_ENSO_LAG))
+        out[lead] = anchor_trop + TROPICS_ENSO_SLOPE * (n34_at(lag_month) - ref)
+    return out
 
 
 def fetch_cansips(
@@ -288,10 +351,16 @@ def fetch_cansips(
     raw_dir = RAW_DIR / "cansips" / grib_yyyymm
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    # Persisted observed tropical-mean SSTA, used as the slowly-evolving
-    # baseline for the ensemble-mean tropical anomaly across forecast leads.
-    persisted_trop_anom = _persisted_observed_tropical_anom(init_dt)
-    logger.info("CanSIPS: persisted observed tropical-mean anomaly = %+.3f °C", persisted_trop_anom)
+    # Ensemble-mean tropical anomaly per lead: observed anchor evolved along
+    # the ENSO->tropics teleconnection (grib_dt is the first forecast month,
+    # matching csv_anomalies lead 0).
+    trop_by_lead = _evolved_tropical_anomalies(init_dt, csv_anomalies, grib_dt)
+    logger.info(
+        "CanSIPS: tropical-mean anomaly anchor %+.3f °C, evolved %+.3f..%+.3f "
+        "across leads",
+        _observed_tropical_anchor(init_dt)[0],
+        min(trop_by_lead.values()), max(trop_by_lead.values()),
+    )
 
     all_records = []
 
@@ -331,7 +400,7 @@ def fetch_cansips(
             if member_trop_ssts and ensemble_mean_trop_sst is not None and member_num in member_trop_ssts:
                 trop_anom = (
                     (member_trop_ssts[member_num] - ensemble_mean_trop_sst)
-                    + persisted_trop_anom
+                    + trop_by_lead[lead_idx]
                 )
                 roni = anomaly - trop_anom
             else:
