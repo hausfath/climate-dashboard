@@ -1378,7 +1378,16 @@ def load_nino34_history() -> pd.DataFrame:
     return pd.read_csv(NINO_HISTORY_FILE, parse_dates=['date'])
 
 
-def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str) -> pd.DataFrame:
+# Region column -> display label for the daily year-lines figure. The
+# history file carries all four Niño boxes (plus the 20S-20N tropics).
+NINO_REGION_LABELS = {
+    'nino34': 'Niño 3.4', 'nino12': 'Niño 1+2',
+    'nino3': 'Niño 3', 'nino4': 'Niño 4',
+}
+
+
+def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str,
+                            region: str = 'nino34') -> pd.DataFrame:
     """Daily anomalies vs centered 30-year day-of-year climatologies.
 
     The same era-relative convention ONI uses, so the warming trend is
@@ -1398,7 +1407,8 @@ def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str) -> pd.DataFr
     y0 = FIRST_NINO_YEAR
     y1c = int(df['year'].max()) - 1   # last complete year: current excluded
 
-    cols = ['nino34', 'tropics'] if index_mode == 'roni' else ['nino34']
+    # RONI is defined for Niño 3.4 only; standard mode follows the region.
+    cols = ['nino34', 'tropics'] if index_mode == 'roni' else [region]
     anoms = {}
     for col in cols:
         doy_mean = df[df['year'] <= y1c].pivot_table(
@@ -1419,7 +1429,7 @@ def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str) -> pd.DataFr
         scale = df['date'].dt.month.map(RONI_SCALING_MONTHLY).values
         df['anom'] = (anoms['nino34'] - anoms['tropics']) * scale
     else:
-        df['anom'] = anoms['nino34']
+        df['anom'] = anoms[region]
     return df.dropna(subset=['anom'])
 
 
@@ -1435,35 +1445,49 @@ _NINO_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
                 "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
-def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni") -> go.Figure:
-    """Every year's daily Niño 3.4 (or RONI) anomaly by day of year, the
-    current year highlighted against 1997 and 2015."""
+def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
+                              region="nino34") -> go.Figure:
+    """Every year's daily Niño-region (or RONI) anomaly by day of year, the
+    current year highlighted against 1997 and 2015. `region` selects the
+    index box in standard mode; RONI mode is Niño 3.4 by definition."""
     theme = get_theme(dark_mode)
     fig = go.Figure()
     if hist_df is None or hist_df.empty:
         return fig
 
-    df = _era_relative_anomalies(hist_df, index_mode)
+    if index_mode == 'roni':
+        region = 'nino34'
+    if region != 'nino34' and region not in hist_df.columns:
+        # region history not built yet — fall back rather than crash
+        region = 'nino34'
+
+    df = _era_relative_anomalies(hist_df, index_mode, region)
     cur_year = int(df['year'].max())
     mode = 'dark' if dark_mode else 'light'
     gray = '#3d434b' if dark_mode else '#d3cec4'
     cur_color = '#e4572e' if dark_mode else '#d94f25'
     fg_soft = '#9a958d' if dark_mode else '#8a857c'
-    idx_label = 'RONI' if index_mode == 'roni' else 'Niño 3.4'
+    idx_label = ('RONI' if index_mode == 'roni'
+                 else NINO_REGION_LABELS.get(region, region))
 
     # ONI event-category bands (reference shading only — official
-    # classifications use 3-month means, not daily values)
-    y_max = max(3.4, float(df['anom'].max()) + 0.35)
-    band_alphas = ((0.035, 0.055, 0.075, 0.10) if dark_mode
-                   else (0.030, 0.050, 0.070, 0.095))
-    edges = [0.5, 1.0, 1.5, 2.0, y_max]
-    for i, a in enumerate(band_alphas):
-        fig.add_hrect(y0=edges[i], y1=edges[i + 1], line_width=0,
-                      fillcolor=f'rgba(228, 87, 46, {a})', layer='below')
-    for cy, name in [(0.75, "WEAK"), (1.25, "MODERATE"), (1.75, "STRONG"),
-                     (min(2.4, y_max - 0.5), "VERY STRONG")]:
-        fig.add_annotation(x=363, y=cy, text=name, showarrow=False,
-                           xanchor='right', font=dict(size=9, color=fg_soft))
+    # classifications use 3-month means, not daily values). The category
+    # thresholds are defined on Niño 3.4, so other regions skip them.
+    show_bands = region == 'nino34'
+    y_max = (max(3.4, float(df['anom'].max()) + 0.35) if show_bands
+             else float(df['anom'].max()) + 0.35)
+    if show_bands:
+        band_alphas = ((0.035, 0.055, 0.075, 0.10) if dark_mode
+                       else (0.030, 0.050, 0.070, 0.095))
+        edges = [0.5, 1.0, 1.5, 2.0, y_max]
+        for i, a in enumerate(band_alphas):
+            fig.add_hrect(y0=edges[i], y1=edges[i + 1], line_width=0,
+                          fillcolor=f'rgba(228, 87, 46, {a})', layer='below')
+        for cy, name in [(0.75, "WEAK"), (1.25, "MODERATE"), (1.75, "STRONG"),
+                         (min(2.4, y_max - 0.5), "VERY STRONG")]:
+            fig.add_annotation(x=363, y=cy, text=name, showarrow=False,
+                               xanchor='right',
+                               font=dict(size=9, color=fg_soft))
     fig.add_hline(y=0, line_dash='dash', line_color=fg_soft, opacity=0.5,
                   line_width=1)
 
@@ -1514,7 +1538,9 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni") -> go.
                    ticktext=_NINO_MONTHS, range=[1, 366], showgrid=False),
         yaxis=dict(title=f'{idx_label} anomaly (°C, vs centered 30-yr '
                          'climatology)',
-                   range=[min(-2.8, float(df['anom'].min()) - 0.2), y_max]),
+                   range=[(min(-2.8, float(df['anom'].min()) - 0.2)
+                           if show_bands
+                           else float(df['anom'].min()) - 0.35), y_max]),
         template=theme['template'],
         showlegend=False,
         height=500,

@@ -51,9 +51,19 @@ HEADERS = {"User-Agent": ("climate-dashboard/1.0 "
 
 # Box definitions: (lat0, lat1, lat_stride, lon0, lon1, lon_stride).
 # Grid cells sit at *.875/*.625/… (0.25° centered); strides subsample to
-# ~1° (Niño 3.4) and ~2°×4° (tropics) — identical for clim and daily.
+# ~1° (Niño boxes) and ~2°×4° (tropics) — identical for clim and daily.
 NINO34_BOX = (-4.875, 4.875, 4, -169.875, -120.125, 4)
 TROPICS_BOX = (-19.875, 19.875, 8, -179.875, 179.875, 16)
+NINO12_BOX = (-9.875, -0.125, 4, -89.875, -80.125, 4)
+NINO3_BOX = (-4.875, 4.875, 4, -149.875, -90.125, 4)
+# Niño 4 (160°E–150°W) crosses the dateline: two PM180 sub-boxes for the
+# ERDDAP path, combined with longitude-count weights (20:30 grid points).
+NINO4_BOX_E = (-4.875, 4.875, 4, 160.125, 179.875, 4)
+NINO4_BOX_W = (-4.875, 4.875, 4, -179.875, -150.125, 4)
+
+# All history columns beyond nino34/tropics (backfilled 2026-08 from PSL
+# NCSS on the identical strided grid; see temp_files/fetch_nino_regions_ncss.py)
+EXTRA_REGIONS = ('nino12', 'nino3', 'nino4')
 
 CLIM_START, CLIM_END = 1991, 2020
 
@@ -103,13 +113,37 @@ def _box_coords(box: tuple) -> tuple[np.ndarray, np.ndarray]:
     return lats, lons
 
 
+def _all_region_coords() -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """{column: (lats, lons in 0-360)} for every history column. Niño 4 is
+    contiguous in 0-360 (160.125..209.875), so its two PM180 sub-boxes just
+    concatenate."""
+    coords = {name: _box_coords(box) for name, box in
+              [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX),
+               ('nino12', NINO12_BOX), ('nino3', NINO3_BOX)]}
+    lats_e, lons_e = _box_coords(NINO4_BOX_E)
+    _, lons_w = _box_coords(NINO4_BOX_W)
+    coords['nino4'] = (lats_e, np.concatenate([lons_e, lons_w]))
+    return coords
+
+
+def _fetch_region_erddap(dataset: str, start: str, end: str,
+                         name: str) -> pd.Series:
+    """One region's box-mean series from ERDDAP (two-part fetch for Niño 4)."""
+    boxes = {'nino34': NINO34_BOX, 'tropics': TROPICS_BOX,
+             'nino12': NINO12_BOX, 'nino3': NINO3_BOX}
+    if name == 'nino4':
+        e = _fetch_box_means(dataset, start, end, NINO4_BOX_E)
+        w = _fetch_box_means(dataset, start, end, NINO4_BOX_W)
+        return (e * 20 + w * 30) / 50   # longitude-count weights
+    return _fetch_box_means(dataset, start, end, boxes[name])
+
+
 def _fetch_daily_means_ncei(start: date, end: date) -> pd.DataFrame:
     """ERDDAP-free fallback: NCEI's per-day OISST v2.1 files (the same data
     the ERDDAP aggregates), sampled on the identical strided grid so
     anomalies stay consistent with the committed climatology. Returns a
-    date-indexed frame with 'nino34' and 'tropics' columns."""
-    boxes = {name: _box_coords(box) for name, box in
-             [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]}
+    date-indexed frame with a column per region box plus 'tropics'."""
+    boxes = _all_region_coords()
     rows = {}
     misses = 0
     d = start
@@ -226,22 +260,22 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
         nrt_end = _dataset_end(DS_NRT)
 
         series = {}
-        for name, box in [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]:
+        for name in ('nino34', 'tropics') + EXTRA_REGIONS:
             parts = []
             if start <= final_end:
-                parts.append(_fetch_box_means(
-                    DS_FINAL, str(start), str(final_end), box))
+                parts.append(_fetch_region_erddap(
+                    DS_FINAL, str(start), str(final_end), name))
             nrt_start = max(start, final_end + timedelta(days=1))
             if nrt_start <= nrt_end:
-                parts.append(_fetch_box_means(
-                    DS_NRT, str(nrt_start), str(nrt_end), box))
+                parts.append(_fetch_region_erddap(
+                    DS_NRT, str(nrt_start), str(nrt_end), name))
             series[name] = pd.concat(parts).sort_index()
-        df = pd.DataFrame({'nino34': series['nino34'],
-                           'tropics': series['tropics']}).dropna()
+        df = pd.DataFrame(series).dropna(subset=['nino34', 'tropics'])
     except Exception as e:
         logger.warning(f"ERDDAP fetch failed ({e}); "
                        f"falling back to NCEI daily files")
-        df = _fetch_daily_means_ncei(start, today).dropna()
+        df = _fetch_daily_means_ncei(start, today).dropna(
+            subset=['nino34', 'tropics'])
     df.index.name = 'date'
     # float32 from the NetCDF would defeat .round(4) in the CSV output
     df = df.astype('float64').reset_index()
@@ -252,7 +286,9 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
     months = pd.DatetimeIndex(df['date']).month
     scale = np.array([RONI_SCALING_MONTHLY[m] for m in months])
     df['roni_anom'] = (df['nino34_anom'].values - trop_anom) * scale
-    _merge_into_history(df[['date', 'nino34', 'tropics']])
+    hist_cols = ['date', 'nino34', 'tropics'] + [
+        r for r in EXTRA_REGIONS if r in df.columns]
+    _merge_into_history(df[hist_cols])
     df = df[['date', 'nino34', 'nino34_anom', 'roni_anom']].round(4)
 
     if existing is not None and not existing.empty:

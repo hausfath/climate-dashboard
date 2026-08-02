@@ -2663,15 +2663,28 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_src='/assets/images/nino34_daily_years_dark.png',
                     graph_id='nino34-daily-years-plot', graph_height=500,
                     tag="Daily",
-                    caption=["Gray: every other year. ",
-                             html.B("1997 and 2015"),
-                             ", the two strongest developing El Niños in this "
-                             "record, highlighted. Anomalies are vs centered "
-                             "30-year day-of-year climatologies (the ONI "
-                             "convention, current year excluded), so the "
-                             "warming trend is removed. Category bands are "
-                             "ONI event thresholds (3-month means), shown "
-                             "for reference only."]),
+                    head_extra=dbc.RadioItems(
+                        id='nino-region-toggle',
+                        className='segmented btn-group',
+                        inputClassName='btn-check', labelClassName='btn',
+                        options=[{'label': '1+2', 'value': 'nino12'},
+                                 {'label': '3', 'value': 'nino3'},
+                                 {'label': '3.4', 'value': 'nino34'},
+                                 {'label': '4', 'value': 'nino4'}],
+                        value='nino34',
+                    ),
+                    caption=html.Span(
+                        id='nino34-daily-caption',
+                        children=["Gray: every other year. ",
+                                  html.B("1997 and 2015"),
+                                  ", the two strongest developing El Niños "
+                                  "in this record, highlighted. Anomalies "
+                                  "are vs centered 30-year day-of-year "
+                                  "climatologies (the ONI convention, "
+                                  "current year excluded), so the warming "
+                                  "trend is removed. Category bands are ONI "
+                                  "event thresholds (3-month means), shown "
+                                  "for reference only."])),
         ], section_id='sec-daily-nino'),
         L.section("02", "The forecast", "Model-equal weighting",
                   "Every seasonal forecast system's full ensemble, drawn as one "
@@ -3098,11 +3111,19 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ],
         [Input('interactive-switch', 'value'),
          Input('daily-mode-toggle', 'value'),
-         Input('heatmap-mode-toggle', 'value')],
+         Input('heatmap-mode-toggle', 'value'),
+         Input('nino-region-toggle', 'value'),
+         Input('enso-index-toggle', 'value')],
     )
-    def toggle_interactive_mode(interactive, daily_mode, heatmap_mode):
+    def toggle_interactive_mode(interactive, daily_mode, heatmap_mode,
+                                nino_region, roni_on):
         daily_mode = daily_mode or 'anomaly'
         heatmap_mode = heatmap_mode or 'anomaly'
+        # Non-3.4 regions have no pre-rendered PNGs, so the year-lines panel
+        # shows the interactive graph even in static mode (RONI locks the
+        # region back to 3.4, restoring the static image).
+        nino_region = 'nino34' if roni_on else (nino_region or 'nino34')
+        nino_static_ok = nino_region == 'nino34'
 
         def img(show):
             return ({'width': '100%', 'height': 'auto', 'display': 'block'}
@@ -3133,9 +3154,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             graph(interactive and heatmap_mode == 'anomaly'),  # heatmap anomaly
             graph(interactive and heatmap_mode == 'absolute'), # heatmap temp
             # Images — ENSO
-            img(static), img(static), img(static), img(static), img(static),
+            img(static and nino_static_ok),
+            img(static), img(static), img(static), img(static),
             # Graphs — ENSO
-            graph(interactive, 500),
+            graph(interactive or not nino_static_ok, 500),
             graph(interactive, 550),
             graph(interactive, 550),
             graph(interactive, 450),
@@ -3513,9 +3535,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-box-title', 'children'),
          Output('enso-probs-title', 'children'),
          Output('enso-historical-title', 'children')],
-        [Input('enso-index-toggle', 'value')],
+        [Input('enso-index-toggle', 'value'),
+         Input('nino-region-toggle', 'value')],
     )
-    def update_enso_card_values(roni_on):
+    def update_enso_card_values(roni_on, nino_region):
         cards = _enso_cards_roni if roni_on else _enso_cards
         label, val, when = L.split_enso_state(cards.get('current_state', 'N/A'))
         idx_name = 'RONI' if roni_on else 'Niño 3.4'
@@ -3537,6 +3560,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             sub = f"{idx_name} at {val} ({when})" if val else "N/A"
         idx_title = ('RONI (relative Niño 3.4)' if roni_on
                      else 'ONI (Niño 3.4)')
+        _region_titles = {'nino34': 'ONI (Niño 3.4)', 'nino12': 'Niño 1+2',
+                          'nino3': 'Niño 3', 'nino4': 'Niño 4'}
+        daily_title = (idx_title if roni_on
+                       else _region_titles.get(nino_region or 'nino34',
+                                               'ONI (Niño 3.4)'))
         odds = _enso_odds_roni if roni_on else _enso_odds
         pvs_label, pvs_value, pvs_sub = _pvs_card_parts(odds, idx_name if roni_on else 'ONI')
         kicker, headline, lede = _enso_hero_parts(bool(roni_on))
@@ -3552,34 +3580,75 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             kicker,
             headline,
             lede,
-            f"This year vs every year since 1982 · {idx_title}",
+            f"This year vs every year since 1982 · {daily_title}",
             f"Combined forecast plume · {idx_title}",
             f"Monthly forecast distribution · {idx_title}",
             f"Strength probabilities by season · {idx_title}",
             f"Historical record and current forecast · {idx_title}",
         )
 
-    # ENSO Graph 0: Daily Niño 3.4 year-lines (chain head — first on the page)
+    # ENSO Graph 0: Daily Niño year-lines (chain head — first on the page)
     @app.callback(
         Output('nino34-daily-years-plot', 'figure'),
         [Input('interactive-switch', 'value'),
          Input('dark-mode-switch', 'value'),
          Input('enso-index-toggle', 'value'),
+         Input('nino-region-toggle', 'value'),
          Input('unit-switch', 'value')],
     )
-    def update_nino34_daily_years(interactive, dark_mode, roni_on, fahrenheit):
+    def update_nino34_daily_years(interactive, dark_mode, roni_on, region,
+                                  fahrenheit):
         from dash.exceptions import PreventUpdate
-        if not interactive:
+        region = 'nino34' if roni_on else (region or 'nino34')
+        # Only Niño 3.4 has pre-rendered PNGs; other regions always render
+        # the interactive figure (mirrors the °F-forces-interactive pattern).
+        if not interactive and region == 'nino34':
             raise PreventUpdate
         try:
             index_mode = 'roni' if roni_on else 'oni'
             return convert_figure_units(
                 _create_nino34_daily_years(_nino_history_df, dark_mode,
-                                           index_mode=index_mode),
+                                           index_mode=index_mode,
+                                           region=region),
                 fahrenheit)
         except Exception as e:
             logger.error(f"Nino34 daily years error: {e}")
             return go.Figure()
+
+    # Region toggle: RONI is Niño 3.4 by definition, so lock the region
+    # toggle to 3.4 (and disable it) whenever RONI mode is on.
+    @app.callback(
+        [Output('nino-region-toggle', 'value'),
+         Output('nino-region-toggle', 'options')],
+        [Input('enso-index-toggle', 'value')],
+        [State('nino-region-toggle', 'value')],
+    )
+    def lock_region_in_roni(roni_on, region):
+        options = [{'label': lab, 'value': val, 'disabled': bool(roni_on)}
+                   for lab, val in [('1+2', 'nino12'), ('3', 'nino3'),
+                                    ('3.4', 'nino34'), ('4', 'nino4')]]
+        return ('nino34' if roni_on else (region or 'nino34')), options
+
+    # Region-aware caption for the daily year-lines panel.
+    @app.callback(
+        Output('nino34-daily-caption', 'children'),
+        [Input('nino-region-toggle', 'value'),
+         Input('enso-index-toggle', 'value')],
+    )
+    def update_nino34_daily_caption(region, roni_on):
+        region = 'nino34' if roni_on else (region or 'nino34')
+        base = ["Gray: every other year. ", html.B("1997 and 2015"),
+                ", the two strongest developing El Niños in this record, "
+                "highlighted. Anomalies are vs centered 30-year day-of-year "
+                "climatologies (the ONI convention, current year excluded), "
+                "so the warming trend is removed. "]
+        if region == 'nino34':
+            base.append("Category bands are ONI event thresholds (3-month "
+                        "means), shown for reference only.")
+        else:
+            base.append("Category bands are omitted: ENSO event thresholds "
+                        "are defined on Niño 3.4, not this region.")
+        return base
 
     # ENSO Graph 1: Mega Plume (chained from the daily year-lines)
     @app.callback(
