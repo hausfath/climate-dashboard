@@ -1366,16 +1366,12 @@ def create_enso_strength_probs(forecast_df, dark_mode=False, index_mode="oni"):
 # Daily Niño 3.4 year-lines (era-relative anomalies)
 # ---------------------------------------------------------------------------
 
-NINO_HISTORY_FILE = Path(__file__).resolve().parent.parent / 'data' / 'nino34_daily_history.csv'
-FIRST_NINO_YEAR = 1982   # first complete OISST year (record starts Sep 1981)
-
-
-def load_nino34_history() -> pd.DataFrame:
-    """Full daily Niño 3.4 + tropics box-mean history (see src.nino_daily,
-    which keeps the file topped up with each daily refresh)."""
-    if not NINO_HISTORY_FILE.exists():
-        return pd.DataFrame()
-    return pd.read_csv(NINO_HISTORY_FILE, parse_dates=['date'])
+# History loading and the era-relative anomaly computation live in
+# src.nino_daily (lightweight, no plotting stack) so the afternoon CSV
+# refresh can use them; re-exported here under their historical names.
+from src.nino_daily import (FIRST_NINO_YEAR, HISTORY_FILE as NINO_HISTORY_FILE,
+                            era_relative_anomalies as _era_relative_anomalies,
+                            load_nino34_history)
 
 
 # Region column -> display label for the daily year-lines figure. The
@@ -1384,53 +1380,6 @@ NINO_REGION_LABELS = {
     'nino34': 'Niño 3.4', 'nino12': 'Niño 1+2',
     'nino3': 'Niño 3', 'nino4': 'Niño 4',
 }
-
-
-def _era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str,
-                            region: str = 'nino34') -> pd.DataFrame:
-    """Daily anomalies vs centered 30-year day-of-year climatologies.
-
-    The same era-relative convention ONI uses, so the warming trend is
-    removed and years are comparable as ENSO states across the record.
-    Windows are clamped at the record edges and NEVER include the current
-    (incomplete) year, so this year's values can't deflate their own
-    baseline. For RONI, both boxes get the same treatment and the
-    difference is scaled by the L'Heureux et al. (2024) monthly factors.
-    """
-    from src.nino_daily import _doy_key, RONI_SCALING_MONTHLY
-
-    df = hist_df.copy()
-    df['year'] = df['date'].dt.year
-    df['doy'] = _doy_key(pd.DatetimeIndex(df['date']))
-    df = df[df['year'] >= FIRST_NINO_YEAR]
-
-    y0 = FIRST_NINO_YEAR
-    y1c = int(df['year'].max()) - 1   # last complete year: current excluded
-
-    # RONI is defined for Niño 3.4 only; standard mode follows the region.
-    cols = ['nino34', 'tropics'] if index_mode == 'roni' else [region]
-    anoms = {}
-    for col in cols:
-        doy_mean = df[df['year'] <= y1c].pivot_table(
-            index='year', columns='doy', values=col)
-        clims = {}
-        for yr in range(y0, y1c + 2):   # +2: current year uses the last window
-            lo = int(np.clip(yr - 15, y0, y1c - 29))
-            window = doy_mean.loc[lo:lo + 29].mean()
-            # 15-day circular smooth (matches src.nino_daily climatology)
-            ext = pd.concat([window.iloc[-15:], window, window.iloc[:15]])
-            smooth = ext.rolling(15, center=True, min_periods=1).mean()
-            clims[yr] = smooth.iloc[15:-15]
-        anoms[col] = np.array(
-            [df[col].iloc[i] - clims[y].get(d, np.nan)
-             for i, (y, d) in enumerate(zip(df['year'], df['doy']))])
-
-    if index_mode == 'roni':
-        scale = df['date'].dt.month.map(RONI_SCALING_MONTHLY).values
-        df['anom'] = (anoms['nino34'] - anoms['tropics']) * scale
-    else:
-        df['anom'] = anoms[region]
-    return df.dropna(subset=['anom'])
 
 
 # Highlighted reference years: the two strongest developing El Niños in the

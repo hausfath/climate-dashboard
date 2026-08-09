@@ -339,6 +339,64 @@ def load_daily_status() -> dict | None:
         return None
 
 
+FIRST_NINO_YEAR = 1982   # first complete OISST year (record starts Sep 1981)
+
+
+def load_nino34_history() -> pd.DataFrame:
+    """Full daily Niño box-mean history (topped up with each refresh)."""
+    if not HISTORY_FILE.exists():
+        return pd.DataFrame()
+    return pd.read_csv(HISTORY_FILE, parse_dates=['date'])
+
+
+def era_relative_anomalies(hist_df: pd.DataFrame, index_mode: str,
+                           region: str = 'nino34') -> pd.DataFrame:
+    """Daily anomalies vs centered 30-year day-of-year climatologies.
+
+    The same era-relative convention ONI uses, so the warming trend is
+    removed and years are comparable as ENSO states across the record.
+    Windows are clamped at the record edges and NEVER include the current
+    (incomplete) year, so this year's values can't deflate their own
+    baseline. For RONI, both boxes get the same treatment and the
+    difference is scaled by the L'Heureux et al. (2024) monthly factors.
+
+    (Lives here rather than in enso_plots so lightweight consumers — the
+    afternoon CSV refresh — don't drag in the plotting stack.)
+    """
+    df = hist_df.copy()
+    df['year'] = df['date'].dt.year
+    df['doy'] = _doy_key(pd.DatetimeIndex(df['date']))
+    df = df[df['year'] >= FIRST_NINO_YEAR]
+
+    y0 = FIRST_NINO_YEAR
+    y1c = int(df['year'].max()) - 1   # last complete year: current excluded
+
+    # RONI is defined for Niño 3.4 only; standard mode follows the region.
+    cols = ['nino34', 'tropics'] if index_mode == 'roni' else [region]
+    anoms = {}
+    for col in cols:
+        doy_mean = df[df['year'] <= y1c].pivot_table(
+            index='year', columns='doy', values=col)
+        clims = {}
+        for yr in range(y0, y1c + 2):   # +2: current year uses the last window
+            lo = int(np.clip(yr - 15, y0, y1c - 29))
+            window = doy_mean.loc[lo:lo + 29].mean()
+            # 15-day circular smooth (matches the fixed climatology build)
+            ext = pd.concat([window.iloc[-15:], window, window.iloc[:15]])
+            smooth = ext.rolling(15, center=True, min_periods=1).mean()
+            clims[yr] = smooth.iloc[15:-15]
+        anoms[col] = np.array(
+            [df[col].iloc[i] - clims[y].get(d, np.nan)
+             for i, (y, d) in enumerate(zip(df['year'], df['doy']))])
+
+    if index_mode == 'roni':
+        scale = df['date'].dt.month.map(RONI_SCALING_MONTHLY).values
+        df['anom'] = (anoms['nino34'] - anoms['tropics']) * scale
+    else:
+        df['anom'] = anoms[region]
+    return df.dropna(subset=['anom'])
+
+
 if __name__ == '__main__':
     import sys
     logging.basicConfig(level=logging.INFO)

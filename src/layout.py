@@ -147,7 +147,8 @@ def panel(title: str, img_id: str = None, img_src: str = None,
           graph_id: str = None, graph_height: int = 500,
           tag: str = None, caption=None, body=None,
           head_extra=None, alt: str = None,
-          title_id: str = None) -> html.Div:
+          title_id: str = None,
+          csv_href: str = None, csv_id: str = None) -> html.Div:
     head = [html.H3(title, **({'id': title_id} if title_id else {}))]
     if tag:
         head.append(html.Span(tag, className="ptag"))
@@ -175,8 +176,20 @@ def panel(title: str, img_id: str = None, img_src: str = None,
         html.Div(head, className="phead"),
         html.Div(content, className="pbody"),
     ]
-    if caption is not None:
-        children.append(html.Div(caption, className="pcap"))
+    if caption is not None or csv_href or csv_id:
+        cap_children = []
+        if caption is not None:
+            cap_children.append(html.Div(caption, className="pcap-text"))
+        if csv_href or csv_id:
+            kw = {'id': csv_id} if csv_id else {}
+            fname = csv_href.rsplit('/', 1)[-1] if csv_href else ''
+            cap_children.append(html.A(
+                [html.I(className="fas fa-download"), " CSV"],
+                href=csv_href, download=fname, className="csv-dl",
+                title="Download the data behind this figure "
+                      "(°C, regenerated daily)",
+                **kw))
+        children.append(html.Div(cap_children, className="pcap"))
     return html.Div(children, className="panel")
 
 

@@ -2380,6 +2380,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         "Grey: daily anomalies. The ", html.B("365-day average"),
                         " smooths out weather and the seasonal cycle.",
                     ]),
+                    csv_id='timeseries-csv',
+                    csv_href='/assets/data/timeseries_daily.csv',
                     head_extra=html.Div([
                         dbc.RadioItems(
                             id='timeseries-res-toggle',
@@ -2435,7 +2437,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         "Recent years against era envelopes (5–95th percentile "
                         "per era). Dashed: ", html.B("EC46 46-day forecast"),
                         ". Shaded column: the current month.",
-                    ]),
+                    ],
+                    csv_id='daily-context-csv',
+                    csv_href='/assets/data/year_context_anomaly.csv'),
         ], section_id='sec-now'),
         L.section("02", f"Where {stats['current_year']} is heading",
                   "Monte Carlo · refreshed daily",
@@ -2450,7 +2454,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         caption=[f"Projected {stats['month_name']}: ",
                                  html.B(f"{stats['month_prediction']} {stats['month_error']}"),
                                  (f" — est. rank {stats['month_rank']}"
-                                  if stats.get('month_rank') else "")]),
+                                  if stats.get('month_rank') else "")],
+                        csv_href='/assets/data/monthly_projection.csv'),
                 L.panel(f"Annual anomaly & {stats['current_year']} prediction",
                         img_id='annual-prediction-img',
                         img_src='/assets/images/annual_prediction_dark.png',
@@ -2462,21 +2467,24 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                     if stats.get('annual_rank_range')
                                     and stats['annual_rank_range'] != stats['annual_rank']
                                     else ""))
-                                  if stats.get('annual_rank') else "")]),
+                                  if stats.get('annual_rank') else "")],
+                        csv_href='/assets/data/annual_prediction.csv'),
             ),
             L.panel(f"{stats['current_year']} ranking probabilities",
                     body=html.Div(_build_rank_probability_table(stats),
                                   style={'padding': '14px 20px'}),
                     caption="Likelihood of each final rank against the historical "
                             "record, from a Monte Carlo over the ENSO multi-model "
-                            "ensemble plus regression residuals."),
+                            "ensemble plus regression residuals.",
+                    csv_href='/assets/data/rank_probabilities.csv'),
             L.panel(f"How the {stats['current_year']} projection has evolved",
                     img_id='projection-history-img',
                     img_src='/assets/images/projection_history_dark.png',
                     graph_id='projection-history', graph_height=460, tag="Daily",
                     caption=["Step changes mark ",
                              html.B("large updates to the seasonal ENSO forecasts"),
-                             "; the band is the 95% interval."]),
+                             "; the band is the 95% interval."],
+                    csv_href='/assets/data/projection_history.csv'),
         ], section_id='sec-projection'),
         L.section("03", "The long view", "1940–present",
                   "The full daily record in two frames: every day as a pixel, and "
@@ -2513,13 +2521,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                  {'label': 'Absolute', 'value': 'absolute'}],
                         value='anomaly',
                     ),
-                    caption="Columns are years, rows are days of the year."),
+                    caption="Columns are years, rows are days of the year.",
+                    csv_id='heatmap-csv',
+                    csv_href='/assets/data/heatmap_anomaly.csv'),
             html.Div(
                 L.panel("The distribution slides warm",
                         img_id='ridgeline-img',
                         img_src='/assets/images/ridgeline_dark.png',
                         caption=["Each ridge is one year's daily anomalies; the "
-                                 "current year is dashed."]),
+                                 "current year is dashed."],
+                        csv_href='/assets/data/timeseries_daily.csv'),
                 style={'maxWidth': '880px', 'margin': '0 auto'}),
         ], section_id='sec-history'),
     ])
@@ -2684,7 +2695,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                                   "current year excluded), so the warming "
                                   "trend is removed. Category bands are ONI "
                                   "event thresholds (3-month means), shown "
-                                  "for reference only."])),
+                                  "for reference only."]),
+                    csv_id='nino-daily-csv',
+                    csv_href='/assets/data/nino_daily_years_nino34.csv'),
         ], section_id='sec-daily-nino'),
         L.section("02", "The forecast", "Model-equal weighting",
                   "Every seasonal forecast system's full ensemble, drawn as one "
@@ -2697,7 +2710,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     caption=["Shaded fan: model-weighted ",
                              html.B("5–95th and 25–75th percentile"),
                              " ranges across all members; colored lines are "
-                             "per-model ensemble means."]),
+                             "per-model ensemble means."],
+                    csv_id='enso-plume-csv',
+                    csv_href='/assets/data/enso_plume_oni.csv'),
         ], section_id='sec-plume'),
         L.section("03", "How strong, when", "Model-equal weighting",
                   "The same ensemble, sliced two ways: the monthly forecast "
@@ -2709,7 +2724,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     graph_id='enso-box-distribution-plot', graph_height=550,
                     caption="Dots: individual ensemble members, colored by "
                             "model. Boxes span the model-weighted "
-                            "interquartile range."),
+                            "interquartile range.",
+                    csv_id='enso-box-csv',
+                    csv_href='/assets/data/enso_members_oni.csv'),
             L.panel("Strength probabilities by season · ONI (Niño 3.4)",
                     title_id='enso-probs-title',
                     img_id='enso-strength-probs-img',
@@ -2717,7 +2734,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     graph_id='enso-strength-probs-plot', graph_height=500,
                     caption="Model-weighted category odds per overlapping 3-month "
                             "season; n drops at long leads as fewer systems "
-                            "forecast that far out."),
+                            "forecast that far out.",
+                    csv_id='enso-probs-csv',
+                    csv_href='/assets/data/enso_strength_probs_oni.csv'),
         ], section_id='sec-odds'),
         L.section("04", "In context", "1990–present",
                   "The observed ENSO record with the current forecast appended. "
@@ -2728,7 +2747,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_src='/assets/images/enso_historical_dark.png',
                     graph_id='enso-historical-plot', graph_height=450,
                     caption=["Dotted: multi-model median forecast with the "
-                             "25th–75th percentile band." + _enso_record_note]),
+                             "25th–75th percentile band." + _enso_record_note],
+                    csv_id='enso-historical-csv',
+                    csv_href='/assets/data/enso_historical_oni.csv'),
         ], section_id='sec-context'),
     ])
 
@@ -2844,7 +2865,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_id='models-timeseries-img',
                     img_src='/assets/images/models_timeseries_dark.png',
                     graph_id='models-timeseries-plot', graph_height=520, tag="Monthly",
-                    caption="All series referenced to the selected baseline."),
+                    caption="All series referenced to the selected baseline.",
+                    csv_id='models-timeseries-csv',
+                    csv_href='/assets/data/models_timeseries_cmip6_1850_1900.csv'),
         ], section_id='sec-scorecard'),
         L.section("02", "Trends, however you slice them", "OLS · to present",
                   "Pick any start year: how does the observed warming rate compare "
@@ -2856,14 +2879,18 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     graph_id='models-trend-explorer-plot', graph_height=500,
                     caption="Dashed: median observed trend, with the shaded "
                             "range across the five datasets, for every start "
-                            "year through 2010."),
+                            "year through 2010.",
+                    csv_id='models-trends-csv',
+                    csv_href='/assets/data/models_trends_cmip6.csv'),
             L.panel("Where observations land in the model distribution",
                     img_id='models-histograms-img',
                     img_src='/assets/images/models_histograms_dark.png',
                     graph_id='models-histograms-plot', graph_height=380,
                     caption="Shaded band: range across the five observational "
                             "records; dashed line their median. Panels share "
-                            "one x-scale."),
+                            "one x-scale.",
+                    csv_id='models-hist-csv',
+                    csv_href='/assets/data/models_trend_members_cmip6.csv'),
         ], section_id='sec-trends'),
     ])
 
@@ -3222,6 +3249,91 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/models_trend_explorer_{mode}.png',
             f'/assets/images/models_histograms_{mode}.png',
         )
+
+    # ── CSV download links: keep each panel's link pointed at the file for
+    # the currently toggled state (dark mode / °C-°F / static-interactive
+    # don't change the data, so they don't change the link) ────────────────
+
+    def _csv(filename):
+        return f'/assets/data/{filename}', filename
+
+    @app.callback(
+        [Output('timeseries-csv', 'href'),
+         Output('timeseries-csv', 'download')],
+        [Input('timeseries-res-toggle', 'value')],
+    )
+    def update_timeseries_csv(res):
+        # Both files carry observed AND ENSO-removed columns, so the
+        # series toggle needs no link change.
+        return _csv('timeseries_annual.csv' if res == 'annual'
+                    else 'timeseries_daily.csv')
+
+    @app.callback(
+        [Output('daily-context-csv', 'href'),
+         Output('daily-context-csv', 'download')],
+        [Input('daily-mode-toggle', 'value')],
+    )
+    def update_daily_context_csv(mode):
+        return _csv(f"year_context_{'absolute' if mode == 'absolute' else 'anomaly'}.csv")
+
+    @app.callback(
+        [Output('heatmap-csv', 'href'),
+         Output('heatmap-csv', 'download')],
+        [Input('heatmap-mode-toggle', 'value')],
+    )
+    def update_heatmap_csv(mode):
+        return _csv(f"heatmap_{'absolute' if mode == 'absolute' else 'anomaly'}.csv")
+
+    @app.callback(
+        [Output('nino-daily-csv', 'href'),
+         Output('nino-daily-csv', 'download')],
+        [Input('nino-region-toggle', 'value'),
+         Input('enso-index-toggle', 'value')],
+    )
+    def update_nino_daily_csv(region, roni_on):
+        if roni_on:
+            return _csv('nino_daily_years_roni.csv')
+        return _csv(f"nino_daily_years_{region or 'nino34'}.csv")
+
+    @app.callback(
+        [Output('enso-plume-csv', 'href'),
+         Output('enso-plume-csv', 'download'),
+         Output('enso-box-csv', 'href'),
+         Output('enso-box-csv', 'download'),
+         Output('enso-probs-csv', 'href'),
+         Output('enso-probs-csv', 'download'),
+         Output('enso-historical-csv', 'href'),
+         Output('enso-historical-csv', 'download')],
+        [Input('enso-index-toggle', 'value')],
+    )
+    def update_enso_csv_links(roni_on):
+        idx = 'roni' if roni_on else 'oni'
+        out = []
+        for name in (f'enso_plume_{idx}.csv', f'enso_members_{idx}.csv',
+                     f'enso_strength_probs_{idx}.csv',
+                     f'enso_historical_{idx}.csv'):
+            out.extend(_csv(name))
+        return out
+
+    @app.callback(
+        [Output('models-timeseries-csv', 'href'),
+         Output('models-timeseries-csv', 'download'),
+         Output('models-trends-csv', 'href'),
+         Output('models-trends-csv', 'download'),
+         Output('models-hist-csv', 'href'),
+         Output('models-hist-csv', 'download')],
+        [Input('models-cmip-gen', 'value'),
+         Input('models-baseline', 'value')],
+    )
+    def update_models_csv_links(gen, baseline):
+        gen = gen or 'cmip6'
+        bl = (baseline or '1850-1900').replace('-', '_')
+        out = []
+        for name in (f'models_timeseries_{gen}_{bl}.csv',
+                     f'models_trends_{gen}.csv',
+                     f'models_trend_members_{gen}.csv'):
+            out.extend(_csv(name))
+        return out
 
     # Interactive graph callbacks (only run when needed)
     from dash.exceptions import PreventUpdate

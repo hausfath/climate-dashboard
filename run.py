@@ -352,6 +352,24 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to regenerate static images: {e}")
 
+    # Regenerate the per-plot CSV downloads (assets/data/) from the same data
+    logger.info("Regenerating downloadable CSVs...")
+    try:
+        from src.export_data import generate_all_csv_exports
+        source = DATA_SOURCES["era5_global"]
+        df = load_or_fetch_data(source["url"], source["local_file"])
+        enso_df = None
+        try:
+            from src.enso_plots import load_enso_forecast_data, build_enso_combined
+            ef, eo, oni = load_enso_forecast_data()
+            enso_df = build_enso_combined(oni, ef, eo)
+        except Exception as enso_err:
+            logger.warning(f"Could not load multi-model ENSO for CSVs: {enso_err}")
+        generate_all_csv_exports(df, enso_df)
+        logger.info("Downloadable CSVs regenerated")
+    except Exception as e:
+        logger.error(f"Failed to regenerate downloadable CSVs: {e}")
+
     # Update observational temperature records (for Models vs. Obs tab)
     update_obs_data(force=force)
 
