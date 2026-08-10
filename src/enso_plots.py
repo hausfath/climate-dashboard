@@ -470,16 +470,18 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
             inner = ("rgba(232, 234, 242, 0.15)" if dark_mode
                      else "rgba(31, 36, 48, 0.12)")
             dates = fan["date"].tolist()
+            # mode='none': with <20 vertices Plotly defaults Scatter to
+            # lines+markers, which draws stray dots along the band edges
             fig.add_trace(go.Scatter(
                 x=dates + dates[::-1],
                 y=fan["p95"].tolist() + fan["p05"].tolist()[::-1],
-                fill="toself", fillcolor=outer, line=dict(width=0),
+                fill="toself", fillcolor=outer, mode="none",
                 name="5–95th %ile", hoverinfo="skip",
             ))
             fig.add_trace(go.Scatter(
                 x=dates + dates[::-1],
                 y=fan["p75"].tolist() + fan["p25"].tolist()[::-1],
-                fill="toself", fillcolor=inner, line=dict(width=0),
+                fill="toself", fillcolor=inner, mode="none",
                 name="25–75th %ile", hoverinfo="skip",
             ))
 
@@ -875,6 +877,7 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
     )
 
     # -- Forecast overlay --
+    fc_q75_max = None   # top of the 25–75% forecast band (sets the y-max)
     if not forecast_df.empty:
         try:
             forecast_only = _get_forecast_only(forecast_df)
@@ -936,16 +939,18 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
                 forecast_q25 = [last_obs_val] + q25_vals
                 forecast_q75 = [last_obs_val] + q75_vals
 
-                # 25-75th percentile shading
+                # 25-75th percentile shading (mode='none': short traces
+                # otherwise default to lines+markers and show stray dots)
                 fig.add_trace(go.Scatter(
                     x=fc_dates + fc_dates[::-1],
                     y=forecast_q75 + forecast_q25[::-1],
                     fill="toself",
                     fillcolor="rgba(255, 127, 14, 0.25)",
-                    line=dict(width=0),
+                    mode="none",
                     name="25th\u201375th percentile",
                     hoverinfo="skip",
                 ))
+                fc_q75_max = max(forecast_q75)
 
                 # Multi-model mean
                 mm_line_color = "white" if dark_mode else "black"
@@ -980,12 +985,14 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         except Exception as e:
             logger.warning(f"Error adding forecast overlay: {e}")
 
-    # Y-axis range: pad the top to 3.5 °C so the current forecast median
-    # has headroom, but keep tick labels stopping at 3 so the scale still
-    # reads as a standard ONI-style chart.
+    # Y-axis range: floor of 3.5 °C headroom in normal times; when the
+    # current forecast runs hotter, the top of the 25–75% band defines
+    # (touches) the top of the axis so the fan never clips.
     all_vals = list(anom)
     ymin = min(-3.0, min(all_vals) - 0.3)
     ymax = max(3.5, max(all_vals) + 0.3)
+    if fc_q75_max is not None:
+        ymax = max(ymax, float(fc_q75_max))
 
     fig.update_layout(
         yaxis_title=meta["y_label"],
@@ -997,7 +1004,7 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         yaxis=dict(
             range=[ymin, ymax],
             tickmode="array",
-            tickvals=list(range(int(np.floor(ymin)), 4)),
+            tickvals=list(range(int(np.floor(ymin)), int(np.floor(ymax)) + 1)),
         ),
         margin=dict(l=60, r=30, t=30, b=50),
     )
@@ -1517,6 +1524,217 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
                         bordercolor=theme['grid_color'],
                         font=dict(color=theme['text_color'])),
         margin=dict(l=60, r=30, t=30, b=40),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Peak-intensity histogram + per-model lollipop
+# ---------------------------------------------------------------------------
+
+def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
+    """One row per (model, member): the member's peak forecast value and
+    peak month over Jul–Dec of the forecast year. Members must cover both
+    Nov and Dec (the climatological peak window) to avoid truncated peaks."""
+    meta = _index_meta(index_mode)
+    fdf = _swap_to_nino34(forecast_df, meta["col"])
+    mega = _build_mega_df(_get_forecast_only(fdf))
+    if mega.empty:
+        return pd.DataFrame()
+    year = pd.to_datetime(mega["init_date"]).max().year
+    peak_months = [f"{year}-{m:02d}" for m in range(7, 13)]
+    required = {f"{year}-11", f"{year}-12"}
+    m = mega[(mega["member_id"] != "mean")
+             & (mega["target_month"].isin(peak_months))
+             & (mega["nino34_anom"].notna())].copy()
+    if m.empty:
+        return pd.DataFrame()
+    cover = m.groupby(["model", "member_id"])["target_month"].apply(set)
+    ok = cover[cover.apply(lambda s: required <= s)].index
+    if not len(ok):
+        return pd.DataFrame()
+    m = m.set_index(["model", "member_id"]).loc[ok].reset_index()
+    i = m.groupby(["model", "member_id"])["nino34_anom"].idxmax()
+    peaks = m.loc[i, ["model", "member_id", "target_month",
+                      "nino34_anom"]].rename(
+        columns={"nino34_anom": "peak", "target_month": "peak_month"})
+    peaks["year"] = year
+    return peaks.reset_index(drop=True)
+
+
+def _record_peak(index_mode: str) -> tuple[float, str] | tuple[None, None]:
+    """Peak observed MONTHLY value of this index (like-for-like with the
+    members' monthly peaks) and an event label. ONI uses the era-relative
+    convention from the daily OISST history (complete months only); RONI
+    uses NOAA's scaled monthly rNINO3.4."""
+    try:
+        if index_mode == "roni":
+            obs = pd.read_csv(OBSERVED_DIR / "rnino_monthly.csv")
+            i = obs["rnino34"].idxmax()
+            val = float(obs.loc[i, "rnino34"])
+            yr, mo = int(obs.loc[i, "year"]), int(obs.loc[i, "month"])
+        else:
+            from src.nino_daily import era_relative_anomalies
+            d = era_relative_anomalies(load_nino34_history(), "oni")
+            d = d[d["year"] < int(d["year"].max())]   # complete years only
+            per = d.groupby(d["date"].dt.to_period("M"))["anom"]
+            monthly = per.mean()[per.count() >= 25]
+            p = monthly.idxmax()
+            val = float(monthly.max())
+            yr, mo = p.year, p.month
+        if mo <= 6:
+            yr -= 1
+        return val, f"{yr}–{str(yr + 1)[2:]} record ({val:.2f}°C)"
+    except Exception as e:
+        logger.warning(f"Record peak lookup failed: {e}")
+        return None, None
+
+
+def create_enso_peak_lollipop(forecast_df, dark_mode=False,
+                              index_mode="oni") -> go.Figure:
+    """Forecast peak intensity: model-weighted histogram of each ensemble
+    member's Jul–Dec peak (top) + per-model median/10–90% lollipops
+    (bottom). Single shared x-axis; y domains split the two panels."""
+    theme = get_theme(dark_mode)
+    meta = _index_meta(index_mode)
+    fig = go.Figure()
+
+    peaks = compute_member_peaks(forecast_df, index_mode)
+    if peaks.empty:
+        fig.update_layout(title=f"No {meta['short']} forecast data available",
+                          template=theme["template"])
+        return fig
+
+    year = int(peaks["year"].iloc[0])
+    members = peaks.copy()
+    counts = members.groupby("model").size()
+    members["weight"] = members["model"].map(lambda x: 1.0 / counts[x])
+    vals = members["peak"].values
+    w = members["weight"].values
+    wmedian = _weighted_quantile(vals, w, 0.50)
+    p10 = _weighted_quantile(vals, w, 0.10)
+    p90 = _weighted_quantile(vals, w, 0.90)
+    rec_val, rec_label = _record_peak(index_mode)
+
+    fg_soft = '#9a958d' if dark_mode else '#8a857c'
+    hist_color = '#e4572e' if dark_mode else '#d94f25'
+    median_color = '#f5b841' if dark_mode else '#a87408'
+    record_color = '#7cc7e8' if dark_mode else '#2a7fa8'
+
+    x_min = max(0.0, float(np.floor((vals.min() - 0.15) * 4) / 4))
+    x_max = float(vals.max()) + 0.75
+
+    # Category bands span both panels (paper yref)
+    band_alphas = ((0.035, 0.055, 0.075, 0.10) if dark_mode
+                   else (0.030, 0.050, 0.070, 0.095))
+    edges = [0.5, 1.0, 1.5, 2.0, x_max]
+    for i, a in enumerate(band_alphas):
+        # explicit paper yref: a bare add_vrect binds to the first y-axis,
+        # which only spans the lollipop panel's domain
+        fig.add_shape(type='rect', x0=max(edges[i], x_min), x1=edges[i + 1],
+                      xref='x', yref='paper', y0=0, y1=0.97, line_width=0,
+                      fillcolor=f'rgba(228, 87, 46, {a})', layer='below')
+    for cx, name in [(0.75, "WEAK"), (1.25, "MODERATE"), (1.75, "STRONG"),
+                     ((2.0 + x_max) / 2, "VERY STRONG")]:
+        if cx < x_min + 0.1:
+            continue
+        fig.add_annotation(x=cx, y=1.03, yref='paper', text=name,
+                           showarrow=False,
+                           font=dict(size=9, color=fg_soft))
+
+    # -- top: model-weighted histogram of member peaks (y2 domain) --------
+    bins = np.arange(x_min, x_max + 0.2, 0.2)
+    hist, bin_edges = np.histogram(vals, bins=bins, weights=w)
+    hist = hist / w.sum()   # → share of model-weighted members
+    centers = bin_edges[:-1] + 0.1
+    fig.add_trace(go.Bar(
+        x=centers, y=hist, width=0.19, yaxis='y2',
+        marker=dict(color=hist_color,
+                    line=dict(color=theme['paper_color'], width=1)),
+        customdata=np.stack([bin_edges[:-1], bin_edges[1:]], axis=1),
+        hovertemplate=('%{customdata[0]:.1f}–%{customdata[1]:.1f}°C: '
+                       '%{y:.0%} of members<extra></extra>'),
+        showlegend=False,
+    ))
+
+    # -- bottom: per-model lollipops (categorical y domain) ---------------
+    def _modal_month(s: pd.Series) -> str:
+        return pd.Timestamp(s.mode().iloc[0] + "-01").strftime("%b")
+
+    stats = (members.groupby("model")
+             .agg(median=("peak", "median"),
+                  p10=("peak", lambda s: float(np.percentile(s, 10))),
+                  p90=("peak", lambda s: float(np.percentile(s, 90))),
+                  n=("peak", "size"),
+                  month=("peak_month", _modal_month))
+             .sort_values("median"))
+
+    for model, row in stats.iterrows():
+        c = MEGA_COLORS.get(model, "#888888")
+        fig.add_trace(go.Scatter(
+            x=[row["p10"], row["p90"]], y=[model, model], mode="lines",
+            line=dict(color=c, width=6), opacity=0.45,
+            hoverinfo="skip", showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=[row["median"]], y=[model], mode="markers",
+            marker=dict(size=13, color=c,
+                        line=dict(color=theme['paper_color'], width=2)),
+            hovertemplate=(f"{model} ({int(row['n'])} members)<br>"
+                           f"median peak {row['median']:.2f}°C "
+                           f"(10–90%: {row['p10']:.2f}–{row['p90']:.2f})<br>"
+                           f"most often peaks in {row['month']}"
+                           "<extra></extra>"),
+            showlegend=False,
+        ))
+        fig.add_annotation(
+            x=row["p90"], y=model, xshift=10, xanchor='left',
+            text=f"{row['median']:.1f} · peaks {row['month']}",
+            showarrow=False, font=dict(size=10, color=fg_soft))
+
+    # -- reference lines (span both panels) --------------------------------
+    fig.add_shape(type='line', x0=wmedian, x1=wmedian, y0=0, y1=1,
+                  yref='paper', line=dict(color=median_color, width=2.2,
+                                          dash='dash'))
+    # anchored to the panel's right edge, where the histogram tail is
+    # short, rather than to the line (which sits among the tallest bars)
+    fig.add_annotation(
+        x=0.99, xref='paper', y=0.955, yref='paper', xanchor='right',
+        yanchor='top', align='right', showarrow=False,
+        text=(f"<b>Weighted median  {wmedian:.1f}°C</b><br>"
+              f"<span style='font-size:11px;color:{fg_soft}'>10–90% of "
+              f"members: {p10:.1f}–{p90:.1f}°C</span>"),
+        font=dict(size=14, color=median_color))
+    if rec_val is not None:
+        fig.add_shape(type='line', x0=rec_val, x1=rec_val, y0=0, y1=1,
+                      yref='paper', line=dict(color=record_color, width=1.6,
+                                              dash='dot'))
+        fig.add_annotation(x=rec_val, y=0.63, yref='paper', xshift=-6,
+                           xanchor='right', yanchor='bottom', textangle=-90,
+                           text=rec_label, showarrow=False,
+                           font=dict(size=10.5, color=record_color))
+
+    fig.update_layout(
+        template=theme["template"],
+        height=620,
+        showlegend=False,
+        xaxis=dict(
+            title=(f"Peak {meta['short']} anomaly, Jul–Dec {year} (°C)"),
+            range=[x_min, x_max], dtick=0.5,
+        ),
+        yaxis=dict(   # lollipop panel
+            domain=[0, 0.56], type='category',
+            categoryorder='array', categoryarray=stats.index.tolist(),
+        ),
+        yaxis2=dict(  # histogram panel
+            domain=[0.62, 0.97], showticklabels=False,
+            title=dict(text='Share of members', font=dict(size=11)),
+        ),
+        hoverlabel=dict(bgcolor=theme["paper_color"],
+                        bordercolor=theme["grid_color"],
+                        font=dict(color=theme["text_color"])),
+        margin=dict(l=110, r=30, t=40, b=50),
+        bargap=0,
     )
     return fig
 

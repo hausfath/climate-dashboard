@@ -501,6 +501,29 @@ def export_enso_members(forecast_df, index_mode="oni") -> None:
             "is excluded from the dashboard's probability statistics."])
 
 
+def export_enso_peaks(forecast_df, index_mode="oni") -> None:
+    """Forecast peak intensity panel: each member's Jul-Dec peak."""
+    from src.enso_plots import compute_member_peaks
+
+    peaks = compute_member_peaks(forecast_df, index_mode)
+    if peaks.empty:
+        logger.warning(f"No member peaks for {index_mode}; skipping")
+        return
+    year = int(peaks["year"].iloc[0])
+    out = (peaks[["model", "member_id", "peak", "peak_month"]]
+           .rename(columns={"peak": "peak_c"})
+           .sort_values(["model", "member_id"]))
+    label = _idx_label(index_mode)
+    _write(out, f"enso_peak_members_{index_mode}.csv",
+           f"Forecast peak intensity — {label}: each ensemble member's "
+           f"Jul-Dec {year} peak",
+           [f"peak_c: the member's maximum monthly forecast over Jul-Dec "
+            f"{year}; peak_month: when it occurs. Members must cover both "
+            "Nov and Dec to be included.",
+            "Dashboard statistics weight every model equally regardless "
+            "of ensemble size."])
+
+
 def export_enso_strength_probs(forecast_df, index_mode="oni") -> None:
     """Strength probabilities by season."""
     from src.enso_plots import (STRENGTH_BINS, _season_label,
@@ -805,6 +828,7 @@ def generate_all_csv_exports(df: pd.DataFrame, enso_df=None,
             for idx in _ENSO_INDEX_MODES:
                 _step(export_enso_plume, ef, eo, idx)
                 _step(export_enso_members, ef, idx)
+                _step(export_enso_peaks, ef, idx)
                 _step(export_enso_strength_probs, ef, idx)
                 _step(export_enso_historical, idx)
     except Exception as e:

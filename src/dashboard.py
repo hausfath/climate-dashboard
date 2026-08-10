@@ -2308,6 +2308,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             create_enso_historical_context as _create_enso_historical_context,
             create_enso_strength_probs as _create_enso_strength_probs,
             create_nino34_daily_years as _create_nino34_daily_years,
+            create_enso_peak_lollipop as _create_enso_peak_lollipop,
         )
         _nino_history_df = load_nino34_history()
         _enso_forecast_df, _enso_obs_df, _enso_oni_df = load_enso_forecast_data()
@@ -2823,6 +2824,19 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             "interquartile range.",
                     csv_id='enso-box-csv',
                     csv_href='/assets/data/enso_members_oni.csv'),
+            L.panel("Forecast peak intensity · ONI (Niño 3.4)",
+                    title_id='enso-peak-title',
+                    graph_id='enso-peak-lollipop-plot', graph_height=620,
+                    caption=["Each member's forecast peak (its Jul–Dec "
+                             "maximum). Top: histogram with every model "
+                             "weighted equally. Bottom: ",
+                             html.B("model medians (dots) and 10–90% member "
+                                    "ranges (bars)"),
+                             ", labeled with each model's most common peak "
+                             "month. Dotted line: the strongest event in "
+                             "the observed record on this convention."],
+                    csv_id='enso-peak-csv',
+                    csv_href='/assets/data/enso_peak_members_oni.csv'),
             L.panel("Strength probabilities by season · ONI (Niño 3.4)",
                     title_id='enso-probs-title',
                     img_id='enso-strength-probs-img',
@@ -3221,6 +3235,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('nino34-daily-years-plot', 'style'),
             Output('enso-mega-plume-plot', 'style'),
             Output('enso-box-distribution-plot', 'style'),
+            Output('enso-peak-lollipop-plot', 'style'),
             Output('enso-historical-plot', 'style'),
             Output('enso-strength-probs-plot', 'style'),
             # Image visibility — Models tab (3)
@@ -3285,6 +3300,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             graph(interactive or not nino_static_ok, 500),
             graph(interactive, 550),
             graph(interactive, 550),
+            graph(True, 620),   # peak lollipop: interactive-only, no PNG
             graph(interactive, 450),
             graph(interactive, 500),
             # Images — Models
@@ -3400,6 +3416,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('enso-plume-csv', 'download'),
          Output('enso-box-csv', 'href'),
          Output('enso-box-csv', 'download'),
+         Output('enso-peak-csv', 'href'),
+         Output('enso-peak-csv', 'download'),
          Output('enso-probs-csv', 'href'),
          Output('enso-probs-csv', 'download'),
          Output('enso-historical-csv', 'href'),
@@ -3410,6 +3428,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         idx = 'roni' if roni_on else 'oni'
         out = []
         for name in (f'enso_plume_{idx}.csv', f'enso_members_{idx}.csv',
+                     f'enso_peak_members_{idx}.csv',
                      f'enso_strength_probs_{idx}.csv',
                      f'enso_historical_{idx}.csv'):
             out.extend(_csv(name))
@@ -3745,6 +3764,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('nino34-daily-title', 'children'),
          Output('enso-plume-title', 'children'),
          Output('enso-box-title', 'children'),
+         Output('enso-peak-title', 'children'),
          Output('enso-probs-title', 'children'),
          Output('enso-historical-title', 'children')],
         [Input('enso-index-toggle', 'value'),
@@ -3801,6 +3821,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f"This year vs every year since 1982 · {daily_title}",
             f"Combined forecast plume · {idx_title}",
             f"Monthly forecast distribution · {idx_title}",
+            f"Forecast peak intensity · {idx_title}",
             f"Strength probabilities by season · {idx_title}",
             f"Historical record and current forecast · {idx_title}",
         )
@@ -3937,6 +3958,30 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                 fahrenheit)
         except Exception as e:
             logger.error(f"ENSO box distribution error: {e}")
+            return go.Figure()
+
+    # ENSO Graph 2b: Peak-intensity lollipop. Interactive-only (no static
+    # PNG), so it is its own chain head: the shared chain stalls at its
+    # head in static mode, which would leave this panel permanently empty.
+    @app.callback(
+        Output('enso-peak-lollipop-plot', 'figure'),
+        [Input('interactive-switch', 'value'),
+         Input('dark-mode-switch', 'value'),
+         Input('enso-index-toggle', 'value'),
+         Input('unit-switch', 'value')],
+    )
+    def update_enso_peak_lollipop(interactive, dark_mode, roni_on,
+                                  fahrenheit):
+        if not _ENSO_AVAILABLE:
+            return go.Figure()
+        try:
+            index_mode = 'roni' if roni_on else 'oni'
+            return convert_figure_units(
+                _create_enso_peak_lollipop(_enso_forecast_df, dark_mode,
+                                           index_mode=index_mode),
+                fahrenheit)
+        except Exception as e:
+            logger.error(f"ENSO peak lollipop error: {e}")
             return go.Figure()
 
     # ENSO Graph 3: Historical Context (chained from box distribution)
