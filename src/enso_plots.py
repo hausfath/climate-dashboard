@@ -1395,10 +1395,13 @@ _NINO_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
 
 
 def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
-                              region="nino34") -> go.Figure:
+                              region="nino34",
+                              display="anomaly") -> go.Figure:
     """Every year's daily Niño-region (or RONI) anomaly by day of year, the
     current year highlighted against 1997 and 2015. `region` selects the
-    index box in standard mode; RONI mode is Niño 3.4 by definition."""
+    index box in standard mode; RONI mode is Niño 3.4 by definition.
+    ``display='absolute'`` plots raw box-mean SST instead of era-relative
+    anomalies (seasonal cycle retained; RONI has no absolute form)."""
     theme = get_theme(dark_mode)
     fig = go.Figure()
     if hist_df is None or hist_df.empty:
@@ -1406,11 +1409,21 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
 
     if index_mode == 'roni':
         region = 'nino34'
+        display = 'anomaly'
     if region != 'nino34' and region not in hist_df.columns:
         # region history not built yet — fall back rather than crash
         region = 'nino34'
+    absolute = display == 'absolute'
 
-    df = _era_relative_anomalies(hist_df, index_mode, region)
+    if absolute:
+        from src.nino_daily import _doy_key, FIRST_NINO_YEAR
+        df = hist_df.copy()
+        df['year'] = df['date'].dt.year
+        df['doy'] = _doy_key(pd.DatetimeIndex(df['date']))
+        df = df[df['year'] >= FIRST_NINO_YEAR]
+        df = df.dropna(subset=[region]).rename(columns={region: 'anom'})
+    else:
+        df = _era_relative_anomalies(hist_df, index_mode, region)
     cur_year = int(df['year'].max())
     mode = 'dark' if dark_mode else 'light'
     gray = '#3d434b' if dark_mode else '#d3cec4'
@@ -1422,7 +1435,7 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
     # ONI event-category bands (reference shading only — official
     # classifications use 3-month means, not daily values). The category
     # thresholds are defined on Niño 3.4, so other regions skip them.
-    show_bands = region == 'nino34'
+    show_bands = region == 'nino34' and not absolute
     y_max = (max(3.4, float(df['anom'].max()) + 0.35) if show_bands
              else float(df['anom'].max()) + 0.35)
     if show_bands:
@@ -1437,8 +1450,9 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
             fig.add_annotation(x=363, y=cy, text=name, showarrow=False,
                                xanchor='right',
                                font=dict(size=9, color=fg_soft))
-    fig.add_hline(y=0, line_dash='dash', line_color=fg_soft, opacity=0.5,
-                  line_width=1)
+    if not absolute:   # a 0 °C line is meaningless for ~25–29 °C SSTs
+        fig.add_hline(y=0, line_dash='dash', line_color=fg_soft, opacity=0.5,
+                      line_width=1)
 
     for yr, g in df.groupby('year'):
         if yr == cur_year:
@@ -1465,9 +1479,11 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
                       + ': %{y:.2f}°C<extra></extra>',
     ))
 
+    _cur_val = float(g_cur['anom'].iloc[-1])
     fig.add_annotation(
-        x=float(g_cur['doy'].iloc[-1]), y=float(g_cur['anom'].iloc[-1]),
-        text=f"{cur_year} to date  {g_cur['anom'].iloc[-1]:+.1f}°C",
+        x=float(g_cur['doy'].iloc[-1]), y=_cur_val,
+        text=(f"{cur_year} to date  "
+              + (f"{_cur_val:.1f}°C" if absolute else f"{_cur_val:+.1f}°C")),
         showarrow=False, xanchor='left', xshift=8, yshift=8,
         font=dict(size=13, color=cur_color, weight='bold'),
         bgcolor=('rgba(21, 24, 28, 0.75)' if dark_mode
@@ -1485,8 +1501,9 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
     fig.update_layout(
         xaxis=dict(title='', tickvals=_NINO_MONTH_STARTS,
                    ticktext=_NINO_MONTHS, range=[1, 366], showgrid=False),
-        yaxis=dict(title=f'{idx_label} anomaly (°C, vs centered 30-yr '
-                         'climatology)',
+        yaxis=dict(title=(f'{idx_label} SST (°C)' if absolute else
+                          f'{idx_label} anomaly (°C, vs centered 30-yr '
+                          'climatology)'),
                    range=[(min(-2.8, float(df['anom'].min()) - 0.2)
                            if show_bands
                            else float(df['anom'].min()) - 0.35), y_max]),

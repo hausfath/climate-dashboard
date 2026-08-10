@@ -380,6 +380,27 @@ def export_nino_daily_years() -> None:
                 "SST anomaly, scaled by L'Heureux et al. monthly factors."]
                + base_notes, float_format="%.3f")
 
+    # Absolute-SST variants (the figure's Anomaly/Absolute toggle)
+    from src.nino_daily import FIRST_NINO_YEAR, _doy_key
+    for region in ("nino34", "nino12", "nino3", "nino4"):
+        if region not in hist.columns:
+            continue
+        d = hist.copy()
+        d["year"] = d["date"].dt.year
+        d["day_of_year"] = _doy_key(pd.DatetimeIndex(d["date"]))
+        d = d[d["year"] >= FIRST_NINO_YEAR].dropna(subset=[region])
+        out = d[["date", "year", "day_of_year", region]].rename(
+            columns={region: "sst_c"})
+        out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+        _write(out, f"nino_daily_years_{region}_abs.csv",
+               f"This year vs every year since 1982 — daily "
+               f"{_NINO_REGION_TITLES[region]} absolute SST",
+               ["Raw daily box-mean SST (degC), seasonal cycle retained.",
+                "Feb 29 values are mapped to day-of-year 59 (Feb 28) so "
+                "years align.",
+                "Source: NOAA OISST v2.1 daily box means."],
+               float_format="%.3f")
+
 
 def _prep_mega(forecast_df, index_mode):
     """Shared prep: swap the index column in and build the deduplicated
