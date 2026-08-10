@@ -46,16 +46,15 @@ jobs:
       - name: Catch same-day C3S release (10th only)
         if: ${{ !cancelled() }}
         timeout-minutes: 45
+        env:
+          # the C3S fetcher reads these env vars (not ~/.cdsapirc)
+          CDS_API_KEY: ${{ secrets.CDS_KEY }}
+          CDS_API_URL: ${{ secrets.CDS_URL }}
         run: |
           if [ "$(date -u +%d)" != "10" ]; then
             echo "Not the 10th — skipping C3S release check"
             exit 0
           fi
-          mkdir -p ~/.config/cdsapi
-          cat > ~/.cdsapirc << EOF
-          url: ${{ secrets.CDS_URL }}
-          key: ${{ secrets.CDS_KEY }}
-          EOF
           python << 'PYEOF'
           import glob, os, sys
           from datetime import date
