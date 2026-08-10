@@ -39,17 +39,64 @@ jobs:
         run: |
           python -m src.export_data --nino-daily
 
+      # C3S publishes its coordinated multi-system release on the 10th at
+      # 12 UTC — after the 6 UTC morning cron. This 15 UTC run catches it
+      # the same afternoon, but only on the 10th and only while systems
+      # are still on the prior month's init (same guard as run.py).
+      - name: Catch same-day C3S release (10th only)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 45
+        run: |
+          if [ "$(date -u +%d)" != "10" ]; then
+            echo "Not the 10th — skipping C3S release check"
+            exit 0
+          fi
+          mkdir -p ~/.config/cdsapi
+          cat > ~/.cdsapirc << EOF
+          url: ${{ secrets.CDS_URL }}
+          key: ${{ secrets.CDS_KEY }}
+          EOF
+          python << 'PYEOF'
+          import glob, os, sys
+          from datetime import date
+          import pandas as pd
+          sys.path.insert(0, '.')
+          sys.path.insert(0, 'ENSO')
+          files = sorted(glob.glob('ENSO/data/forecasts/C3S/*.csv'))
+          floor = date.today().replace(day=1).isoformat()
+          stale = True
+          if files:
+              latest = pd.read_csv(files[-1])
+              if not latest.empty and 'init_date' in latest.columns:
+                  stale = (latest['init_date'].astype(str) < floor).any()
+          if not stale:
+              print('C3S already fully on current-month inits — nothing to do')
+          else:
+              from enso_forecast.fetchers.c3s import save_c3s
+              # force=True: the 6 UTC cron already wrote today's file, and
+              # save_c3s's same-day idempotency check would otherwise skip.
+              # The init-date staleness guard above is what gates this
+              # fetch, and save_c3s itself refuses regressions (never
+              # saves fewer current-month models than the existing file).
+              save_c3s(force=True)
+              csvs = sorted(glob.glob('ENSO/data/forecasts/C3S/*.csv'))
+              if len(csvs) > 1 and os.path.getsize(csvs[-1]) > 10:
+                  for old in csvs[:-1]:
+                      os.unlink(old)
+                      print(f'removed older {old}')
+          PYEOF
+
       - name: Check for changes
         id: git-check
         run: |
-          git diff --quiet -- data/nino34_daily.csv data/nino34_daily_history.csv || echo "changes=true" >> $GITHUB_OUTPUT
+          git diff --quiet -- data/nino34_daily.csv data/nino34_daily_history.csv ENSO/data/forecasts/C3S || echo "changes=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
         if: ${{ steps.git-check.outputs.changes == 'true' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/nino34_daily.csv data/nino34_daily_history.csv assets/data/nino_daily_years_*.csv
+          git add data/nino34_daily.csv data/nino34_daily_history.csv assets/data/nino_daily_years_*.csv ENSO/data/forecasts/C3S
           git commit -m "Afternoon Niño 3.4 update $(date -u +'%Y-%m-%d')"
           git pull --rebase
           git push

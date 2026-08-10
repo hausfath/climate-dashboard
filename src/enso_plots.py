@@ -1482,7 +1482,7 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
     _cur_val = float(g_cur['anom'].iloc[-1])
     fig.add_annotation(
         x=float(g_cur['doy'].iloc[-1]), y=_cur_val,
-        text=(f"{cur_year} to date  "
+        text=(f"{cur_year}  "
               + (f"{_cur_val:.1f}°C" if absolute else f"{_cur_val:+.1f}°C")),
         showarrow=False, xanchor='left', xshift=8, yshift=8,
         font=dict(size=13, color=cur_color, weight='bold'),
