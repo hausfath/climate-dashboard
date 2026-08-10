@@ -167,16 +167,19 @@ def export_year_context(df: pd.DataFrame) -> None:
 
 def export_monthly_projection(df: pd.DataFrame) -> None:
     """Monthly projection panel: historical means for the current month plus
-    the month-to-date value and regression projection."""
+    the month-to-date value and the projection (EC46 blend, or the
+    regression fallback — the method is recorded in the file)."""
     from src.dashboard import (adjust_anomalies_to_preindustrial,
-                               calculate_monthly_prediction)
+                               get_monthly_projection)
 
     adj = adjust_anomalies_to_preindustrial(df)
     latest = adj["date"].max()
     month, year = latest.month, latest.year
     month_name = latest.strftime("%B")
 
-    pred, err, mtd, days = calculate_monthly_prediction(adj, month, year)
+    proj = get_monthly_projection(adj)
+    pred = proj.get("prediction")
+    mtd = proj.get("mtd_avg")
 
     md = adj[adj["date"].dt.month == month]
     monthly = md.groupby(md["date"].dt.year)["anomaly"].mean()
@@ -184,16 +187,33 @@ def export_monthly_projection(df: pd.DataFrame) -> None:
     out = pd.DataFrame({"year": monthly.index.astype(int),
                         "monthly_mean_c": monthly.values})
     out.loc[out["year"] == year, "monthly_mean_c"] = np.nan
-    out["month_to_date_c"] = np.where(out["year"] == year, mtd, np.nan)
-    out["projected_c"] = np.where(out["year"] == year, pred, np.nan)
-    out["projection_2sigma_c"] = np.where(out["year"] == year, err, np.nan)
+    cur = out["year"] == year
+    out["month_to_date_c"] = np.where(cur, mtd, np.nan)
+    out["projected_c"] = np.where(cur, pred, np.nan)
+    for k, col in (("lo95", "projection_p05_c"), ("lo50", "projection_p25_c"),
+                   ("hi50", "projection_p75_c"), ("hi95", "projection_p95_c")):
+        out[col] = np.where(cur, proj.get(k, np.nan), np.nan)
+    out["method"] = np.where(cur, proj.get("method", ""), "")
+
+    if proj.get("method") == "ec46_blend":
+        method_note = (
+            f"Projection: median and calibrated quantiles of the ECMWF EC46 "
+            f"46-day ensemble ({proj.get('n_members', '?')} members, init "
+            f"{proj.get('init_date', '?')}) blended with "
+            f"{proj.get('days_in', '?')} days of month-to-date observations; "
+            "interval widths include verified model-error terms and are "
+            "capped against overconfidence while the verification archive "
+            "is short.")
+    else:
+        method_note = (
+            f"Projection: regression of full-{month_name} means on "
+            "month-to-date means across all prior years (EC46 blend "
+            "unavailable for this file); the p05/p95 columns are +/-2 sigma "
+            "of the regression residuals.")
     _write(out, "monthly_projection.csv",
            f"{month_name} global mean anomaly by year, with the "
            f"{month_name} {year} projection (ERA5)",
-           ["Anomalies vs preindustrial 1850-1900.",
-            f"Projection regresses full-{month_name} means on "
-            f"{days}-day month-to-date means across all prior years; "
-            "uncertainty is 2 sigma of the regression residuals.",
+           ["Anomalies vs preindustrial 1850-1900.", method_note,
             "The current year's monthly_mean_c is left blank (incomplete "
             "month); its month-to-date and projection ride in their own "
             "columns."])

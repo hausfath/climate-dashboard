@@ -168,16 +168,21 @@ def _ec46_anomalize(
     obs = obs_adj.copy()
     if "day_of_year" not in obs.columns:
         obs["day_of_year"] = obs["date"].dt.dayofyear
-    # Day-of-year climatology (per-DOY 1991–2020 mean) — average across
-    # years to smooth leap-day noise. The production data flow renames
-    # `clim_91-20` → `climatology` (src/scraper.py:parse_era5_data); accept
-    # either so this helper works whether obs_adj came through that loader
-    # or was read raw from disk.
-    clim_col = next((c for c in ("climatology", "clim_91-20")
-                     if c in obs.columns), None)
-    if clim_col is None:
-        return None
-    doy_clim = obs.groupby("day_of_year")[clim_col].mean()
+    # Day-of-year climatology. Prefer the coarse-grid ERA5 climatology
+    # (sampled on the EC46 fetcher's own grid) so the forecast's grid-
+    # sampling bias cancels — same transform as the skill plot and the
+    # monthly blend. Fall back to the full-resolution per-DOY 1991–2020
+    # mean when the coarse file is absent. The production data flow
+    # renames `clim_91-20` → `climatology` (src/scraper.py); accept
+    # either for the fallback path.
+    from src.ec46_skill import _load_coarse_clim
+    doy_clim = _load_coarse_clim()
+    if doy_clim is None:
+        clim_col = next((c for c in ("climatology", "clim_91-20")
+                         if c in obs.columns), None)
+        if clim_col is None:
+            return None
+        doy_clim = obs.groupby("day_of_year")[clim_col].mean()
 
     # Data-driven IFS-vs-ERA5 bias from the EC46 archive (0.0 on first
     # run before the archive has any pairings).
@@ -642,6 +647,39 @@ def calculate_monthly_prediction(df: pd.DataFrame, target_month: int, target_yea
     return predicted_value, error, month_to_date_avg, days_so_far
 
 
+def get_monthly_projection(df_adj: pd.DataFrame) -> dict:
+    """Monthly projection: EC46 ensemble blend when usable, regression
+    fallback otherwise (fetch failure, stale init, failed sanity gate).
+
+    Returns a unified dict for all display surfaces:
+      method ('ec46_blend' | 'regression'), prediction, lo95/hi95,
+      lo50/hi50, mtd_avg, days_in, month, year (+ blend diagnostics).
+    The regression path maps its 2-sigma to the same quantile keys
+    assuming normality, so display logic is method-agnostic.
+    """
+    import logging
+    latest = df_adj['date'].max()
+    month, year = latest.month, latest.year
+    try:
+        from src.monthly_blend import compute_monthly_blend
+        out = compute_monthly_blend(df_adj)
+        if out is not None:
+            q = out['quantiles']
+            return {**out, 'lo95': q[5], 'hi95': q[95],
+                    'lo50': q[25], 'hi50': q[75]}
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            f"Monthly blend failed, regression fallback: {e}")
+    logging.getLogger(__name__).info("Monthly projection: regression fallback")
+    pred, err, mtd, days = calculate_monthly_prediction(df_adj, month, year)
+    res = {'method': 'regression', 'prediction': pred, 'mtd_avg': mtd,
+           'days_in': days, 'month': month, 'year': year}
+    if pred is not None and err:
+        res.update({'lo95': pred - err, 'hi95': pred + err,
+                    'lo50': pred - 0.337 * err, 'hi50': pred + 0.337 * err})
+    return res
+
+
 def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) -> go.Figure:
     """
     Create a plot showing historical monthly temperatures with a projection
@@ -661,10 +699,15 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
                    'July', 'August', 'September', 'October', 'November', 'December']
     month_name = month_names[target_month - 1]
 
-    # Get prediction
-    predicted_value, error, mtd_avg, days_so_far = calculate_monthly_prediction(
-        df_adj, target_month, target_year
-    )
+    # Get prediction (EC46 blend with regression fallback)
+    proj = get_monthly_projection(df_adj)
+    predicted_value = proj.get('prediction')
+    mtd_avg = proj.get('mtd_avg')
+    days_so_far = proj.get('days_in', 0)
+    lo95, hi95 = proj.get('lo95'), proj.get('hi95')
+    lo50, hi50 = proj.get('lo50'), proj.get('hi50')
+    method_tag = ('EC46 blend' if proj['method'] == 'ec46_blend'
+                  else 'statistical')
 
     # Calculate historical monthly averages for this month
     month_data = df_adj[df_adj['date'].dt.month == target_month]
@@ -691,23 +734,46 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     # Prediction + month-to-date markers. Their values ride in the legend
     # entries (legend box sits in the empty upper-left corner), so no
     # annotations need to fight the line for space.
-    if predicted_value is not None:
+    if predicted_value is not None and lo95 is not None:
+        # 25–75% inner bar (thicker, no legend entry of its own)
+        if lo50 is not None:
+            fig.add_trace(go.Scatter(
+                x=[target_year], y=[predicted_value],
+                mode='markers', showlegend=False,
+                marker=dict(color=theme['prediction_color'], size=1,
+                            opacity=0),
+                error_y=dict(
+                    type='data', symmetric=False,
+                    array=[hi50 - predicted_value],
+                    arrayminus=[predicted_value - lo50],
+                    visible=True, color=theme['prediction_color'],
+                    thickness=6, width=0,
+                ),
+                hoverinfo='skip',
+            ))
         fig.add_trace(go.Scatter(
             x=[target_year],
             y=[predicted_value],
             mode='markers',
-            name=f'{month_name} {target_year}: {predicted_value:.2f} ±{error:.2f}°C',
+            name=(f'{month_name} {target_year}: {predicted_value:.2f} '
+                  f'({lo95:.2f}–{hi95:.2f})°C · {method_tag}'),
             legendrank=2,
             marker=dict(color=theme['prediction_color'], size=12, symbol='circle'),
             error_y=dict(
-                type='data',
-                array=[error],
+                type='data', symmetric=False,
+                array=[hi95 - predicted_value],
+                arrayminus=[predicted_value - lo95],
                 visible=True,
                 color=theme['prediction_color'],
                 thickness=2,
                 width=8
             ),
-            hovertemplate=f'{month_name} {target_year} Prediction<br>{predicted_value:.2f}°C ±{error:.2f}°C (2σ)<extra></extra>'
+            hovertemplate=(f'{month_name} {target_year} projection '
+                           f'({method_tag})<br>{predicted_value:.2f}°C '
+                           f'(5–95%: {lo95:.2f} to {hi95:.2f}'
+                           + (f' · 25–75%: {lo50:.2f} to {hi50:.2f}'
+                              if lo50 is not None else '')
+                           + ')<extra></extra>')
         ))
 
         # Add month-to-date marker
@@ -730,8 +796,9 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     recent_vals = [v for y, v in historical_values.items() if y >= 1990]
     y_candidates = recent_vals + [1.5]
     if predicted_value is not None:
-        y_candidates.append(predicted_value + (error or 0))
-        y_candidates.append(mtd_avg)
+        y_candidates.append(hi95 if hi95 is not None else predicted_value)
+        if mtd_avg is not None:
+            y_candidates.append(mtd_avg)
     y_lo = min(y_candidates) - 0.08
     # Extra headroom so the upper-left legend box clears the 1.5°C line
     y_hi = max(y_candidates) + 0.28
@@ -1781,7 +1848,15 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     month_name = month_names[target_month - 1]
 
-    pred, err, mtd, days = calculate_monthly_prediction(df_adj, target_month, current_year)
+    # EC46 ensemble blend with regression fallback; the unified quantile
+    # keys drive both the card text and the rank range below.
+    _mproj = get_monthly_projection(df_adj)
+    pred = _mproj.get('prediction')
+    mtd = _mproj.get('mtd_avg')
+    days = _mproj.get('days_in', 0)
+    _m_lo95, _m_hi95 = _mproj.get('lo95'), _mproj.get('hi95')
+    err = ((_m_hi95 - _m_lo95) / 2
+           if _m_lo95 is not None and _m_hi95 is not None else None)
 
     # Annual prediction using trailing 30-day anomaly as predictor
     annual_pred = None
@@ -1939,8 +2014,8 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
             ]
             hist_month_means = hist_monthly.groupby('year')['anomaly'].mean()
             month_rank = int((hist_month_means > pred).sum()) + 1
-            rank_best = int((hist_month_means > pred + err).sum()) + 1   # warmest plausible
-            rank_worst = int((hist_month_means > pred - err).sum()) + 1  # coolest plausible
+            rank_best = int((hist_month_means > _m_hi95).sum()) + 1   # warmest plausible
+            rank_worst = int((hist_month_means > _m_lo95).sum()) + 1  # coolest plausible
             month_rank_str = ordinal(month_rank)
             month_rank_range_str = (ordinal(rank_best) if rank_best == rank_worst
                                     else f"{ordinal(rank_best)}–{ordinal(rank_worst)}")
@@ -2042,7 +2117,10 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         'prev_year_anomaly': f"{prev_year_mean:+.2f}°C",
         'month_name': month_name,
         'month_prediction': f"{pred:+.2f}°C" if pred is not None else "N/A",
-        'month_error': f"±{err:.2f}°C" if err is not None else "",
+        'month_error': (f"({_m_lo95:+.2f} to {_m_hi95:+.2f})"
+                        if _m_lo95 is not None and _m_hi95 is not None
+                        else ""),
+        'month_method': _mproj.get('method', 'regression'),
         'month_days': days,
         'month_rank': month_rank_str,
         'month_rank_range': month_rank_range_str,
@@ -2454,7 +2532,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                         caption=[f"Projected {stats['month_name']}: ",
                                  html.B(f"{stats['month_prediction']} {stats['month_error']}"),
                                  (f" — est. rank {stats['month_rank']}"
-                                  if stats.get('month_rank') else "")],
+                                  if stats.get('month_rank') else ""),
+                                 (". Median and 5–95% range from the ECMWF "
+                                  "EC46 ensemble blended with month-to-date "
+                                  "observations."
+                                  if stats.get('month_method') == 'ec46_blend'
+                                  else ". Statistical projection from "
+                                       "month-to-date observations (EC46 "
+                                       "blend unavailable).")],
                         csv_href='/assets/data/monthly_projection.csv'),
                 L.panel(f"Annual anomaly & {stats['current_year']} prediction",
                         img_id='annual-prediction-img',

@@ -1,9 +1,10 @@
-# Annual Temperature Projection: Methodology
+# Temperature Projection: Methodology
 
 This document describes how the dashboard's annual global temperature
 prediction (the "2026 prediction" on the Global Temperature tab) is
 constructed, how its uncertainty is estimated, and how it is updated and
-tracked through the year. The companion ENSO forecast methodology — whose
+tracked through the year — and, in the final section, how the **monthly
+projection** (EC46 ensemble blend) works. The companion ENSO forecast methodology — whose
 multi-model forecast feeds this prediction — is documented in
 [`ENSO/METHODOLOGY.md`](ENSO/METHODOLOGY.md).
 
@@ -113,6 +114,61 @@ ENSO information rather than by incoming temperature data.
 
 Both CSVs are committed to git by the daily cron, so the full
 projection-evolution record is reconstructable from repository history.
+
+## Monthly Projection (EC46 ensemble blend)
+
+Since August 2026 the monthly projection ("Projected August: …" panel and
+card) is a **blend of month-to-date observations and the ECMWF EC46
+extended-range ensemble**, replacing a purely statistical regression (which
+remains as an automatic fallback). Method (`src/monthly_blend.py`):
+
+- **Data.** Daily global-mean 2 m temperature from the 50-member EC46
+  ensemble (46-day horizon), sampled via the Open-Meteo seasonal API on a
+  10°×15° cos-lat-weighted grid, archived per init under
+  `forecast_skill/archive_members/`. Fetch-quality gates (≥40 members,
+  ≥90 % gridpoint success with every latitude band present) refuse partial
+  fetches rather than publish a biased mean.
+- **Estimator.** The freshest init that starts no later than the day after
+  the ERA5 obs edge is chosen, so observed and forecast days tile the month
+  with one coherent member set (coherence over freshness; at most ~3 days
+  stale, ≤6 by hard guard). Per member, the projected monthly mean is the
+  mean of observed daily anomalies plus that member's remaining-day
+  anomalies. Forecast anomalies are computed against an ERA5 1991–2020
+  climatology sampled **on the identical coarse grid**
+  (`data/ec46_coarse_clim_doy.csv`), so the grid-sampling operator cancels,
+  plus a small anomaly-space lead-0 bias correction estimated from the
+  archive. The published central value is the member median.
+- **Uncertainty.** Ensemble spread alone cannot represent common-mode model
+  error (all members drift together), so the published 5–95 % and 25–75 %
+  ranges come from a total variance with four parts: member month-mean
+  spread; a **shared-per-month model-error term** estimated from verified
+  months in the archive and shrunk toward the legacy regression's residual σ
+  (an 85-year prior; ν₀ = 4 pseudo-months) while the archive is short; the
+  lead-0 bias-correction standard error (scaled by the forecast fraction of
+  the month); and ERA5T revision uncertainty (scaled by the observed
+  fraction). Half-widths use a Student-t multiplier with df = ν + ν₀ − 1,
+  and until **six independent months have verified** the 5–95 % width is
+  hard-capped to never be narrower than half the regression's ±2σ.
+- **Verification loop.** The daily cron recomputes, for every archived init
+  and verified month: blend error, CRPS, PIT, and spread (member inits),
+  plus the pooled ensemble-mean error by lead day
+  (`forecast_skill/monthly_blend_verification.csv`,
+  `monthly_blend_lead_errors.csv`), and refreshes the calibration inputs
+  (`monthly_blend_calibration.csv`). Interval widths tighten only as this
+  archive demonstrates they should.
+- **Fallback.** If no usable init exists, members are missing, or a lead-0
+  sanity gate fails (|corrected day-0 forecast − obs| > 0.15 °C), the panel
+  reverts to the regression of full-month means on month-to-date means
+  (1940–present) with ±2σ residual intervals; the figure caption and the
+  downloadable CSV record which method produced the displayed number.
+
+Backtesting on June–July 2026 (56 archived inits) showed the blend matching
+the regression's central accuracy overall (MAE 0.020 °C both) while
+providing day-0 availability and flow-dependent, properly floored
+uncertainties. The design was reviewed by independent statistics and
+forecast-verification passes in August 2026; the shared-offset error term,
+the t-multiplier, the narrowing cap, the coarse-grid climatology fix, and
+the fetch gates all originate from that review.
 
 ## Limitations
 

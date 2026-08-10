@@ -293,6 +293,15 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to update ENSO data: {e}")
 
+    # Refresh the monthly-blend verification + calibration from the EC46
+    # archive (before figures/CSVs so they use current calibration).
+    logger.info("Updating monthly-blend calibration...")
+    try:
+        from src.monthly_blend import update_calibration
+        update_calibration()
+    except Exception as e:
+        logger.error(f"Monthly-blend calibration failed: {e}")
+
     # Update projection history
     logger.info("Updating projection history...")
     try:

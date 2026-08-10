@@ -130,10 +130,17 @@ def _percentile_summary(member_long: pd.DataFrame, init_date: pd.Timestamp,
 
 
 def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
-               lon_step: float = LON_STEP_DEFAULT) -> pd.DataFrame:
+               lon_step: float = LON_STEP_DEFAULT
+               ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Pull the latest EC46 init from Open-Meteo, reduce to per-day
-    percentile summary. Returns the summary DataFrame; empty if fetch
-    fails badly."""
+    percentile summary PLUS the member-level daily global means (wide:
+    one column per member). Returns (summary, members); both empty if
+    the fetch fails badly.
+
+    The member matrix is what the monthly-blend projection needs: the
+    spread of a multi-day mean depends on day-to-day correlation within
+    members, which percentile summaries cannot recover.
+    """
     grid_pts = _grid(lat_step, lon_step)
     logger.info("EC46: fetching %d gridpoints (%.1f°×%.1f°) from Open-Meteo",
                 len(grid_pts), lat_step, lon_step)
@@ -165,18 +172,45 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
 
     if not parts:
         logger.error("EC46: all gridpoints failed")
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
+
+    # Quality gates: a partial fetch silently biases the cos-weighted
+    # global mean, and a reduced ensemble silently changes the published
+    # distribution. Better no update (the previous init is kept and the
+    # dashboard falls back to the regression when it goes stale) than a
+    # confidently wrong one.
+    n_ok = len(grid_pts) - failed
+    if n_ok < 0.9 * len(grid_pts):
+        logger.error("EC46: only %d/%d gridpoints — refusing partial fetch",
+                     n_ok, len(grid_pts))
+        return pd.DataFrame(), pd.DataFrame()
+    lats_all = {la for la, _ in grid_pts}
+    lats_ok = {float(p["lat"].iloc[0]) for p in parts}
+    if lats_ok != lats_all:
+        logger.error("EC46: missing latitude bands %s — refusing fetch",
+                     sorted(lats_all - lats_ok))
+        return pd.DataFrame(), pd.DataFrame()
 
     per_pt = pd.concat(parts, ignore_index=True)
     member_long = _global_mean(per_pt)
 
     n_members = member_long["member"].nunique()
+    if n_members < 40:
+        logger.error("EC46: only %d members returned — refusing fetch",
+                     n_members)
+        return pd.DataFrame(), pd.DataFrame()
     init_date = member_long["date"].min()
     summary = _percentile_summary(member_long, init_date, n_members)
 
+    members_wide = (member_long.pivot(index="date", columns="member",
+                                      values="t2m_C")
+                    .round(4).reset_index())
+    members_wide["init_date"] = init_date.strftime("%Y-%m-%d")
+    members_wide["n_gridpoints"] = n_ok
+
     logger.info("EC46: %d forecast days × %d members; init %s",
                 len(summary), n_members, init_date.strftime("%Y-%m-%d"))
-    return summary
+    return summary, members_wide
 
 
 def save_ec46(force: bool = False) -> pd.DataFrame:
@@ -205,7 +239,7 @@ def save_ec46(force: bool = False) -> pd.DataFrame:
                         latest.name, latest_init.strftime("%Y-%m-%d"))
             return pd.read_csv(latest)
 
-    df = fetch_ec46()
+    df, members = fetch_ec46()
     if df.empty:
         if existing:
             logger.warning("EC46: fetch failed, keeping previous file %s",
@@ -228,7 +262,24 @@ def save_ec46(force: bool = False) -> pd.DataFrame:
         df.to_csv(archive_path, index=False)
         logger.info("EC46: archived %s", archive_path)
 
-    # Cleanup older files in data/ — keep only the most recent there.
+    # Member-level daily global means (46 × 50, ~30 KB): the monthly-blend
+    # projection needs them, and they cannot be recovered retroactively.
+    # data/ keeps recent inits (the blend may need an init a few days old
+    # to bridge the ERA5 latency); the archive keeps everything.
+    # NB: prefix deliberately differs from the summary files so the
+    # dashboard's era5_forecast_ec46_*.csv glob never matches these.
+    if not members.empty:
+        mem_path = DATA_DIR / f"ec46_members_{init_date}.csv"
+        members.to_csv(mem_path, index=False)
+        mem_archive = DASHBOARD_ROOT / "forecast_skill" / "archive_members"
+        mem_archive.mkdir(parents=True, exist_ok=True)
+        mem_archive_path = mem_archive / mem_path.name
+        if not mem_archive_path.exists():
+            members.to_csv(mem_archive_path, index=False)
+        logger.info("EC46: saved + archived member matrix %s", mem_path.name)
+
+    # Cleanup older files in data/ — keep only the most recent summary and
+    # the last 7 member files (blend fallback window).
     for old in existing:
         if old != out_path:
             try:
@@ -236,6 +287,12 @@ def save_ec46(force: bool = False) -> pd.DataFrame:
                 logger.info("EC46: removed older %s", old.name)
             except OSError:
                 pass
+    mem_files = sorted(DATA_DIR.glob("ec46_members_*.csv"))
+    for old in mem_files[:-7]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
 
     return df
 

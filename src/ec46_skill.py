@@ -34,6 +34,19 @@ ROOT = Path(__file__).resolve().parent.parent
 ARCHIVE_DIR = ROOT / "forecast_skill" / "archive"
 OUTPUT_PNG = ROOT / "forecast_skill" / "ec46_skill.png"
 ERA5_CSV = ROOT / "data" / "era5_daily_series_2t_global.csv"
+# ERA5 climatology sampled on the SAME coarse grid the EC46 fetcher uses
+# (10x15 deg, cos-lat weights). Anomalizing the coarse-grid forecast
+# against the full-resolution climatology carried the grid's seasonally
+# varying sampling bias into the anomaly (and inflated the "lead-0 bias"
+# to +0.2 degC); with this file the sampling operator cancels.
+COARSE_CLIM_CSV = ROOT / "data" / "ec46_coarse_clim_doy.csv"
+
+
+def _load_coarse_clim() -> pd.Series | None:
+    if not COARSE_CLIM_CSV.exists():
+        return None
+    c = pd.read_csv(COARSE_CLIM_CSV, comment="#")
+    return c.set_index("day_of_year")["clim_C"]
 
 def _load_obs() -> pd.DataFrame:
     """Load ERA5 daily series with anomaly already on the preindustrial
@@ -67,8 +80,12 @@ def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame,
     f["date"] = pd.to_datetime(f["date"])
     f["day_of_year"] = f["date"].dt.dayofyear
 
-    doy_clim = obs.groupby("day_of_year")["climatology"].mean()
-    f["clim_C"] = f["day_of_year"].map(doy_clim)
+    coarse = _load_coarse_clim()
+    if coarse is not None:
+        f["clim_C"] = f["day_of_year"].map(coarse)
+    else:   # legacy path: full-resolution climatology (grid bias remains)
+        doy_clim = obs.groupby("day_of_year")["climatology"].mean()
+        f["clim_C"] = f["day_of_year"].map(doy_clim)
     f["pi_offset"] = f["date"].apply(lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
     f["forecast_anom"] = (f["t2m_mean"] + bias_correction
                           - f["clim_C"] + f["pi_offset"])
@@ -104,27 +121,56 @@ def _estimate_bias_correction(
     (ECMWF operational analysis vs ERA5) from any model drift that
     accumulates with lead time. Returns 0.0 if we have no pairings yet.
     """
+    bias, _, n = _estimate_bias_stats(archive, obs)
+    logger.info(
+        "EC46 skill: bias correction = %+.3f °C from %d lead-0 pairings",
+        bias, n,
+    )
+    return bias
+
+
+def _estimate_bias_stats(
+    archive: list[tuple[pd.Timestamp, pd.DataFrame]],
+    obs: pd.DataFrame,
+) -> tuple[float, float, int]:
+    """(bias, standard error, n) of the lead-0 offset, in ANOMALY space:
+    mean of obs_anomaly − forecast_anomaly(bias=0) at each init's day 0.
+
+    With the coarse-grid climatology present this isolates the residual
+    IFS-analysis-vs-ERA5 offset (small); on the legacy full-resolution
+    climatology path it reduces algebraically to the old absolute-space
+    obs−forecast mean (the climatology and preindustrial terms cancel).
+    """
+    obs_anom = obs.set_index("date")["anomaly"]
     diffs: list[float] = []
-    obs_indexed = obs.set_index("date")["temperature"]
     for init_date, raw in archive:
         f = raw.copy()
         f["date"] = pd.to_datetime(f["date"])
-        day0 = f[f["date"] == init_date]
-        if day0.empty:
+        if init_date not in obs_anom.index:
             continue
-        try:
-            obs_val = float(obs_indexed.loc[init_date])
-        except KeyError:
+        anom = _anomalize_forecast(f[f["date"] == init_date], obs,
+                                   bias_correction=0.0)
+        if anom is None or anom.empty:
             continue
-        diffs.append(obs_val - float(day0["t2m_mean"].iloc[0]))
+        diffs.append(float(obs_anom.loc[init_date])
+                     - float(anom["forecast_anom"].iloc[0]))
     if not diffs:
-        return 0.0
-    bias = float(np.mean(diffs))
-    logger.info(
-        "EC46 skill: bias correction = %+.3f °C from %d lead-0 pairings",
-        bias, len(diffs),
-    )
-    return bias
+        return 0.0, 0.05, 0
+    d = np.asarray(diffs)
+    se = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else 0.05
+    return float(d.mean()), se, len(d)
+
+
+def estimate_archive_bias_stats() -> tuple[float, float, int]:
+    """Public anomaly-space (bias, SE, n) — used by the monthly blend."""
+    try:
+        archive = _load_archive()
+        if not archive:
+            return 0.0, 0.05, 0
+        return _estimate_bias_stats(archive, _load_obs())
+    except Exception as e:  # noqa: BLE001
+        logger.warning("EC46 skill: bias stats failed: %s", e)
+        return 0.0, 0.05, 0
 
 
 def estimate_archive_bias() -> float:
