@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily Nino 3 SST anomaly
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-07
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-10
 # Anomalies vs centered 30-year day-of-year climatologies (the ONI convention: each year measured against its own era, windows clamped at the record edges, current year excluded), so the warming trend is removed and years compare as ENSO states.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
 # Source: NOAA OISST v2.1 daily box means.
@@ -1466,7 +1466,7 @@ date,year,day_of_year,anomaly_c
 1985-12-29,1985,363,-0.796
 1985-12-30,1985,364,-0.752
 1985-12-31,1985,365,-0.726
-1986-01-01,1986,1,-0.743
+1986-01-01,1986,1,-0.742
 1986-01-02,1986,2,-0.764
 1986-01-03,1986,3,-0.806
 1986-01-04,1986,4,-0.840
@@ -2562,7 +2562,7 @@ date,year,day_of_year,anomaly_c
 1988-12-29,1988,363,-1.469
 1988-12-30,1988,364,-1.677
 1988-12-31,1988,365,-1.727
-1989-01-01,1989,1,-1.693
+1989-01-01,1989,1,-1.692
 1989-01-02,1989,2,-1.683
 1989-01-03,1989,3,-1.675
 1989-01-04,1989,4,-1.714
@@ -4753,7 +4753,7 @@ date,year,day_of_year,anomaly_c
 1994-12-29,1994,363,0.877
 1994-12-30,1994,364,0.893
 1994-12-31,1994,365,0.791
-1995-01-01,1995,1,0.705
+1995-01-01,1995,1,0.706
 1995-01-02,1995,2,0.642
 1995-01-03,1995,3,0.645
 1995-01-04,1995,4,0.633
@@ -16272,9 +16272,9 @@ date,year,day_of_year,anomaly_c
 2026-07-20,2026,201,2.336
 2026-07-21,2026,202,2.376
 2026-07-22,2026,203,2.411
-2026-07-23,2026,204,2.435
-2026-07-24,2026,205,2.464
-2026-07-25,2026,206,2.553
+2026-07-23,2026,204,2.450
+2026-07-24,2026,205,2.507
+2026-07-25,2026,206,2.568
 2026-07-26,2026,207,2.577
 2026-07-27,2026,208,2.637
 2026-07-28,2026,209,2.711
@@ -16287,3 +16287,5 @@ date,year,day_of_year,anomaly_c
 2026-08-04,2026,216,3.119
 2026-08-05,2026,217,3.113
 2026-08-06,2026,218,3.035
+2026-08-07,2026,219,3.043
+2026-08-08,2026,220,3.087

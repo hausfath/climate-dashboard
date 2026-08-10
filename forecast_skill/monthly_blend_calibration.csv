@@ -1,6 +1,6 @@
 # Monthly-blend calibration: s_hat = month-block RMS of blend central-estimate errors (degC) by days-remaining bucket; n_months = verified months contributing (the effective sample size). Auto-refreshed daily by src.monthly_blend.update_calibration.
 min_days_remaining,s_hat,n_months
 0,0.0048,3
-8,0.0186,3
-15,0.0413,3
-22,0.0426,2
+8,0.0188,3
+15,0.0415,3
+22,0.0429,2

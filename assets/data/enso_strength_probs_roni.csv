@@ -1,16 +1,16 @@
 # ENSO strength probabilities by season — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-07
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-10
 # Model-weighted category probabilities (percent) per overlapping 3-month season, from the multi-model ensemble; observed months are blended into seasonal means where available.
 # Categories use ONI event thresholds (0.5/1.0/1.5/2.0 degC).
 # n_models: number of forecast systems contributing to that season.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 season,season_center,very_strong_el_nino_pct,strong_el_nino_pct,moderate_el_nino_pct,weak_el_nino_pct,neutral_pct,weak_la_nina_pct,moderate_la_nina_pct,strong_la_nina_pct,very_strong_la_nina_pct,n_models
-JAS 2026,2026-08,86.79,12.44,0.00,0.77,0.00,0.00,0.00,0.00,0.00,13
-ASO 2026,2026-09,98.82,0.41,0.00,0.77,0.00,0.00,0.00,0.00,0.00,13
-SON 2026,2026-10,95.19,3.80,0.30,0.71,0.00,0.00,0.00,0.00,0.00,14
-OND 2026,2026-11,96.05,2.94,0.30,0.71,0.00,0.00,0.00,0.00,0.00,14
-NDJ 2026,2026-12,93.02,5.21,0.52,0.00,1.25,0.00,0.00,0.00,0.00,8
-DJF 2027,2027-01,84.29,11.90,2.38,0.00,1.43,0.00,0.00,0.00,0.00,7
-JFM 2027,2027-02,55.36,30.12,12.50,0.60,1.43,0.00,0.00,0.00,0.00,7
-FMA 2027,2027-03,13.12,30.21,27.71,25.63,3.33,0.00,0.00,0.00,0.00,4
+JAS 2026,2026-08,87.36,12.64,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
+ASO 2026,2026-09,99.59,0.41,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
+SON 2026,2026-10,95.90,3.80,0.30,0.00,0.00,0.00,0.00,0.00,0.00,14
+OND 2026,2026-11,96.76,2.94,0.30,0.00,0.00,0.00,0.00,0.00,0.00,14
+NDJ 2026,2026-12,94.27,5.21,0.52,0.00,0.00,0.00,0.00,0.00,0.00,8
+DJF 2027,2027-01,88.21,9.40,2.38,0.00,0.00,0.00,0.00,0.00,0.00,7
+JFM 2027,2027-02,58.21,28.69,12.50,0.60,0.00,0.00,0.00,0.00,0.00,7
+FMA 2027,2027-03,36.07,27.26,20.48,13.93,2.26,0.00,0.00,0.00,0.00,7
 MAM 2027,2027-04,4.44,14.44,38.33,24.17,18.61,0.00,0.00,0.00,0.00,3
