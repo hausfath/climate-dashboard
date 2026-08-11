@@ -1,5 +1,5 @@
 # Historical ENSO record and current forecast — ONI (Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-10
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-11
 # Observed monthly index back to 1990 (NOAA, with OISSTv2.1 monthly means overlaid for recent months), plus the multi-model weighted-median forecast with its 25th-75th percentile band (months with fewer than 4 models dropped).
 # Forecast months that already verify are shown as observed (is_forecast=False).
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -442,13 +442,13 @@ date,is_forecast,observed_c,forecast_median_c,forecast_q25_c,forecast_q75_c,n_mo
 2026-04-01,False,0.4751,,,,0
 2026-05-01,False,0.9253,,,,0
 2026-06-01,False,1.6021,,,,0
-2026-07-01,False,2.0968,,,,0
-2026-08-01,True,,2.8071,2.6579,2.9713,14
-2026-09-01,True,,3.3542,3.1291,3.4955,14
+2026-07-01,False,2.0974,,,,0
+2026-08-01,True,,2.8071,2.6571,2.9713,14
+2026-09-01,True,,3.3529,3.1274,3.4938,14
 2026-10-01,True,,3.6561,3.3605,3.8954,14
-2026-11-01,True,,3.9038,3.5144,4.2048,14
-2026-12-01,True,,3.8697,3.4519,4.3153,14
+2026-11-01,True,,3.9038,3.5144,4.2090,14
+2026-12-01,True,,3.8813,3.4519,4.3153,14
 2027-01-01,True,,3.5092,2.9515,4.1413,14
-2027-02-01,True,,2.9152,2.3037,3.8724,7
-2027-03-01,True,,2.3234,1.8322,3.2771,7
-2027-04-01,True,,2.0105,1.2880,2.8229,7
+2027-02-01,True,,2.9152,2.2874,3.8724,7
+2027-03-01,True,,2.3177,1.8193,3.2771,7
+2027-04-01,True,,2.0105,1.2699,2.8229,7
