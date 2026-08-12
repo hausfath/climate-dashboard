@@ -203,20 +203,43 @@ def _doy_key(idx: pd.DatetimeIndex) -> np.ndarray:
 
 
 def build_climatology(force: bool = False) -> pd.DataFrame:
-    """One-time 1991–2020 day-of-year climatology for both boxes (time
-    stride 2 keeps the download modest; a 15-day circular smooth follows)."""
+    """1991–2020 day-of-year climatology for both boxes.
+
+    Preferred source: the local daily history, which now carries complete
+    full-resolution 1991–2020 coverage (PSL-backfilled, per-year QC'd).
+    The original build fetched remotely with time_stride=2 to keep the
+    download modest, which left a doy-dependent sampling artifact of
+    RMS ~0.05 °C (max 0.12) in the Niño 3.4 climatology — fixed 2026-08-11
+    by rebuilding at full resolution. The remote stride-2 path remains
+    only as a bootstrap fallback when the history file is absent.
+    """
     if CLIM_FILE.exists() and not force:
         return pd.read_csv(CLIM_FILE)
 
     frames = {}
-    for name, box in [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]:
-        chunks = []
-        for y0 in range(CLIM_START, CLIM_END + 1, 5):
-            y1 = min(y0 + 4, CLIM_END)
-            logger.info(f"Climatology fetch {name} {y0}–{y1}...")
-            chunks.append(_fetch_box_means(
-                DS_FINAL, f"{y0}-01-01", f"{y1}-12-31", box, time_stride=2))
-        frames[name] = pd.concat(chunks)
+    hist = pd.read_csv(HISTORY_FILE, parse_dates=['date']) \
+        if HISTORY_FILE.exists() else pd.DataFrame()
+    if not hist.empty:
+        win = hist[(hist['date'].dt.year >= CLIM_START)
+                   & (hist['date'].dt.year <= CLIM_END)]
+        n_expected = (CLIM_END - CLIM_START + 1) * 365
+        if len(win) >= n_expected - 30 and win['nino34'].notna().all():
+            logger.info("Climatology from local history "
+                        f"({len(win)} days, full resolution)")
+            idx = pd.DatetimeIndex(win['date'])
+            for name in ('nino34', 'tropics'):
+                frames[name] = pd.Series(win[name].values, index=idx)
+
+    if not frames:
+        for name, box in [('nino34', NINO34_BOX), ('tropics', TROPICS_BOX)]:
+            chunks = []
+            for y0 in range(CLIM_START, CLIM_END + 1, 5):
+                y1 = min(y0 + 4, CLIM_END)
+                logger.info(f"Climatology fetch {name} {y0}–{y1}...")
+                chunks.append(_fetch_box_means(
+                    DS_FINAL, f"{y0}-01-01", f"{y1}-12-31", box,
+                    time_stride=2))
+            frames[name] = pd.concat(chunks)
 
     rows = []
     for name, s in frames.items():
@@ -235,6 +258,30 @@ def build_climatology(force: bool = False) -> pd.DataFrame:
     clim.to_csv(CLIM_FILE, index=False)
     logger.info(f"Wrote {CLIM_FILE} ({len(clim)} rows)")
     return clim
+
+
+def rebuild_daily_from_history() -> pd.DataFrame:
+    """Recompute data/nino34_daily.csv entirely from the local history and
+    the current climatology file — no network. Used after a climatology
+    rebuild so ALL rows (not just newly fetched ones) carry consistent
+    anomalies."""
+    clim = pd.read_csv(CLIM_FILE).set_index('doy')
+    hist = pd.read_csv(HISTORY_FILE, parse_dates=['date'])
+    today = date.today()
+    start = pd.Timestamp(date(today.year - 1, 1, 1))
+    df = hist[hist['date'] >= start].copy().sort_values('date')
+
+    doy = _doy_key(pd.DatetimeIndex(df['date']))
+    df['nino34_anom'] = df['nino34'].values - clim.loc[doy, 'nino34_clim'].values
+    trop_anom = df['tropics'].values - clim.loc[doy, 'tropics_clim'].values
+    months = pd.DatetimeIndex(df['date']).month
+    scale = np.array([RONI_SCALING_MONTHLY[m] for m in months])
+    df['roni_anom'] = (df['nino34_anom'].values - trop_anom) * scale
+    out = df[['date', 'nino34', 'nino34_anom', 'roni_anom']].round(4)
+    out.to_csv(DAILY_FILE, index=False)
+    logger.info(f"Rebuilt {DAILY_FILE}: {len(out)} rows through "
+                f"{out['date'].max().date()}")
+    return out
 
 
 def update_nino34_daily(force: bool = False) -> pd.DataFrame:
