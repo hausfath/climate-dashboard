@@ -336,6 +336,10 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
     hist_cols = ['date', 'nino34', 'tropics'] + [
         r for r in EXTRA_REGIONS if r in df.columns]
     _merge_into_history(df[hist_cols])
+    try:
+        heal_history_gaps()
+    except Exception as e:
+        logger.warning("Gap healing skipped: %s", e)
     df = df[['date', 'nino34', 'nino34_anom', 'roni_anom']].round(4)
 
     if existing is not None and not existing.empty:
@@ -365,6 +369,41 @@ def _merge_into_history(new_rows: pd.DataFrame) -> None:
     merged.to_csv(HISTORY_FILE, index=False)
     logger.info("Topped up %s: %d rows through %s", HISTORY_FILE.name,
                 len(merged), merged['date'].max().date())
+
+
+def heal_history_gaps(max_days: int = 10) -> int:
+    """Backfill missing calendar days in the history via NCEI per-day files.
+
+    The regular updater refetches only a 21-day overlap, so a day the
+    source omitted for longer than that used to stay missing forever
+    (seven such holes accumulated 2021–2026, found 2026-08-12). Bounded
+    at ``max_days`` per call so a large outage can't turn a daily cron
+    run into a mass download; the next runs pick up the remainder.
+    Returns the number of days healed.
+    """
+    if not HISTORY_FILE.exists():
+        return 0
+    hist = pd.read_csv(HISTORY_FILE, parse_dates=['date'])
+    full = pd.date_range(hist['date'].min(), hist['date'].max())
+    missing = full.difference(pd.DatetimeIndex(hist['date']))
+    if not len(missing):
+        return 0
+    logger.warning("History has %d missing day(s): %s", len(missing),
+                   [str(d.date()) for d in missing[:12]])
+    healed = []
+    for d in missing[:max_days]:
+        try:
+            row = _fetch_daily_means_ncei(d.date(), d.date())
+            healed.append(row)
+        except Exception as e:
+            logger.warning("Gap heal failed for %s: %s", d.date(), e)
+    if not healed:
+        return 0
+    rows = pd.concat(healed)
+    rows.index.name = 'date'
+    _merge_into_history(rows.astype('float64').reset_index())
+    logger.info("Healed %d missing day(s)", len(rows))
+    return len(rows)
 
 
 def load_daily_status() -> dict | None:
