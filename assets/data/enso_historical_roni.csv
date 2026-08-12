@@ -1,5 +1,5 @@
 # Historical ENSO record and current forecast — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-11
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-12
 # Observed monthly index back to 1990 (NOAA, with OISSTv2.1 monthly means overlaid for recent months), plus the multi-model weighted-median forecast with its 25th-75th percentile band (months with fewer than 4 models dropped).
 # Forecast months that already verify are shown as observed (is_forecast=False).
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -424,31 +424,31 @@ date,is_forecast,observed_c,forecast_median_c,forecast_q25_c,forecast_q75_c,n_mo
 2024-10-01,False,-0.7300,,,,0
 2024-11-01,False,-0.8100,,,,0
 2024-12-01,False,-1.1000,,,,0
-2025-01-01,False,-1.3453,,,,0
-2025-02-01,False,-0.9343,,,,0
-2025-03-01,False,-0.3099,,,,0
-2025-04-01,False,-0.5795,,,,0
-2025-05-01,False,-0.4653,,,,0
-2025-06-01,False,-0.3120,,,,0
-2025-07-01,False,-0.4329,,,,0
-2025-08-01,False,-0.7023,,,,0
-2025-09-01,False,-0.7413,,,,0
-2025-10-01,False,-0.8200,,,,0
-2025-11-01,False,-0.9613,,,,0
-2025-12-01,False,-0.9377,,,,0
-2026-01-01,False,-0.9877,,,,0
-2026-02-01,False,-0.6759,,,,0
-2026-03-01,False,-0.5450,,,,0
-2026-04-01,False,-0.0739,,,,0
-2026-05-01,False,0.4649,,,,0
-2026-06-01,False,1.1388,,,,0
-2026-07-01,False,1.5361,,,,0
-2026-08-01,True,,2.3314,2.2001,2.4472,14
-2026-09-01,True,,2.8604,2.6504,3.0600,14
-2026-10-01,True,,3.1871,2.8616,3.4111,14
-2026-11-01,True,,3.3081,2.9594,3.6114,14
-2026-12-01,True,,3.2477,2.7656,3.6970,14
-2027-01-01,True,,2.8102,2.3103,3.5703,14
-2027-02-01,True,,2.1339,1.7073,3.5809,7
-2027-03-01,True,,1.7338,1.2593,2.8941,7
-2027-04-01,True,,1.3859,0.7100,2.0968,7
+2025-01-01,False,-1.3681,,,,0
+2025-02-01,False,-0.9707,,,,0
+2025-03-01,False,-0.3182,,,,0
+2025-04-01,False,-0.5721,,,,0
+2025-05-01,False,-0.4602,,,,0
+2025-06-01,False,-0.3273,,,,0
+2025-07-01,False,-0.4319,,,,0
+2025-08-01,False,-0.7088,,,,0
+2025-09-01,False,-0.7731,,,,0
+2025-10-01,False,-0.8576,,,,0
+2025-11-01,False,-1.0070,,,,0
+2025-12-01,False,-0.9907,,,,0
+2026-01-01,False,-1.0105,,,,0
+2026-02-01,False,-0.7123,,,,0
+2026-03-01,False,-0.5533,,,,0
+2026-04-01,False,-0.0665,,,,0
+2026-05-01,False,0.4700,,,,0
+2026-06-01,False,1.1325,,,,0
+2026-07-01,False,1.5370,,,,0
+2026-08-01,True,,2.3314,2.1933,2.4472,13
+2026-09-01,True,,2.8610,2.6527,3.0631,14
+2026-10-01,True,,3.1853,2.8667,3.4051,14
+2026-11-01,True,,3.3091,2.9648,3.6114,14
+2026-12-01,True,,3.2489,2.7875,3.6747,14
+2027-01-01,True,,2.8017,2.3072,3.5400,14
+2027-02-01,True,,2.1146,1.6772,3.5176,7
+2027-03-01,True,,1.7242,1.2003,2.8599,7
+2027-04-01,True,,1.4455,0.7100,2.0917,7
