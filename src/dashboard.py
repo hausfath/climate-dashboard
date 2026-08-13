@@ -2826,6 +2826,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     csv_href='/assets/data/enso_members_oni.csv'),
             L.panel("Forecast peak intensity · ONI (Niño 3.4)",
                     title_id='enso-peak-title',
+                    img_id='enso-peak-img',
+                    img_src='/assets/images/enso_peak_lollipop_dark.png',
                     graph_id='enso-peak-lollipop-plot', graph_height=620,
                     caption=["Each member's forecast peak (its Jul–Dec "
                              "maximum). Top: histogram with every model "
@@ -3225,13 +3227,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('projection-history', 'style'),
             Output('daily-anomaly-heatmap', 'style'),
             Output('daily-temp-heatmap', 'style'),
-            # Image visibility — ENSO tab (5)
+            # Image visibility — ENSO tab (6)
             Output('nino34-daily-years-img', 'style'),
             Output('enso-mega-plume-img', 'style'),
             Output('enso-box-distribution-img', 'style'),
+            Output('enso-peak-img', 'style'),
             Output('enso-historical-img', 'style'),
             Output('enso-strength-probs-img', 'style'),
-            # Graph visibility — ENSO tab (5)
+            # Graph visibility — ENSO tab (6)
             Output('nino34-daily-years-plot', 'style'),
             Output('enso-mega-plume-plot', 'style'),
             Output('enso-box-distribution-plot', 'style'),
@@ -3295,12 +3298,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             graph(interactive and heatmap_mode == 'absolute'), # heatmap temp
             # Images — ENSO
             img(static and nino_static_ok),
-            img(static), img(static), img(static), img(static),
+            img(static), img(static), img(static), img(static), img(static),
             # Graphs — ENSO
             graph(interactive or not nino_static_ok, 500),
             graph(interactive, 550),
             graph(interactive, 550),
-            graph(True, 620),   # peak lollipop: interactive-only, no PNG
+            graph(interactive, 620),
             graph(interactive, 450),
             graph(interactive, 500),
             # Images — Models
@@ -3327,6 +3330,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             Output('nino34-daily-years-img', 'src'),
             Output('enso-mega-plume-img', 'src'),
             Output('enso-box-distribution-img', 'src'),
+            Output('enso-peak-img', 'src'),
             Output('enso-historical-img', 'src'),
             Output('enso-strength-probs-img', 'src'),
             # Models tab images
@@ -3357,6 +3361,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             f'/assets/images/nino34_daily_years_{enso_idx}{mode}.png',
             f'/assets/images/enso_mega_plume_{enso_idx}{mode}.png',
             f'/assets/images/enso_box_distribution_{enso_idx}{mode}.png',
+            f'/assets/images/enso_peak_lollipop_{enso_idx}{mode}.png',
             f'/assets/images/enso_historical_{enso_idx}{mode}.png',
             f'/assets/images/enso_strength_probs_{enso_idx}{mode}.png',
             f'/assets/images/models_timeseries_{mode}.png',
@@ -3960,9 +3965,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             logger.error(f"ENSO box distribution error: {e}")
             return go.Figure()
 
-    # ENSO Graph 2b: Peak-intensity lollipop. Interactive-only (no static
-    # PNG), so it is its own chain head: the shared chain stalls at its
-    # head in static mode, which would leave this panel permanently empty.
+    # ENSO Graph 2b: Peak-intensity lollipop. Kept as its own chain head
+    # (not part of the sequential-load chain) so it renders promptly when
+    # the user flips to interactive mode.
     @app.callback(
         Output('enso-peak-lollipop-plot', 'figure'),
         [Input('interactive-switch', 'value'),

@@ -1744,7 +1744,7 @@ def create_enso_peak_lollipop(forecast_df, dark_mode=False,
 # ---------------------------------------------------------------------------
 
 def generate_enso_static_images(forecast_df, obs_df, assets_dir):
-    """Render 20 static PNGs: 5 plots × 2 themes × 2 indices (ONI / RONI)."""
+    """Render 24 static PNGs: 6 plots × 2 themes × 2 indices (ONI / RONI)."""
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1761,6 +1761,9 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
         ("enso_box_distribution",
          lambda dm, idx: create_enso_box_distribution(forecast_df, dm, index_mode=idx),
          550, 780),
+        ("enso_peak_lollipop",
+         lambda dm, idx: create_enso_peak_lollipop(forecast_df, dm, index_mode=idx),
+         620, 1200),
         ("enso_historical",
          lambda dm, idx: create_enso_historical_context(forecast_df, dm, index_mode=idx),
          450, 1200),
