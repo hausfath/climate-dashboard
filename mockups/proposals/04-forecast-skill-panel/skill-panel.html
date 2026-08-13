@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Dashboard &mdash; Forecast skill (proposal mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../mock.css">
+<style>
+  /* The committed skill figures are white-background matplotlib renders;
+     give them a light well so they read cleanly on the dark page. In
+     production these would be re-rendered through the climate_dark /
+     climate_light Plotly templates like every other panel (see README
+     open questions). */
+  .panel img.figlight { background: #fbfaf7; padding: 10px; border-radius: 6px; }
+  .gridfour { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .gridfour .panel { margin: 0; }
+</style>
+</head>
+<body class="accent-teal">
+
+<header class="topbar">
+  <a class="brand" href="#">
+    CLIMATE<span class="dot">&middot;</span>DASHBOARD
+    <span class="sub">Forecast skill &middot; proposal</span>
+  </a>
+  <nav class="tabs">
+    <a class="t-temp" href="../../design-direction.html">Temperature</a>
+    <a class="t-enso active" href="../../enso-tab.html">ENSO Forecast</a>
+    <a class="t-map" href="#">Warming Map</a>
+    <a class="t-models" href="../../models-tab.html">Models vs Obs</a>
+  </nav>
+  <div class="right">
+    <div class="live"><span class="pulse"></span>Rendered nightly by the existing cron</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div>
+      <div class="kicker">Proposal &middot; Forecast verification</div>
+      <h1>The forecasts are already graded &mdash;
+        <span class="num">publish the report card.</span></h1>
+      <p class="lede">The daily pipeline renders forecast-vs-observed skill figures into
+        <span class="mono">forecast_skill/</span> and commits them, but they are not wired
+        into the dashboard layout. This mock-up surfaces them as a
+        <strong>"How good are these forecasts?"</strong> section, giving the projection and
+        plume panels the credibility context readers ask for first.</p>
+    </div>
+  </div>
+
+  <!-- ============ SECTION 05 ============ -->
+  <section class="block" id="skill">
+    <div class="sechead">
+      <span class="no">05</span>
+      <h2>How good are these forecasts?</h2>
+      <span class="hint">Rendered daily &middot; forecast_skill/</span>
+    </div>
+    <p class="secdesc">Every past forecast replayed against what actually happened.
+      Temperature: each archived ECMWF EC46 initialization against ERA5 observations.
+      ENSO: each frozen monthly multi-model plume against the observed Ni&ntilde;o&nbsp;3.4 /
+      RONI monthly means. No cherry-picking &mdash; every archived init is drawn.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>EC46 global temperature forecasts vs ERA5 observed</h3>
+        <span class="tag">Daily</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img class="figlight" src="images/ec46_skill.png"
+           alt="All archived EC46 forecast trajectories against ERA5 observed global temperature">
+      <div class="pcap">Every archived EC46 init (colored oldest &rarr; newest) against the
+        <b>observed ERA5 series in black</b>, with the lead-decaying bias correction applied
+        &mdash; the same transform the dashboard's 46-day forecast tail uses.</div>
+    </div>
+
+    <div class="duo">
+      <div class="panel">
+        <div class="phead">
+          <h3>ENSO plume verification &middot; ONI (Ni&ntilde;o 3.4)</h3>
+          <span class="tag">Monthly</span>
+          <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+        </div>
+        <img class="figlight" src="images/enso_skill_oni_hybrid.png"
+             alt="Archived monthly multi-model ENSO plumes against observed Nino 3.4">
+        <div class="pcap">Frozen monthly multi-model plumes vs observed monthly-mean
+          OISSTv2.1 Ni&ntilde;o&nbsp;3.4 (black) and ERSSTv5 (dashed). Latest plume drawn with
+          its 25&ndash;75% band; earlier months keep their central lines.</div>
+      </div>
+      <div class="panel">
+        <div class="phead">
+          <h3>ENSO plume verification &middot; RONI</h3>
+          <span class="tag">Monthly</span>
+          <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+        </div>
+        <img class="figlight" src="images/enso_skill_roni_hybrid.png"
+             alt="Archived monthly multi-model ENSO plumes against observed RONI">
+        <div class="pcap">Same verification on the relative index (RONI), matching the
+          dashboard's page-level ONI/RONI switch.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Alternative styles the pipeline already renders</h3>
+        <span class="tag">Variants</span>
+      </div>
+      <div class="gridfour" style="padding: 16px;">
+        <div class="panel">
+          <div class="phead"><h3>ONI &middot; lines</h3></div>
+          <img class="figlight" src="images/enso_skill_oni_lines.png" alt="ONI lines style">
+        </div>
+        <div class="panel">
+          <div class="phead"><h3>ONI &middot; plumes</h3></div>
+          <img class="figlight" src="images/enso_skill_oni_plumes.png" alt="ONI plumes style">
+        </div>
+        <div class="panel">
+          <div class="phead"><h3>RONI &middot; lines</h3></div>
+          <img class="figlight" src="images/enso_skill_roni_lines.png" alt="RONI lines style">
+        </div>
+        <div class="panel">
+          <div class="phead"><h3>RONI &middot; plumes</h3></div>
+          <img class="figlight" src="images/enso_skill_roni_plumes.png" alt="RONI plumes style">
+        </div>
+      </div>
+      <div class="pcap">Each (index &times; style) PNG is regenerated by the same cron that
+        renders the dashboard's static images; only the <b>hybrid</b> style is proposed for
+        the page, the rest stay available as downloads.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>PROPOSAL &middot; mock-up only &mdash; embeds copies of committed
+    <span class="mono">forecast_skill/</span> artefacts as of 2026-09-07 (commit dc1fb33); originals untouched.</span>
+  <span class="right">CLIMATE&middot;DASHBOARD &mdash; forecast-skill panel proposal</span>
+</footer>
+
+</body>
+</html>
