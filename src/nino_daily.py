@@ -407,7 +407,29 @@ def heal_history_gaps(max_days: int = 10) -> int:
 
 
 def load_daily_status() -> dict | None:
-    """Latest daily reading for UI cards: values, date, and 30-day means."""
+    """Latest daily reading for UI cards: values, date, and 30-day means.
+
+    Era-relative convention (the same centered-30-year climatologies as the
+    year-lines figure) so the card and figure always agree. Falls back to
+    the fixed-baseline daily CSV if the full history is unavailable.
+    """
+    try:
+        hist = load_nino34_history()
+        if not hist.empty:
+            oni = era_relative_anomalies(hist, 'oni')
+            roni = era_relative_anomalies(hist, 'roni')
+            last_date = oni['date'].max()
+            cut = last_date - pd.Timedelta(days=30)
+            return {
+                'date': last_date.strftime('%b %-d'),
+                'nino34_anom': float(oni['anom'].iloc[-1]),
+                'roni_anom': float(roni['anom'].iloc[-1]),
+                'nino34_30d': float(oni.loc[oni['date'] > cut, 'anom'].mean()),
+                'roni_30d': float(roni.loc[roni['date'] > cut, 'anom'].mean()),
+            }
+    except Exception:
+        logger.warning("Era-relative card values failed; falling back to "
+                       "fixed-baseline daily CSV", exc_info=True)
     try:
         df = pd.read_csv(DAILY_FILE, parse_dates=['date'])
         if df.empty:
