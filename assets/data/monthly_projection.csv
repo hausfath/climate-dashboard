@@ -1,7 +1,7 @@
 # August global mean anomaly by year, with the August 2026 projection (ERA5)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-13
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-14
 # Anomalies vs preindustrial 1850-1900.
-# Projection: median and calibrated quantiles of the ECMWF EC46 46-day ensemble (50 members, init 2026-08-12) blended with 11 days of month-to-date observations; interval widths include verified model-error terms and are capped against overconfidence while the verification archive is short.
+# Projection: median and calibrated quantiles of the ECMWF EC46 46-day ensemble (50 members, init 2026-08-13) blended with 12 days of month-to-date observations; interval widths include verified model-error terms and are capped against overconfidence while the verification archive is short.
 # The current year's monthly_mean_c is left blank (incomplete month); its month-to-date and projection ride in their own columns.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 year,monthly_mean_c,month_to_date_c,projected_c,projection_p05_c,projection_p25_c,projection_p75_c,projection_p95_c,method
@@ -91,4 +91,4 @@ year,monthly_mean_c,month_to_date_c,projected_c,projection_p05_c,projection_p25_
 2023,1.5105,,,,,,,
 2024,1.5125,,,,,,,
 2025,1.2909,,,,,,,
-2026,,1.5548,1.5916,1.4582,1.5423,1.6408,1.7249,ec46_blend
+2026,,1.5571,1.5841,1.4496,1.5344,1.6338,1.7186,ec46_blend
