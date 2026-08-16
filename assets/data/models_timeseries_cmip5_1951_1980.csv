@@ -1,5 +1,5 @@
 # Climate models vs observations — CMIP5 (RCP4.5), baseline 1951-1980
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-13
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-16
 # Monthly means, all series referenced to 1951-1980. model_mean/p05/p95: ensemble mean and 5th-95th percentile across members.
 # Observation columns: HadCRUT5, GISTEMP, NOAA, Berkeley Earth, ERA5 (C3S).
 # The dashboard's 12-month view is a 12-month rolling mean of these monthly columns.
@@ -1521,8 +1521,8 @@ date,model_mean_c,model_p05_c,model_p95_c,hadcrut5,gistemp,noaa,berkeley,coperni
 2026-02-01,1.1916,0.7672,1.6967,1.1234,1.2400,1.1338,1.2311,1.2424,1.2311
 2026-03-01,1.1390,0.8165,1.5953,1.1198,1.3200,1.1838,1.2301,1.2303,1.2301
 2026-04-01,1.1303,0.7304,1.5990,1.1105,1.1700,1.1138,1.1861,1.1795,1.1700
-2026-05-01,1.1551,0.7259,1.5319,1.0835,1.1300,1.0638,1.1621,1.1618,1.1300
-2026-06-01,1.1467,0.7977,1.5713,,1.1800,1.0838,1.2181,1.1356,1.1578
+2026-05-01,1.1551,0.7259,1.5319,1.0842,1.1300,1.0638,1.1621,1.1618,1.1300
+2026-06-01,1.1467,0.7977,1.5713,1.1425,1.1800,1.0838,1.2181,1.1356,1.1425
 2026-07-01,1.1733,0.7639,1.6019,,1.2300,1.1538,1.2821,1.2182,1.2241
 2026-08-01,1.1672,0.7516,1.6544,,,,,,
 2026-09-01,1.1983,0.8466,1.7044,,,,,,
