@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily Nino 3.4 SST anomaly
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-18
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-19
 # Anomalies vs centered 30-year day-of-year climatologies (the ONI convention: each year measured against its own era, windows clamped at the record edges, current year excluded), so the warming trend is removed and years compare as ENSO states.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
 # Source: NOAA OISST v2.1 daily box means.
@@ -16290,7 +16290,7 @@ date,year,day_of_year,anomaly_c
 2026-07-31,2026,212,2.468
 2026-08-01,2026,213,2.513
 2026-08-02,2026,214,2.543
-2026-08-03,2026,215,2.555
+2026-08-03,2026,215,2.573
 2026-08-04,2026,216,2.634
 2026-08-05,2026,217,2.642
 2026-08-06,2026,218,2.561
