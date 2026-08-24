@@ -1,5 +1,5 @@
 # ENSO strength probabilities by season — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-23
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-24
 # Model-weighted category probabilities (percent) per overlapping 3-month season, from the multi-model ensemble; observed months are blended into seasonal means where available.
 # Categories use ONI event thresholds (0.5/1.0/1.5/2.0 degC).
 # n_models: number of forecast systems contributing to that season.
@@ -10,7 +10,7 @@ ASO 2026,2026-09,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,12
 SON 2026,2026-10,96.73,3.27,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
 OND 2026,2026-11,97.32,2.68,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
 NDJ 2026,2026-12,96.13,3.57,0.30,0.00,0.00,0.00,0.00,0.00,0.00,14
-DJF 2027,2027-01,87.62,10.00,2.38,0.00,0.00,0.00,0.00,0.00,0.00,7
-JFM 2027,2027-02,57.62,27.86,12.98,1.55,0.00,0.00,0.00,0.00,0.00,7
-FMA 2027,2027-03,35.48,27.98,21.19,13.69,1.67,0.00,0.00,0.00,0.00,7
-MAM 2027,2027-04,2.29,12.92,26.88,25.83,32.08,0.00,0.00,0.00,0.00,4
+DJF 2027,2027-01,87.98,9.64,2.38,0.00,0.00,0.00,0.00,0.00,0.00,7
+JFM 2027,2027-02,57.62,27.86,13.33,1.19,0.00,0.00,0.00,0.00,0.00,7
+FMA 2027,2027-03,35.48,27.62,21.19,14.40,1.31,0.00,0.00,0.00,0.00,7
+MAM 2027,2027-04,2.29,12.92,26.25,25.83,32.71,0.00,0.00,0.00,0.00,4
