@@ -2,7 +2,7 @@
 
 A real-time global temperature monitoring dashboard with ENSO forecasting and climate model evaluation. Built with Plotly Dash, updated daily with ERA5 reanalysis data.
 
-**Live at**: [climate-dashboard.onrender.com](https://climate-dashboard.onrender.com)
+**Live at**: [dashboard.theclimatebrink.com](https://dashboard.theclimatebrink.com)
 
 ## Dashboard Tabs
 

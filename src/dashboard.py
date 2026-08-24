@@ -2195,7 +2195,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     ], suppress_callback_exceptions=True,
        assets_folder=str(assets_path))
 
-    SITE_URL = "https://climate-dashboard.onrender.com"
+    SITE_URL = "https://dashboard.theclimatebrink.com"
     OG_IMAGE = f"{SITE_URL}/assets/images/annual_prediction_light.png"
     OG_TITLE = "Climate Dashboard"
     OG_DESC = (
