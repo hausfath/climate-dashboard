@@ -569,20 +569,16 @@ body.light .modal-header .btn-close { filter: none; }
 
 /* ------------------------------------------------------------------ mobile */
 /* ------------------------------------------------- warming map tab */
-.map-wrap {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 20px 32px 36px;
-}
+/* Full-bleed: the iframe fills the viewport below the sticky topbar.
+   map_embed.js keeps the height exact when the topbar wraps on mobile. */
+.map-wrap { margin: 0; padding: 0; }
 .warming-map-frame {
   display: block;
   width: 100%;
-  height: calc(100vh - 140px);
-  min-height: 480px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  height: calc(100dvh - 58px);
+  min-height: 400px;
+  border: 0;
+  background: var(--bg);
 }
 
 @media (max-width: 900px) {
@@ -617,7 +613,5 @@ body.light .modal-header .btn-close { filter: none; }
   padding: 7px 18px !important;
 }
 @media (max-width: 720px) {
-  .map-wrap { padding: 10px 10px 16px; }
-  .warming-map-frame { height: calc(100dvh - 165px); border-radius: 12px; }
   .index-switch { justify-content: flex-start; margin-bottom: 0; padding-top: 16px; }
 }

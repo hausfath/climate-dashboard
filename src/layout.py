@@ -36,10 +36,10 @@ def topbar(last_updated: str) -> html.Header:
                                     id='nav-global', href='#global', n_clicks=0)),
             dbc.NavItem(dbc.NavLink(_nav_label("ENSO Forecast", "ENSO"),
                                     id='nav-enso', href='#enso', n_clicks=0)),
-            dbc.NavItem(dbc.NavLink(_nav_label("Models vs Obs", "Models"),
-                                    id='nav-models', href='#models', n_clicks=0)),
             dbc.NavItem(dbc.NavLink(_nav_label("Warming Map", "Map"),
                                     id='nav-map', href='#map', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("Models vs Obs", "Models"),
+                                    id='nav-models', href='#models', n_clicks=0)),
         ], id='main-nav'),
         html.Div([
             html.Div([

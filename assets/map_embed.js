@@ -37,9 +37,21 @@
     frame.src = WM_BASE + "?embed=1&theme=" + s.theme + "&unit=" + s.unit;
   }
 
+  // Full-bleed sizing: fill the viewport below the topbar exactly, even
+  // when the topbar wraps to two rows on narrow screens (the CSS
+  // calc(100dvh - 58px) is only the pre-JS fallback).
+  function size() {
+    var frame = document.getElementById("warming-map-frame");
+    var topbar = document.querySelector(".topbar");
+    if (frame && topbar) {
+      frame.style.height =
+        Math.max(400, window.innerHeight - topbar.getBoundingClientRect().height) + "px";
+    }
+  }
+
   function check() {
     var tab = document.getElementById("tab-content-map");
-    if (tab && tab.style.display !== "none") ensureLoaded();
+    if (tab && tab.style.display !== "none") { size(); ensureLoaded(); }
   }
 
   function init() {
@@ -49,6 +61,7 @@
       .observe(tab, { attributes: true, attributeFilter: ["style"] });
     new MutationObserver(post)
       .observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("resize", size);
     check();
   }
 
