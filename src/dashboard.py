@@ -3006,6 +3006,23 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ], section_id='sec-trends'),
     ])
 
+    # ------------------------------------------------------------------
+    # Warming Map tab: the standalone Berkeley Earth warming map
+    # (github.com/hausfath/warming-map, served from GitHub Pages) embedded
+    # in its dashboard-matched ?embed=1 mode. assets/map_embed.js sets the
+    # iframe src lazily on first visit and relays theme/unit toggles via
+    # postMessage, so the tab costs nothing until opened.
+    tab_map = html.Div(id='tab-content-map', style={'display': 'none'}, children=[
+        html.Div([
+            html.Iframe(
+                id='warming-map-frame',
+                className='warming-map-frame',
+                title='The Warming Map — warming since 1850–1900 from the '
+                      'Berkeley Earth 0.25° gridded dataset',
+            ),
+        ], className='map-wrap'),
+    ])
+
     # Methodology text for the footer modal
     try:
         _methodology_md = (Path(__file__).parent.parent /
@@ -3032,6 +3049,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         tab_global,
         tab_enso,
         tab_models,
+        tab_map,
 
         L.footer_block(stats['latest_date']),
 
@@ -3144,34 +3162,38 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def toggle_methodology(n, is_open):
         return not is_open
 
-    _VALID_TABS = {'global', 'enso', 'models'}
-    _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet'}
+    _VALID_TABS = {'global', 'enso', 'models', 'map'}
+    _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet',
+                    'map': 'accent-gold'}
     _NAV_ACTIVE = {'global': 'tab-active-temp', 'enso': 'tab-active-enso',
-                   'models': 'tab-active-models'}
+                   'models': 'tab-active-models', 'map': 'tab-active-map'}
     # Brand subtitle follows the active tab's data source
     _TAB_BRAND_SUB = {'global': 'ERA5 · daily', 'enso': 'Niño 3.4 · monthly',
-                      'models': 'CMIP · obs'}
+                      'models': 'CMIP · obs', 'map': 'Berkeley Earth · 0.25°'}
 
     # Callback to switch between tab content divs
     @app.callback(
         [Output('tab-content-global', 'style'),
          Output('tab-content-enso', 'style'),
          Output('tab-content-models', 'style'),
+         Output('tab-content-map', 'style'),
          Output('active-tab-store', 'data'),
          Output('main-container', 'className'),
          Output('nav-global', 'className'),
          Output('nav-enso', 'className'),
          Output('nav-models', 'className'),
+         Output('nav-map', 'className'),
          Output('brand-sub', 'children'),
          Output('url', 'hash')],
         [Input('nav-global', 'n_clicks'),
          Input('nav-enso', 'n_clicks'),
          Input('nav-models', 'n_clicks'),
+         Input('nav-map', 'n_clicks'),
          Input('url', 'hash'),
          Input('active-tab-store', 'modified_timestamp')],
         [State('active-tab-store', 'data')],
     )
-    def switch_tab(n_global, n_enso, n_models, url_hash, _ts, current_tab):
+    def switch_tab(n_global, n_enso, n_models, n_map, url_hash, _ts, current_tab):
         triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
         # An explicit nav click always wins.
         if triggered == 'nav-global':
@@ -3180,6 +3202,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             tab = 'enso'
         elif triggered == 'nav-models':
             tab = 'models'
+        elif triggered == 'nav-map':
+            tab = 'map'
         else:
             # URL hash drives both the 'url'-triggered case and the page-load
             # tick (where active-tab-store fires first because of session
@@ -3195,11 +3219,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             {} if tab == 'global' else {'display': 'none'},
             {} if tab == 'enso' else {'display': 'none'},
             {} if tab == 'models' else {'display': 'none'},
+            {} if tab == 'map' else {'display': 'none'},
             tab,
             _TAB_ACCENTS[tab],
             nav_cls('global'),
             nav_cls('enso'),
             nav_cls('models'),
+            nav_cls('map'),
             _TAB_BRAND_SUB[tab],
             f'#{tab}',
         )

@@ -80,8 +80,10 @@ body.light {
 /* per-tab accent (set on a wrapper div by the tab-switch callback) */
 .accent-teal { --accent: var(--teal); --accent-soft: rgba(78, 205, 196, 0.12); --accent-line: rgba(78, 205, 196, 0.4); }
 .accent-violet { --accent: var(--violet); --accent-soft: rgba(162, 155, 254, 0.12); --accent-line: rgba(162, 155, 254, 0.4); }
+.accent-gold { --accent: var(--gold); --accent-soft: rgba(232, 184, 75, 0.12); --accent-line: rgba(232, 184, 75, 0.4); }
 body.light .accent-teal { --accent-soft: rgba(15, 157, 148, 0.10); --accent-line: rgba(15, 157, 148, 0.35); }
 body.light .accent-violet { --accent-soft: rgba(108, 92, 231, 0.10); --accent-line: rgba(108, 92, 231, 0.35); }
+body.light .accent-gold { --accent-soft: rgba(192, 138, 30, 0.10); --accent-line: rgba(192, 138, 30, 0.35); }
 
 html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 
@@ -162,6 +164,19 @@ body.light::after { opacity: .35; }
   color: var(--violet);
   border-color: rgba(162, 155, 254, 0.35);
   background: rgba(162, 155, 254, 0.12);
+}
+#main-nav .nav-link.tab-active-map {
+  color: var(--gold);
+  border-color: rgba(232, 184, 75, 0.35);
+  background: rgba(232, 184, 75, 0.12);
+}
+
+/* full/short nav labels: shorten on phones so four pills fit on one row */
+#main-nav .nav-lbl-short { display: none; }
+@media (max-width: 700px) {
+  #main-nav .nav-lbl-full { display: none; }
+  #main-nav .nav-lbl-short { display: inline; }
+  #main-nav .nav-link { padding: 6px 11px; }
 }
 
 .topbar-right {
@@ -553,6 +568,23 @@ body.light .modal-header .btn-close { filter: none; }
 }
 
 /* ------------------------------------------------------------------ mobile */
+/* ------------------------------------------------- warming map tab */
+.map-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px 32px 36px;
+}
+.warming-map-frame {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 140px);
+  min-height: 480px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
 @media (max-width: 900px) {
   .topbar { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
   .topbar-right { margin-left: 0; width: 100%; justify-content: space-between; }
@@ -585,5 +617,7 @@ body.light .modal-header .btn-close { filter: none; }
   padding: 7px 18px !important;
 }
 @media (max-width: 720px) {
+  .map-wrap { padding: 10px 10px 16px; }
+  .warming-map-frame { height: calc(100dvh - 165px); border-radius: 12px; }
   .index-switch { justify-content: flex-start; margin-bottom: 0; padding-top: 16px; }
 }

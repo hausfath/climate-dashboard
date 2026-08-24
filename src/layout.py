@@ -18,6 +18,13 @@ import dash_bootstrap_components as dbc
 # Chrome
 # ---------------------------------------------------------------------------
 
+def _nav_label(full: str, short: str) -> list:
+    """Full label on wide screens, short label on phones (CSS-swapped) so
+    four pills fit without wrapping."""
+    return [html.Span(full, className="nav-lbl-full"),
+            html.Span(short, className="nav-lbl-short")]
+
+
 def topbar(last_updated: str) -> html.Header:
     return html.Header([
         html.Div([
@@ -25,9 +32,14 @@ def topbar(last_updated: str) -> html.Header:
             html.Span("ERA5 · daily", className="brand-sub", id='brand-sub'),
         ], className="brand"),
         dbc.Nav([
-            dbc.NavItem(dbc.NavLink("Temperature", id='nav-global', href='#global', n_clicks=0)),
-            dbc.NavItem(dbc.NavLink("ENSO Forecast", id='nav-enso', href='#enso', n_clicks=0)),
-            dbc.NavItem(dbc.NavLink("Models vs Obs", id='nav-models', href='#models', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("Temperature", "Temp"),
+                                    id='nav-global', href='#global', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("ENSO Forecast", "ENSO"),
+                                    id='nav-enso', href='#enso', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("Models vs Obs", "Models"),
+                                    id='nav-models', href='#models', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("Warming Map", "Map"),
+                                    id='nav-map', href='#map', n_clicks=0)),
         ], id='main-nav'),
         html.Div([
             html.Div([
