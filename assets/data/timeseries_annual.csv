@@ -1,5 +1,5 @@
 # Annual global mean surface temperature anomaly (ERA5)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-25
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-26
 # Calendar-year means of the daily anomalies vs preindustrial 1850-1900; the current year is a year-to-date mean.
 # ENSO-removed column as in timeseries_daily.csv.
 # Source: ECMWF ERA5 via Copernicus Climate Pulse.
@@ -91,4 +91,4 @@ year,annual_mean_c,annual_mean_enso_removed_c,n_days,status
 2023,1.4823,1.4678,365,complete
 2024,1.5987,1.5011,366,complete
 2025,1.4711,1.4938,365,complete
-2026,1.4667,1.4976,235,year_to_date
+2026,1.4677,1.4985,236,year_to_date
