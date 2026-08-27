@@ -2196,7 +2196,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
        assets_folder=str(assets_path))
 
     SITE_URL = "https://dashboard.theclimatebrink.com"
-    OG_IMAGE = f"{SITE_URL}/assets/images/annual_prediction_light.png"
+    # Dedicated 1200x630 link-preview card (composed from the Berkeley Earth
+    # warming map + wordmark; regenerate with temp_files/make_og_card.py).
+    OG_IMAGE = f"{SITE_URL}/assets/images/og_card.png"
+    OG_IMAGE_ALT = ("Map of warming since 1850-1900 with the Climate "
+                    "Dashboard wordmark")
     OG_TITLE = "Climate Dashboard"
     OG_DESC = (
         "Daily-updated global temperature tracker: ERA5 daily data, "
@@ -2214,10 +2218,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         <meta property="og:title" content="{OG_TITLE}" />
         <meta property="og:description" content="{OG_DESC}" />
         <meta property="og:image" content="{OG_IMAGE}" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="{OG_IMAGE_ALT}" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="{OG_TITLE}" />
         <meta name="twitter:description" content="{OG_DESC}" />
         <meta name="twitter:image" content="{OG_IMAGE}" />
+        <meta name="twitter:image:alt" content="{OG_IMAGE_ALT}" />
         {{%favicon%}}
         {{%css%}}
     </head>
