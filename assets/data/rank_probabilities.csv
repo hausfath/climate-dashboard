@@ -1,11 +1,11 @@
 # Where 2026 likely ranks — final-rank probabilities from the Monte Carlo ensemble
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-27
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-28
 # probability is the fraction of Monte Carlo draws (ENSO multi-model ensemble plus regression residuals) landing at each final rank; rank 1 = warmest on record.
 # holder_year / holder_value_c: the year currently holding that rank and its annual anomaly (degC vs preindustrial 1850-1900).
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 rank,rank_label,probability,holder_year,holder_value_c
-1,Warmest on record,0.5911,2024,1.5987
-2,2nd warmest,0.4089,2023,1.4823
+1,Warmest on record,0.6261,2024,1.5987
+2,2nd warmest,0.3739,2023,1.4823
 3,3rd warmest,0.0000,2025,1.4711
 4,4th warmest,0.0000,2016,1.3177
 5,5th warmest,0.0000,2020,1.3102
