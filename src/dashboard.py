@@ -1180,7 +1180,7 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
             obs_months = yr_enso[yr_enso['month'] <= current_month]
             fut_months = yr_enso[yr_enso['month'] > current_month]
             enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
-            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else (0.0 if current_month == 12 else np.nan)
         annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
         annual['enso_future'] = annual['year'].map(enso_future_by_year)
     else:
@@ -1503,7 +1503,7 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
             obs_months = yr_enso[yr_enso['month'] <= current_month]
             fut_months = yr_enso[yr_enso['month'] > current_month]
             enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
-            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+            enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else (0.0 if current_month == 12 else np.nan)
         annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
         annual['enso_future'] = annual['year'].map(enso_future_by_year)
 
@@ -1902,7 +1902,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
                 obs_months = yr_enso[yr_enso['month'] <= current_month]
                 fut_months = yr_enso[yr_enso['month'] > current_month]
                 enso_obs_by_year[year] = obs_months['oni'].mean() if len(obs_months) > 0 else np.nan
-                enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else np.nan
+                enso_future_by_year[year] = fut_months['oni'].mean() if len(fut_months) > 0 else (0.0 if current_month == 12 else np.nan)
             annual['enso_obs'] = annual['year'].map(enso_obs_by_year)
             annual['enso_future'] = annual['year'].map(enso_future_by_year)
 
