@@ -639,7 +639,9 @@ def create_enso_mega_plume(forecast_df, obs_df, dark_mode=False, index_mode="oni
             font=dict(size=10.5),
         ),
         margin=dict(l=60, r=30, t=30, b=50),
-        xaxis=dict(range=["2025-12-01", x_end]),
+        # Monthly means: the unified-hover header must not show a day
+        # (plotly's default renders "Jul 1, 2026" for a 2026-07-01 stamp).
+        xaxis=dict(range=["2025-12-01", x_end], hoverformat="%b %Y"),
         yaxis=dict(range=[ymin, ymax]),
     )
 
@@ -1001,6 +1003,8 @@ def create_enso_historical_context(forecast_df, dark_mode=False, index_mode="oni
         showlegend=False,
         hoverlabel=dict(bgcolor=theme["paper_color"],
                         bordercolor=theme["grid_color"]),
+        # Monthly means: unified-hover header shows "Jul 2026", not "Jul 1, 2026"
+        xaxis=dict(hoverformat="%b %Y"),
         yaxis=dict(
             range=[ymin, ymax],
             tickmode="array",

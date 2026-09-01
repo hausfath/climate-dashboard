@@ -808,6 +808,8 @@ def create_models_vs_obs_timeseries(
         xaxis=dict(
             gridcolor=theme['grid_color'], showgrid=True,
             range=['1900-01-01', '2040-12-31'],
+            # Monthly means: unified-hover header shows "Jul 2026", not "Jul 1, 2026"
+            hoverformat='%b %Y',
         ),
     )
     fig.update_layout(layout)
@@ -1076,6 +1078,7 @@ def create_animated_scorecard(
         xaxis=dict(
             gridcolor=theme['grid_color'], showgrid=True,
             range=['1970-01-01', f'{max(end_year + 1, 2027)}-01-01'],
+            hoverformat='%b %Y',
         ),
     )
     fig.update_layout(layout)
