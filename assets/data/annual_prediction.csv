@@ -1,5 +1,5 @@
 # Annual global mean anomaly and current-year prediction (ERA5)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-31
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-01
 # Anomalies vs preindustrial 1850-1900; complete calendar years plus the current year's year-to-date mean and projection.
 # Projection: regression on year, prior-year anomaly, observed/forecast ENSO, trailing-30-day and year-to-date anomalies; the lo/hi interval is a 95% Monte Carlo range over the ENSO multi-model ensemble plus regression residuals.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -90,4 +90,4 @@ year,annual_mean_c,ytd_mean_c,projected_c,projection_lo_c,projection_hi_c
 2023,1.4823,,,,
 2024,1.5987,,,,
 2025,1.4711,,,,
-2026,,1.4730,1.6133,1.5569,1.6655
+2026,,1.4749,1.6172,1.5616,1.6686
