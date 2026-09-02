@@ -136,25 +136,35 @@ remains as an automatic fallback). Method (`src/monthly_blend.py`):
   anomalies. Forecast anomalies are computed against an ERA5 1991–2020
   climatology sampled **on the identical coarse grid**
   (`data/ec46_coarse_clim_doy.csv`), so the grid-sampling operator cancels,
-  plus a small anomaly-space lead-0 bias correction estimated from the
-  archive. The published central value is the member median.
+  plus an anomaly-space **lead-dependent bias correction** estimated from
+  the archive: the pooled (ERA5 − forecast) difference by lead day is fitted
+  with a saturating exponential c(L) = a + b·(1 − e^(−L/τ)). The EC46 day-0
+  field sits about 0.05 °C warm of ERA5 (analysis / first-day spin-up) and
+  that offset decays within a few days; beyond a week the pooled error is
+  close to zero. (Until 2026-09-02 a constant lead-0 correction was applied
+  at every lead, which made forecasts beyond ~5 days about 0.05 °C too cold;
+  the lead-dependent form removed that.) The published central value is the
+  member median.
 - **Uncertainty.** Ensemble spread alone cannot represent common-mode model
   error (all members drift together), so the published 5–95 % and 25–75 %
   ranges come from a total variance with four parts: member month-mean
   spread; a **shared-per-month model-error term** estimated from verified
   months in the archive and shrunk toward the legacy regression's residual σ
   (an 85-year prior; ν₀ = 4 pseudo-months) while the archive is short; the
-  lead-0 bias-correction standard error (scaled by the forecast fraction of
-  the month); and ERA5T revision uncertainty (scaled by the observed
-  fraction). Half-widths use a Student-t multiplier with df = ν + ν₀ − 1,
+  bias-correction standard error at the leads actually used (scaled by the
+  forecast fraction of the month); and ERA5T revision uncertainty (scaled by
+  the observed fraction). Half-widths use a Student-t multiplier with df = ν + ν₀ − 1,
   and until **six independent months have verified** the 5–95 % width is
   hard-capped to never be narrower than half the regression's ±2σ.
 - **Verification loop.** The daily cron recomputes, for every archived init
   and verified month: blend error, CRPS, PIT, and spread (member inits),
-  plus the pooled ensemble-mean error by lead day
+  plus the pooled ensemble-mean error by lead day, corrected and raw
   (`forecast_skill/monthly_blend_verification.csv`,
   `monthly_blend_lead_errors.csv`), and refreshes the calibration inputs
-  (`monthly_blend_calibration.csv`). Interval widths tighten only as this
+  (`monthly_blend_calibration.csv`). Verification applies the bias curve
+  **leave-one-month-out** (an init is corrected with a curve fitted to the
+  other months' inits), so the calibration is not flattered by in-sample
+  bias removal; the live projection uses the full-archive curve. Interval widths tighten only as this
   archive demonstrates they should.
 - **Fallback.** If no usable init exists, members are missing, or a lead-0
   sanity gate fails (|corrected day-0 forecast − obs| > 0.15 °C), the panel

@@ -147,11 +147,13 @@ def _ec46_anomalize(
 
     This uses exactly the same transform as the EC46 forecast-skill plot
     (src.ec46_skill._anomalize_forecast): subtract the per-day-of-year
-    1991–2020 climatology, add the monthly preindustrial offset, and add
-    a single archive-wide bias correction. That bias (mean of ERA5 obs −
-    forecast t2m at lead-day-0 across all archived inits) removes the
-    ~0.2 °C cold offset between ECMWF's operational analysis (used to
-    initialise EC46) and ERA5 reanalysis.
+    1991–2020 climatology sampled on the fetcher's coarse grid, add the
+    monthly preindustrial offset, and add a **lead-dependent** bias
+    correction c(lead) fitted to the archive (obs − forecast pooled by
+    lead day). The day-0 field sits ~0.05 °C warm of ERA5 and that offset
+    decays within a few days, so the correction is ≈ −0.05 °C at lead 0
+    and ≈ 0 beyond a week (a constant lead-0 correction, used before
+    2026-09-02, made every lead > 5 d ~0.05 °C too cold).
 
     The forecast is intentionally *not* anchored to recent observations,
     so the dashboard tail matches the skill plot exactly. A small step
@@ -184,16 +186,18 @@ def _ec46_anomalize(
             return None
         doy_clim = obs.groupby("day_of_year")[clim_col].mean()
 
-    # Data-driven IFS-vs-ERA5 bias from the EC46 archive (0.0 on first
-    # run before the archive has any pairings).
-    try:
-        from src.ec46_skill import estimate_archive_bias
-        bias = estimate_archive_bias()
-    except Exception:
-        bias = 0.0
-
     out = fcst.copy()
     out["day_of_year"] = out["date"].dt.dayofyear
+    # Lead-dependent bias correction from the EC46 archive (zeros on first
+    # run before the archive has any pairings).
+    try:
+        from src.ec46_skill import estimate_lead_bias_curve, lead_bias
+        init = (pd.to_datetime(out["init_date"]).iloc[0]
+                if "init_date" in out.columns else out["date"].min())
+        lead = (out["date"] - pd.Timestamp(init)).dt.days.to_numpy()
+        bias = lead_bias(estimate_lead_bias_curve(), lead)
+    except Exception:
+        bias = 0.0
     out["clim_C"] = out["day_of_year"].map(doy_clim)
     out["pi_offset"] = out["date"].apply(
         lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])

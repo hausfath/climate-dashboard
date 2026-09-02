@@ -60,25 +60,39 @@ def _load_obs() -> pd.DataFrame:
 
 
 def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame,
-                        bias_correction: float = 0.0) -> pd.DataFrame | None:
-    """Convert an EC46 init's absolute t2m mean to preindustrial anomaly,
-    optionally applying a constant bias correction (°C) added to every
-    forecast value before subtracting climatology.
+                        bias_correction: float = 0.0,
+                        curve: dict | None = None,
+                        init_date: pd.Timestamp | None = None
+                        ) -> pd.DataFrame | None:
+    """Convert an EC46 init's absolute t2m mean to preindustrial anomaly.
 
-    Unlike the dashboard's daily-anomaly plot (which anchors the forecast
-    to the trailing 7-day observed mean for visual continuity), the skill
-    plot intentionally does *not* anchor. Instead it applies a single
-    archive-wide bias correction estimated from lead-0 (model IC vs ERA5
-    obs) pairings — see ``_estimate_bias_correction``. A uniform shift
-    preserves the relative differences between inits while removing the
-    ECMWF operational-analysis vs ERA5-reanalysis offset that otherwise
-    sits as a near-constant cold tilt under every forecast line.
+    Bias handling, in anomaly space (the climatology term is unaffected):
+
+    * ``curve`` given -> a **lead-dependent** correction ``c(lead)`` from
+      :func:`fit_lead_bias_curve` is added to each forecast day, with the
+      lead counted from ``init_date`` (or the frame's ``init_date`` column,
+      else its first date). This is the production path since 2026-09-02.
+    * otherwise ``bias_correction`` (a constant, °C) is added to every day
+      — the legacy lead-0-only correction, kept for the lead-0 gate and
+      for diagnostics.
+
+    The forecast is intentionally *not* anchored to recent observations,
+    so the skill plot, the dashboard tail and the monthly blend all see
+    the identical transform.
     """
     if fcst.empty:
         return None
     f = fcst.copy()
     f["date"] = pd.to_datetime(f["date"])
     f["day_of_year"] = f["date"].dt.dayofyear
+    if curve is not None:
+        if init_date is None:
+            if "init_date" in f.columns:
+                init_date = pd.Timestamp(pd.to_datetime(f["init_date"]).iloc[0])
+            else:
+                init_date = f["date"].min()
+        lead = (f["date"] - pd.Timestamp(init_date)).dt.days.to_numpy()
+        bias_correction = lead_bias(curve, lead)
 
     coarse = _load_coarse_clim()
     if coarse is not None:
@@ -90,6 +104,139 @@ def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame,
     f["forecast_anom"] = (f["t2m_mean"] + bias_correction
                           - f["clim_C"] + f["pi_offset"])
     return f[["date", "forecast_anom"]]
+
+
+# ---------------------------------------------------------------------------
+# Lead-dependent bias correction
+# ---------------------------------------------------------------------------
+# The EC46 day-0 field sits ~0.05 °C warm of ERA5 (IFS analysis / first-day
+# spin-up), and that offset decays within a few days; beyond a week the
+# pooled forecast-minus-ERA5 error is ~0 across the archive. A constant
+# lead-0 correction therefore pushed every lead > ~5 d about 0.05 °C too
+# cold (this WAS the "cold drift" in monthly_blend_lead_errors.csv before
+# 2026-09-02). The correction is now a saturating exponential
+#     c(L) = a + b * (1 - exp(-L / tau))          [°C, added to forecast]
+# fitted to the pooled per-lead mean of (obs - raw forecast), weighted by
+# the number of pairings at each lead. Verification uses a leave-one-
+# month-out fit so a month's own inits never calibrate its own errors.
+
+LEAD_CURVE_MIN_PAIRS = 5         # pairings needed for a lead to enter the fit
+LEAD_CURVE_MIN_LEADS = 4         # distinct leads needed to fit 3 parameters
+LEAD_CURVE_BOUNDS = ([-1.0, -1.0, 0.5], [1.0, 1.0, 30.0])   # a, b, tau
+
+
+def _sat_exp(lead, a, b, tau):
+    return a + b * (1.0 - np.exp(-np.asarray(lead, dtype=float) / tau))
+
+
+def _lead_pairs(archive: list[tuple[pd.Timestamp, pd.DataFrame]],
+                obs: pd.DataFrame) -> pd.DataFrame:
+    """One row per verified forecast day: ``init``, ``lead_day`` and
+    ``diff`` = obs anomaly − raw (uncorrected) forecast anomaly."""
+    obs_anom = obs.set_index("date")["anomaly"]
+    parts = []
+    for init_date, raw in archive:
+        anom = _anomalize_forecast(raw, obs, bias_correction=0.0)
+        if anom is None or anom.empty:
+            continue
+        a = anom.set_index("date")["forecast_anom"]
+        common = a.index.intersection(obs_anom.index)
+        if len(common) == 0:
+            continue
+        parts.append(pd.DataFrame({
+            "init": init_date,
+            "lead_day": (common - init_date).days,
+            "diff": obs_anom.loc[common].to_numpy() - a.loc[common].to_numpy(),
+        }))
+    if not parts:
+        return pd.DataFrame(columns=["init", "lead_day", "diff"])
+    return pd.concat(parts, ignore_index=True)
+
+
+def fit_lead_bias_curve(pairs: pd.DataFrame) -> dict:
+    """Fit the lead-dependent correction to (obs − forecast) pairings.
+
+    Returns a dict with the curve parameters ``a, b, tau``; ``c0`` and
+    ``c_inf`` (correction at lead 0 and asymptotically); ``se_by_lead``
+    (standard error of the pooled mean at each lead, °C); ``n_inits``,
+    ``n_pairs``; and ``method`` (``"sat_exp"``, ``"constant"`` when there
+    is too little data to fit, or ``"none"`` with no pairings at all).
+    """
+    empty = {"a": 0.0, "b": 0.0, "tau": 1.0, "c0": 0.0, "c_inf": 0.0,
+             "se_by_lead": pd.Series(dtype=float), "n_inits": 0,
+             "n_pairs": 0, "method": "none"}
+    if pairs is None or pairs.empty:
+        return empty
+    g = pairs.groupby("lead_day")["diff"].agg(["mean", "std", "count"])
+    g = g[g["count"] >= LEAD_CURVE_MIN_PAIRS]
+    if g.empty:
+        return empty
+    se = (g["std"] / np.sqrt(g["count"])).fillna(0.05)
+    lead0 = float(g["mean"].loc[0]) if 0 in g.index else float(g["mean"].iloc[0])
+    out = dict(empty, se_by_lead=se, n_inits=int(pairs["init"].nunique()),
+               n_pairs=int(len(pairs)))
+    if len(g) < LEAD_CURVE_MIN_LEADS:
+        out.update(a=lead0, b=0.0, tau=1.0, c0=lead0, c_inf=lead0,
+                   method="constant")
+        return out
+    try:
+        from scipy.optimize import curve_fit
+        popt, _ = curve_fit(
+            _sat_exp, g.index.to_numpy(dtype=float), g["mean"].to_numpy(),
+            p0=[lead0, -lead0, 3.0], sigma=1.0 / np.sqrt(g["count"].to_numpy()),
+            bounds=LEAD_CURVE_BOUNDS, maxfev=20000)
+        a, b, tau = (float(v) for v in popt)
+        out.update(a=a, b=b, tau=tau, c0=a, c_inf=a + b, method="sat_exp")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("EC46 skill: lead-curve fit failed (%s); constant", e)
+        out.update(a=lead0, b=0.0, tau=1.0, c0=lead0, c_inf=lead0,
+                   method="constant")
+    return out
+
+
+def lead_bias(curve: dict | None, lead):
+    """Correction (°C, add to the forecast anomaly) at the given lead(s)."""
+    lead = np.clip(np.asarray(lead, dtype=float), 0, None)
+    if not curve or curve.get("method") == "none":
+        return np.zeros_like(lead)
+    return _sat_exp(lead, curve["a"], curve["b"], curve["tau"])
+
+
+def lead_bias_se(curve: dict | None, lead) -> np.ndarray:
+    """Standard error of the pooled (obs − forecast) mean at each lead,
+    nearest available lead; 0.05 °C where the archive has no pairings."""
+    lead = np.atleast_1d(np.asarray(lead, dtype=float))
+    se = curve.get("se_by_lead") if curve else None
+    if se is None or len(se) == 0:
+        return np.full(lead.shape, 0.05)
+    idx = se.index.to_numpy(dtype=float)
+    nearest = np.abs(lead[:, None] - idx[None, :]).argmin(axis=1)
+    return se.to_numpy()[nearest]
+
+
+def lead_curves_by_month(archive, obs) -> tuple[dict, dict]:
+    """(full_curve, {init_month_period: leave-one-month-out curve})."""
+    pairs = _lead_pairs(archive, obs)
+    full = fit_lead_bias_curve(pairs)
+    lomo = {}
+    if not pairs.empty:
+        months = pairs["init"].dt.to_period("M")
+        for m in sorted(months.unique()):
+            lomo[m] = fit_lead_bias_curve(pairs[months != m])
+    return full, lomo
+
+
+def estimate_lead_bias_curve() -> dict:
+    """Public: the full-archive lead-dependent correction (used live by the
+    monthly blend and the dashboard's forecast tail)."""
+    try:
+        archive = _load_archive()
+        if not archive:
+            return fit_lead_bias_curve(pd.DataFrame())
+        return fit_lead_bias_curve(_lead_pairs(archive, _load_obs()))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("EC46 skill: lead-bias curve failed: %s", e)
+        return fit_lead_bias_curve(pd.DataFrame())
 
 
 def _load_archive() -> list[tuple[pd.Timestamp, pd.DataFrame]]:
@@ -198,11 +345,15 @@ def make_plot(output_path: Path = OUTPUT_PNG) -> Path | None:
         return None
 
     obs = _load_obs()
-    bias = _estimate_bias_correction(archive, obs)
+    # Lead-dependent correction, leave-one-month-out: each init is
+    # corrected with a curve fitted to the OTHER months' inits, so the
+    # retrospective plot is an honest out-of-sample view.
+    full_curve, lomo = lead_curves_by_month(archive, obs)
 
     forecasts: list[tuple[pd.Timestamp, pd.DataFrame]] = []
     for init_date, raw in archive:
-        anom = _anomalize_forecast(raw, obs, bias_correction=bias)
+        curve = lomo.get(init_date.to_period("M"), full_curve)
+        anom = _anomalize_forecast(raw, obs, curve=curve, init_date=init_date)
         if anom is not None and not anom.empty:
             forecasts.append((init_date, anom))
 
@@ -245,12 +396,19 @@ def make_plot(output_path: Path = OUTPUT_PNG) -> Path | None:
         color="black", linewidth=2.2, label="ERA5 observed", zorder=100,
     )
 
-    bias_note = f"  ·  bias correction {bias:+.2f} °C" if bias else ""
+    if full_curve["method"] == "sat_exp":
+        bias_note = (f"  ·  lead-dependent bias correction {full_curve['c0']:+.2f} °C "
+                     f"at day 0 → {full_curve['c_inf']:+.2f} °C beyond ~"
+                     f"{3 * full_curve['tau']:.0f} d (leave-one-month-out)")
+    elif full_curve["method"] == "constant":
+        bias_note = f"  ·  bias correction {full_curve['c0']:+.2f} °C"
+    else:
+        bias_note = ""
     ax.set_title(
         "ECMWF EC46 forecasts vs. ERA5 observed global temperature\n"
         f"({len(forecasts)} archived inits — {earliest_init:%Y-%m-%d} → "
         f"{init_dates[-1]:%Y-%m-%d}{bias_note})",
-        fontsize=12,
+        fontsize=11,
     )
     ax.set_ylabel("Anomaly vs preindustrial (°C)")
     ax.set_xlabel("")

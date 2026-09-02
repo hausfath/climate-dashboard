@@ -99,29 +99,51 @@ def _member_files() -> list[tuple[pd.Timestamp, Path]]:
 
 
 def _anomalize(values, dates: pd.DatetimeIndex, clim_coarse: pd.Series,
-               bias_anom: float):
+               bias_anom):
     """Absolute coarse-grid t2m -> preindustrial anomaly.
 
     values: array-like indexed like dates (Series or DataFrame rows).
+    bias_anom: a constant (°C) or a per-day correction aligned with
+    ``dates`` (Series / array) — see :func:`lead_bias_for`.
     """
     from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
     clim = pd.Series(dates.dayofyear, index=dates).map(clim_coarse)
     pi = pd.Series([MONTHLY_PREINDUSTRIAL_OFFSETS[d.month] for d in dates],
                    index=dates)
+    if not np.isscalar(bias_anom):
+        bias_anom = pd.Series(np.asarray(bias_anom, dtype=float), index=dates)
+        if isinstance(values, pd.DataFrame):
+            return values.sub(clim, axis=0).add(pi, axis=0).add(bias_anom, axis=0)
+        return values - clim + pi + bias_anom
     if isinstance(values, pd.DataFrame):
         return values.sub(clim, axis=0).add(pi, axis=0) + bias_anom
     return values - clim + pi + bias_anom
 
 
+def lead_bias_for(dates: pd.DatetimeIndex, init_date: pd.Timestamp,
+                  curve: dict | None) -> pd.Series:
+    """Per-day lead-dependent bias correction (°C) for forecast ``dates``
+    from ``init_date``; single source of truth is ``src.ec46_skill``."""
+    from src.ec46_skill import lead_bias
+    lead = (pd.DatetimeIndex(dates) - pd.Timestamp(init_date)).days
+    return pd.Series(lead_bias(curve, lead), index=dates)
+
+
 def bias_stats_anom(clim_coarse: pd.Series | None = None
                     ) -> tuple[float, float, int]:
     """(bias, SE, n): anomaly-space lead-0 offset obs_anom - fc_anom0.
-    Single source of truth lives in ec46_skill (shared with the skill
-    plot and the daily-plot forecast tail); with the coarse-grid
-    climatology in place this is the small residual IFS-analysis-vs-ERA5
-    plus Open-Meteo interpolation offset."""
+    Kept for diagnostics; the projection itself uses the lead-dependent
+    curve (:func:`lead_curve`) since 2026-09-02."""
     from src.ec46_skill import estimate_archive_bias_stats
     return estimate_archive_bias_stats()
+
+
+def lead_curve() -> dict:
+    """Full-archive lead-dependent bias curve (see ec46_skill for the
+    functional form). Single source of truth shared with the skill plot
+    and the dashboard's daily-plot forecast tail."""
+    from src.ec46_skill import estimate_lead_bias_curve
+    return estimate_lead_bias_curve()
 
 
 # ---------------------------------------------------------------------------
@@ -196,14 +218,17 @@ def compute_monthly_blend(df_adj: pd.DataFrame) -> dict | None:
         return None
     members = members.set_index("date")
 
-    bias, bias_se, n_pairs = bias_stats_anom(clim_coarse)
+    from src.ec46_skill import lead_bias_se
+    curve = lead_curve()
+    bias0 = float(curve["c0"])          # correction at lead 0
+    n_pairs = int(curve["n_inits"])
 
     # Lead-0 sanity gate on the chosen init (if its day 0 has verified)
     obs_anom = obs.set_index("date")["anomaly"]
     if init_date in members.index and init_date in obs_anom.index:
         fc0 = _anomalize(members.loc[[init_date], mem_cols],
                          pd.DatetimeIndex([init_date]), clim_coarse,
-                         bias).mean(axis=1)
+                         bias0).mean(axis=1)
         if abs(float(fc0.iloc[0]) - float(obs_anom.loc[init_date])) > LEAD0_GATE:
             logger.warning("Monthly blend: lead-0 gate failed (%.2f vs %.2f)",
                            float(fc0.iloc[0]),
@@ -221,13 +246,19 @@ def compute_monthly_blend(df_adj: pd.DataFrame) -> dict | None:
         return None
 
     if len(rem_days):
+        rem_corr = lead_bias_for(rem_days, init_date, curve)
         rem_anom = _anomalize(members.loc[rem_days, mem_cols], rem_days,
-                              clim_coarse, bias)
+                              clim_coarse, rem_corr)
         member_month_means = ((mtd["anomaly"].sum() + rem_anom.sum(axis=0))
                               / n_days)
         vals = member_month_means.to_numpy(dtype=float)
+        bias = float(rem_corr.mean())   # mean correction over the forecast days
+        rem_leads = (rem_days - init_date).days
+        # SE of the correction at the leads actually used (RMS over days)
+        bias_se = float(np.sqrt(np.mean(lead_bias_se(curve, rem_leads) ** 2)))
     else:
         vals = np.full(len(mem_cols), mtd["anomaly"].mean())
+        bias, bias_se = 0.0, 0.0
 
     med = float(np.median(vals))
     sigma_within = float(np.std(vals, ddof=1))
@@ -286,6 +317,8 @@ def compute_monthly_blend(df_adj: pd.DataFrame) -> dict | None:
         "init_date": init_date.strftime("%Y-%m-%d"),
         "n_members": len(mem_cols),
         "bias_correction": bias,
+        "bias_curve": {"c0": float(curve["c0"]), "c_inf": float(curve["c_inf"]),
+                       "tau": float(curve["tau"]), "method": curve["method"]},
         "bias_n_pairs": n_pairs,
         "reg_2sigma": reg_2sigma,
     }
@@ -323,7 +356,7 @@ def update_calibration() -> pd.DataFrame | None:
     that have member files (accumulating from Aug 2026). Also records the
     pooled ensemble-mean error by lead day (stationary-drift detector).
     """
-    from src.ec46_skill import _load_archive, _load_obs
+    from src.ec46_skill import _load_archive, _load_obs, lead_curves_by_month
 
     clim_coarse = _load_coarse_clim()
     if clim_coarse is None:
@@ -334,7 +367,10 @@ def update_calibration() -> pd.DataFrame | None:
         return None
     obs = _load_obs()
     obs_anom = obs.set_index("date")["anomaly"]
-    bias, _, _ = bias_stats_anom(clim_coarse)
+    # Leave-one-month-out bias curves: an init is verified with a
+    # correction fitted to the OTHER months' inits, so the calibration
+    # (s_hat) is not flattered by in-sample bias removal.
+    full_curve, lomo = lead_curves_by_month(archive, obs)
     mem_lookup = {d.strftime("%Y-%m-%d"): fp for d, fp in _member_files()}
 
     rows, lead_rows = [], []
@@ -342,15 +378,21 @@ def update_calibration() -> pd.DataFrame | None:
         f = raw.copy()
         f["date"] = pd.to_datetime(f["date"])
         fdates = pd.DatetimeIndex(f["date"])
-        fc_anom = _anomalize(pd.Series(f["t2m_mean"].values, index=fdates),
-                             fdates, clim_coarse, bias)
+        curve = lomo.get(init_date.to_period("M"), full_curve)
+        corr = lead_bias_for(fdates, init_date, curve)
+        raw_anom = _anomalize(pd.Series(f["t2m_mean"].values, index=fdates),
+                              fdates, clim_coarse, 0.0)
+        fc_anom = raw_anom + corr
 
-        # pooled per-lead ensemble-mean error over verified forecast days
+        # pooled per-lead ensemble-mean error over verified forecast days:
+        # corrected (what the blend uses) and raw (drift detector)
         verified = fc_anom.index.intersection(obs_anom.index)
         for d in verified:
             lead_rows.append({"lead_day": (d - init_date).days,
                               "error": float(fc_anom.loc[d]
-                                             - obs_anom.loc[d])})
+                                             - obs_anom.loc[d]),
+                              "raw_error": float(raw_anom.loc[d]
+                                                 - obs_anom.loc[d])})
 
         m_start = pd.Timestamp(init_date.year, init_date.month, 1)
         m_end = m_start + pd.offsets.MonthEnd(0)
@@ -380,7 +422,7 @@ def update_calibration() -> pd.DataFrame | None:
             mcols = [c for c in mem.columns if c.startswith("member")]
             if len(rem_days) and rem_days.isin(mem.index).all() and mcols:
                 rem_anom = _anomalize(mem.loc[rem_days, mcols], rem_days,
-                                      clim_coarse, bias)
+                                      clim_coarse, corr.loc[rem_days])
                 mm = ((np.concatenate(parts[:1]).sum() if len(mtd_days) else 0)
                       + rem_anom.sum(axis=0)) / len(month_obs)
                 v = np.sort(mm.to_numpy())
@@ -398,8 +440,10 @@ def update_calibration() -> pd.DataFrame | None:
     VERIFICATION_FILE.parent.mkdir(parents=True, exist_ok=True)
     v.to_csv(VERIFICATION_FILE, index=False, float_format="%.4f")
 
-    lead = (pd.DataFrame(lead_rows).groupby("lead_day")["error"]
-            .agg(["mean", "std", "count"]).reset_index())
+    lr = pd.DataFrame(lead_rows)
+    lead = lr.groupby("lead_day")["error"].agg(["mean", "std", "count"])
+    lead["raw_mean"] = lr.groupby("lead_day")["raw_error"].mean()
+    lead = lead.reset_index()
     lead.to_csv(VERIFICATION_FILE.with_name("monthly_blend_lead_errors.csv"),
                 index=False, float_format="%.4f")
 
