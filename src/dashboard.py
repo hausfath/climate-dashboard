@@ -190,14 +190,20 @@ def _ec46_anomalize(
     out["day_of_year"] = out["date"].dt.dayofyear
     # Lead-dependent bias correction from the EC46 archive (zeros on first
     # run before the archive has any pairings).
+    bias_meta = {"method": "none"}
     try:
-        from src.ec46_skill import estimate_lead_bias_curve, lead_bias
+        from src.ec46_skill import (estimate_lead_bias_curve, lead_bias,
+                                    curve_summary)
         init = (pd.to_datetime(out["init_date"]).iloc[0]
                 if "init_date" in out.columns else out["date"].min())
         lead = (out["date"] - pd.Timestamp(init)).dt.days.to_numpy()
-        bias = lead_bias(estimate_lead_bias_curve(), lead)
-    except Exception:
+        curve = estimate_lead_bias_curve()
+        bias = lead_bias(curve, lead)
+        bias_meta = curve_summary(curve)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("EC46 tail: bias curve unavailable (%r)", e)
         bias = 0.0
+        bias_meta = {"method": "none", "error": f"{type(e).__name__}: {e}"}
     out["clim_C"] = out["day_of_year"].map(doy_clim)
     out["pi_offset"] = out["date"].apply(
         lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
@@ -205,7 +211,9 @@ def _ec46_anomalize(
     for c in cols:
         out[c] = out[c] + bias - out["clim_C"] + out["pi_offset"]
 
-    return out.drop(columns=["clim_C", "pi_offset"])
+    out = out.drop(columns=["clim_C", "pi_offset"])
+    out.attrs["ec46_bias"] = bias_meta   # surfaced in the figure's layout.meta
+    return out
 
 
 def _hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -444,6 +452,10 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
     if ec46 is not None and not ec46.empty:
         ec46_anom = _ec46_anomalize(ec46, df_adj)
         if ec46_anom is not None:
+            # Bias-curve provenance, readable from the live page
+            # (fig._fullLayout.meta) for deploy verification.
+            fig.update_layout(meta={"ec46_bias": ec46_anom.attrs.get("ec46_bias"),
+                                    "ec46_init": str(ec46_anom['date'].iloc[0].date())})
             current_year = int(ec46_anom['date'].iloc[0].year)
             color = theme['highlight_colors'].get(
                 current_year, theme['rolling_color'])

@@ -163,8 +163,8 @@ def fit_lead_bias_curve(pairs: pd.DataFrame) -> dict:
     is too little data to fit, or ``"none"`` with no pairings at all).
     """
     empty = {"a": 0.0, "b": 0.0, "tau": 1.0, "c0": 0.0, "c_inf": 0.0,
-             "se_by_lead": pd.Series(dtype=float), "n_inits": 0,
-             "n_pairs": 0, "method": "none"}
+             "se_by_lead": pd.Series(dtype=float), "emp_by_lead": None,
+             "n_inits": 0, "n_pairs": 0, "method": "none", "error": None}
     if pairs is None or pairs.empty:
         return empty
     g = pairs.groupby("lead_day")["diff"].agg(["mean", "std", "count"])
@@ -173,25 +173,44 @@ def fit_lead_bias_curve(pairs: pd.DataFrame) -> dict:
         return empty
     se = (g["std"] / np.sqrt(g["count"])).fillna(0.05)
     lead0 = float(g["mean"].loc[0]) if 0 in g.index else float(g["mean"].iloc[0])
-    out = dict(empty, se_by_lead=se, n_inits=int(pairs["init"].nunique()),
-               n_pairs=int(len(pairs)))
+    # Empirical fallback: pooled per-lead mean, 5-day centred smoothing.
+    # Used when the parametric fit is impossible or raises, so a fit
+    # failure can never silently degrade to a constant lead-0 correction
+    # (that constant applied at every lead is the bug this replaces).
+    emp = g["mean"].rolling(5, center=True, min_periods=1).mean()
+    out = dict(empty, se_by_lead=se, emp_by_lead=emp,
+               n_inits=int(pairs["init"].nunique()), n_pairs=int(len(pairs)))
     if len(g) < LEAD_CURVE_MIN_LEADS:
-        out.update(a=lead0, b=0.0, tau=1.0, c0=lead0, c_inf=lead0,
-                   method="constant")
+        out.update(a=lead0, b=0.0, tau=1.0, c0=lead0,
+                   c_inf=float(emp.iloc[-1]), method="empirical")
         return out
     try:
         from scipy.optimize import curve_fit
-        popt, _ = curve_fit(
-            _sat_exp, g.index.to_numpy(dtype=float), g["mean"].to_numpy(),
-            p0=[lead0, -lead0, 3.0], sigma=1.0 / np.sqrt(g["count"].to_numpy()),
-            bounds=LEAD_CURVE_BOUNDS, maxfev=20000)
+        x = np.asarray(g.index, dtype=float)
+        y = np.asarray(g["mean"], dtype=float)
+        w = 1.0 / np.sqrt(np.asarray(g["count"], dtype=float))
+        popt, _ = curve_fit(_sat_exp, x, y, p0=[lead0, -lead0, 3.0], sigma=w,
+                            bounds=LEAD_CURVE_BOUNDS)
         a, b, tau = (float(v) for v in popt)
         out.update(a=a, b=b, tau=tau, c0=a, c_inf=a + b, method="sat_exp")
     except Exception as e:  # noqa: BLE001
-        logger.warning("EC46 skill: lead-curve fit failed (%s); constant", e)
-        out.update(a=lead0, b=0.0, tau=1.0, c0=lead0, c_inf=lead0,
-                   method="constant")
+        logger.warning("EC46 skill: lead-curve fit failed (%r); using the "
+                       "smoothed empirical per-lead means", e)
+        out.update(a=lead0, b=0.0, tau=1.0, c0=float(emp.iloc[0]),
+                   c_inf=float(emp.iloc[-1]), method="empirical",
+                   error=f"{type(e).__name__}: {e}")
     return out
+
+
+def curve_summary(curve: dict | None) -> dict:
+    """JSON-safe summary of a bias curve (for figure metadata / logging)."""
+    if not curve:
+        return {"method": "none"}
+    return {"method": curve.get("method"), "c0": round(float(curve.get("c0", 0)), 4),
+            "c_inf": round(float(curve.get("c_inf", 0)), 4),
+            "tau": round(float(curve.get("tau", 0)), 2),
+            "n_inits": int(curve.get("n_inits", 0)),
+            "error": curve.get("error")}
 
 
 def lead_bias(curve: dict | None, lead):
@@ -199,6 +218,10 @@ def lead_bias(curve: dict | None, lead):
     lead = np.clip(np.asarray(lead, dtype=float), 0, None)
     if not curve or curve.get("method") == "none":
         return np.zeros_like(lead)
+    if curve.get("method") == "empirical":
+        emp = curve["emp_by_lead"]
+        return np.interp(lead, np.asarray(emp.index, dtype=float),
+                         np.asarray(emp, dtype=float))   # clamps at the ends
     return _sat_exp(lead, curve["a"], curve["b"], curve["tau"])
 
 
@@ -400,8 +423,10 @@ def make_plot(output_path: Path = OUTPUT_PNG) -> Path | None:
         bias_note = (f"  ·  lead-dependent bias correction {full_curve['c0']:+.2f} °C "
                      f"at day 0 → {full_curve['c_inf']:+.2f} °C beyond ~"
                      f"{3 * full_curve['tau']:.0f} d (leave-one-month-out)")
-    elif full_curve["method"] == "constant":
-        bias_note = f"  ·  bias correction {full_curve['c0']:+.2f} °C"
+    elif full_curve["method"] == "empirical":
+        bias_note = (f"  ·  lead-dependent bias correction {full_curve['c0']:+.2f} °C "
+                     f"at day 0 → {full_curve['c_inf']:+.2f} °C (empirical, "
+                     "leave-one-month-out)")
     else:
         bias_note = ""
     ax.set_title(
