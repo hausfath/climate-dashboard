@@ -1,90 +1,90 @@
 # Per-member warming trends for three windows — CMIP3 (SRES A1B)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-08-16
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-03
 # OLS trends in degC per decade through the latest observed month; source distinguishes individual model ensemble members from the five observational records.
 # These are the values binned in the dashboard's trend histograms.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 period,source,name,trend_c_per_decade
-1970-present,model_member,0,0.1513
+1970-present,model_member,0,0.1516
 1970-present,model_member,1,0.2371
 1970-present,model_member,2,0.2875
-1970-present,model_member,3,0.1874
-1970-present,model_member,4,0.1153
-1970-present,model_member,5,0.2070
-1970-present,model_member,6,0.2111
-1970-present,model_member,7,0.2176
-1970-present,model_member,8,0.1521
-1970-present,model_member,9,0.1858
+1970-present,model_member,3,0.1877
+1970-present,model_member,4,0.1150
+1970-present,model_member,5,0.2077
+1970-present,model_member,6,0.2114
+1970-present,model_member,7,0.2173
+1970-present,model_member,8,0.1522
+1970-present,model_member,9,0.1859
 1970-present,model_member,10,0.1794
-1970-present,model_member,11,0.1747
-1970-present,model_member,12,0.2497
-1970-present,model_member,13,0.2396
-1970-present,model_member,14,0.2099
-1970-present,model_member,15,0.3106
+1970-present,model_member,11,0.1752
+1970-present,model_member,12,0.2496
+1970-present,model_member,13,0.2398
+1970-present,model_member,14,0.2100
+1970-present,model_member,15,0.3108
 1970-present,model_member,16,0.1777
-1970-present,model_member,17,0.1663
-1970-present,model_member,18,0.1510
+1970-present,model_member,17,0.1661
+1970-present,model_member,18,0.1512
 1970-present,model_member,19,0.2559
-1970-present,model_member,20,0.1748
-1970-present,model_member,21,0.2428
-1970-present,model_member,22,0.1770
+1970-present,model_member,20,0.1747
+1970-present,model_member,21,0.2427
+1970-present,model_member,22,0.1768
 1970-present,observed,HadCRUT5,0.2044
 1970-present,observed,GISTEMP,0.2032
 1970-present,observed,NOAA,0.1956
 1970-present,observed,Berkeley Earth,0.2085
-1970-present,observed,ERA5 (C3S),0.2135
-2001-present,model_member,0,0.1557
-2001-present,model_member,1,0.2372
+1970-present,observed,ERA5 (C3S),0.2140
+2001-present,model_member,0,0.1569
+2001-present,model_member,1,0.2374
 2001-present,model_member,2,0.2704
-2001-present,model_member,3,0.2146
-2001-present,model_member,4,0.1336
-2001-present,model_member,5,0.2598
-2001-present,model_member,6,0.1795
-2001-present,model_member,7,0.1732
+2001-present,model_member,3,0.2157
+2001-present,model_member,4,0.1323
+2001-present,model_member,5,0.2624
+2001-present,model_member,6,0.1809
+2001-present,model_member,7,0.1722
 2001-present,model_member,8,0.1842
-2001-present,model_member,9,0.1998
-2001-present,model_member,10,0.1786
-2001-present,model_member,11,0.2328
-2001-present,model_member,12,0.3077
-2001-present,model_member,13,0.1880
-2001-present,model_member,14,0.2679
-2001-present,model_member,15,0.3061
-2001-present,model_member,16,0.1541
-2001-present,model_member,17,0.2021
-2001-present,model_member,18,0.2088
-2001-present,model_member,19,0.2650
-2001-present,model_member,20,0.1522
-2001-present,model_member,21,0.2203
-2001-present,model_member,22,0.2463
+2001-present,model_member,9,0.2000
+2001-present,model_member,10,0.1785
+2001-present,model_member,11,0.2344
+2001-present,model_member,12,0.3065
+2001-present,model_member,13,0.1889
+2001-present,model_member,14,0.2676
+2001-present,model_member,15,0.3067
+2001-present,model_member,16,0.1547
+2001-present,model_member,17,0.2012
+2001-present,model_member,18,0.2091
+2001-present,model_member,19,0.2649
+2001-present,model_member,20,0.1516
+2001-present,model_member,21,0.2196
+2001-present,model_member,22,0.2444
 2001-present,observed,HadCRUT5,0.2459
 2001-present,observed,GISTEMP,0.2625
 2001-present,observed,NOAA,0.2637
 2001-present,observed,Berkeley Earth,0.2580
-2001-present,observed,ERA5 (C3S),0.2801
-2011-present,model_member,0,0.1911
-2011-present,model_member,1,0.2519
-2011-present,model_member,2,0.3031
-2011-present,model_member,3,0.3356
-2011-present,model_member,4,0.1423
-2011-present,model_member,5,0.3218
-2011-present,model_member,6,0.1705
-2011-present,model_member,7,0.1111
+2001-present,observed,ERA5 (C3S),0.2816
+2011-present,model_member,0,0.1939
+2011-present,model_member,1,0.2522
+2011-present,model_member,2,0.3027
+2011-present,model_member,3,0.3370
+2011-present,model_member,4,0.1386
+2011-present,model_member,5,0.3278
+2011-present,model_member,6,0.1743
+2011-present,model_member,7,0.1093
 2011-present,model_member,8,0.1881
-2011-present,model_member,9,0.1514
-2011-present,model_member,10,0.1788
-2011-present,model_member,11,0.3670
-2011-present,model_member,12,0.2263
-2011-present,model_member,13,0.2418
-2011-present,model_member,14,0.3398
-2011-present,model_member,15,0.3039
-2011-present,model_member,16,0.1625
-2011-present,model_member,17,0.2197
-2011-present,model_member,18,0.2186
+2011-present,model_member,9,0.1525
+2011-present,model_member,10,0.1787
+2011-present,model_member,11,0.3694
+2011-present,model_member,12,0.2242
+2011-present,model_member,13,0.2439
+2011-present,model_member,14,0.3380
+2011-present,model_member,15,0.3057
+2011-present,model_member,16,0.1637
+2011-present,model_member,17,0.2168
+2011-present,model_member,18,0.2192
 2011-present,model_member,19,0.2545
-2011-present,model_member,20,0.1788
-2011-present,model_member,21,0.2560
-2011-present,model_member,22,0.2574
+2011-present,model_member,20,0.1768
+2011-present,model_member,21,0.2537
+2011-present,model_member,22,0.2521
 2011-present,observed,HadCRUT5,0.3507
 2011-present,observed,GISTEMP,0.3828
 2011-present,observed,NOAA,0.3699
 2011-present,observed,Berkeley Earth,0.3910
-2011-present,observed,ERA5 (C3S),0.4097
+2011-present,observed,ERA5 (C3S),0.4120
