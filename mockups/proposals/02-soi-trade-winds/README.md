@@ -7,10 +7,22 @@ system** to a tab that is currently all ocean:
 
 - **Row 1 — Southern Oscillation Index** (standardized Tahiti − Darwin
   sea-level pressure) as sign-colored bars. *Station-based observation.*
+
+  > **Proposed panel caption:** The Southern Oscillation Index is the
+  > standardised sea-level-pressure difference between Tahiti and Darwin — a
+  > station-based observation, plotted here from the NOAA CPC series that
+  > begins in 1951. Strongly negative values mean the pressure see-saw has
+  > tipped and weakened trade winds are reinforcing El Niño.
 - **Row 2 — Equatorial Pacific 850 hPa trade-wind anomalies** for the three
   longitude zones CPC publishes — West (135°E–180°), Central (175°W–140°W),
   East (135°W–120°W), all 5°N–5°S — with the observed Niño 3.4 anomaly (°C)
   overlaid dashed on a secondary axis. *Reanalysis-derived indices.*
+
+  > **Proposed panel caption:** Trade-wind anomalies — the zonal wind at
+  > 850 hPa over the equatorial Pacific from the NCEP/NCAR (CDAS) atmospheric
+  > reanalysis, with positive values meaning stronger easterlies. Sustained
+  > westerly anomalies (negative here) push warm water eastward and show the
+  > atmosphere coupling to a developing event.
 
 Mock-up window: 2015 → present (both series extend further back; see open
 questions).
@@ -34,7 +46,7 @@ record panel — observed atmosphere next to observed ocean. Alternative: a new
 ## Data provenance
 
 Exact retrieval timestamps and sha256 checksums for every cached file are in
-`data/MANIFEST.json` (retrieved 2026-08-13 UTC).
+`data/MANIFEST.json` (retrieved 2026-09-07 UTC, at repo commit `dc1fb33`).
 
 | Product | Publisher | Exact URL | Series | Cadence | Licence/terms | Type |
 |---|---|---|---|---|---|---|

@@ -12,6 +12,12 @@ era-relative convention as that figure: each year measured against a centered
 excluded, 15-day circular smooth), so the long-term warming trend is removed
 and years compare as *states* across the record.
 
+> **Proposed panel caption:** Mean sea-surface-temperature anomaly across the
+> tropical band (20°S–20°N, all longitudes) versus a centred 30-year
+> climatology, updated daily from the OISST v2.1 satellite-plus-in-situ
+> analysis. It shows whether the wider tropical ocean, beyond the Niño boxes,
+> is running unusually warm for its era.
+
 ## Why it adds value
 
 The tropical-belt mean is literally the RONI denominator: RONI = Niño 3.4

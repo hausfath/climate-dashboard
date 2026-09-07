@@ -10,10 +10,19 @@ pipeline **already renders and commits** into `forecast_skill/`:
   46-day forecast tail — since upstream `fae45a1` a **lead-decaying bias
   correction** (replacing the earlier constant lead-0 correction), with the fit
   hardened and its provenance exposed in `2f8ebc7`; see `src/ec46_skill.py`.
+
+  > **Proposed panel caption:** Verification of the dashboard's 46-day global
+  > temperature forecasts against subsequent ERA5 observations across all
+  > archived initialisations. It shows how far ahead the daily forecast has
+  > earned trust.
 - `enso_skill_{oni,roni}_{lines,plumes,hybrid}.png` — each frozen monthly
   multi-model ENSO plume against observed monthly-mean Niño 3.4 / RONI
   (see `src/enso_skill.py`). The mock-up proposes the **hybrid** style as the
   page default, with the other styles left as downloads.
+
+  > **Proposed panel caption:** Verification of archived Niño 3.4 forecast
+  > plumes against observed outcomes. It shows how well the multi-model
+  > ensemble has anticipated events so far.
 
 `skill-panel.html` is a static mock-up in the `mockups/` convention
 (`../../mock.css`, observatory dark theme, ENSO teal accent) embedding copies
