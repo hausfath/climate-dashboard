@@ -27,13 +27,15 @@ Tracks daily global mean temperature anomalies relative to preindustrial (1850-1
 
 Multi-model ENSO (El Nino-Southern Oscillation) forecast system combining 13 distinct physical models (~650 ensemble members) from four operational sources (CFSv2, NMME, C3S, CanSIPS), with duplicate physical models de-duplicated across sources and every model weighted equally in multi-model statistics. Supports both the standard Nino3.4 anomaly (ONI) and the Relative ONI (rONI), which subtracts tropical-mean warming for fairer cross-decade comparison. Full details in [ENSO/METHODOLOGY.md](ENSO/METHODOLOGY.md).
 
-**Summary cards**: Current ENSO state (El Nino / La Nina / Neutral with ONI value), peak forecast anomaly with model spread, and forecast source summary.
+**Summary cards**: Current ENSO state (daily Nino3.4 from OISSTv2.1), peak forecast anomaly with model spread, probability of a very strong event, and the atmosphere's monthly coupling state (SOI and central-Pacific trade winds, linked to section 05). A pill sub-nav under the cards jumps to each numbered section.
 
 **Plots** (each in ONI and rONI variants):
 - **Mega plume** -- Individual ensemble members as thin lines, per-model means as thick lines, and multi-model mean as dashed line, with observed Nino3.4 and El Nino/La Nina background shading
 - **Box distribution** -- Model-weighted box plots per target month with jittered dots colored by source model
 - **Historical context** -- Observed Nino3.4 since 1990 with El Nino/La Nina fills and multi-model forecast overlay
 - **Strength probabilities** -- Model-weighted probability of each ENSO strength category (La Nina through Very Strong El Nino) by 3-month season
+- **Daily year-lines** -- This year's daily index against every year since 1982 (era-relative anomalies), switchable between Nino 1+2 / 3 / 3.4 / 4 and the 20S-20N tropical belt that rONI subtracts
+- **Is it coupled?** (section 05, interactive-only, *monthly, not real-time*) -- Southern Oscillation Index with 850 hPa trade-wind anomalies, and PMEL warm water volume against observed Nino3.4. Stacked panels on a shared time axis (no dual axes); each panel is tagged with the last month available. Proposed in [PR #2](https://github.com/hausfath/climate-dashboard/pull/2)
 
 ### Models vs. Observations
 
@@ -60,6 +62,8 @@ Compares CMIP climate model projections against five observational temperature r
 | ONI (Oceanic Nino Index) | NOAA CPC | Observed ENSO state |
 | RONI (Relative ONI) | NOAA CPC | Observed ENSO state, warming-adjusted |
 | Nino3.4 SST anomaly | NOAA CPC / PSL | Observed ENSO monitoring |
+| SOI + 850 hPa trade-wind indices | NOAA CPC | ENSO coupling section (monthly) |
+| Warm water volume | NOAA/PMEL | ENSO coupling section (monthly, in arrears) |
 | CMIP3/5/6 model ensembles | PCMDI/ESGF | Model comparison tab |
 | HadCRUT5 | Met Office Hadley Centre | Observational record |
 | GISTEMP v4 | NASA GISS | Observational record |
@@ -122,6 +126,7 @@ climate-dashboard/
 │   ├── scraper.py                  # ERA5 daily CSV fetch/cache
 │   ├── enso.py                     # ENSO data: ONI, HadISST, IRI fetch
 │   ├── enso_plots.py               # ENSO Plotly plots + cards + multi-model integration
+│   ├── enso_obs.py                 # Monthly SOI / trade-wind / warm-water-volume fetch + parse
 │   ├── annual_prediction_mc.py     # Monte Carlo over ENSO ensemble for prediction CI
 │   ├── ec46_skill.py               # EC46 forecast-vs-observed skill plot
 │   ├── enso_skill.py               # ENSO plume forecast-vs-observed skill plots

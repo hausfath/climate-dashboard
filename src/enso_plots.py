@@ -1390,6 +1390,8 @@ from src.nino_daily import (FIRST_NINO_YEAR, HISTORY_FILE as NINO_HISTORY_FILE,
 NINO_REGION_LABELS = {
     'nino34': 'Niño 3.4', 'nino12': 'Niño 1+2',
     'nino3': 'Niño 3', 'nino4': 'Niño 4',
+    # 20°S–20°N all-longitude belt: the background the RONI subtracts
+    'tropics': 'Tropics 20°S–20°N',
 }
 
 
@@ -1566,11 +1568,37 @@ def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
     return peaks.reset_index(drop=True)
 
 
+def era_relative_monthly(obs: pd.DataFrame, col: str = "nino34_anom") -> pd.Series:
+    """Re-express a fixed-baseline monthly index as era-relative anomalies:
+    each year is measured against the mean of the same calendar month over a
+    centered 30-year window, clamped at the record edges and never including
+    the current (incomplete) year — the same rule as the daily year-lines
+    (src.nino_daily.era_relative_anomalies). Returns a Series indexed by
+    month Period, complete years only."""
+    df = obs.dropna(subset=[col]).copy()
+    df["year"] = df["year"].astype(int); df["month"] = df["month"].astype(int)
+    y0, y_cur = int(df["year"].min()), int(df["year"].max())
+    y1c = y_cur - 1                       # last complete year
+    wide = df[df["year"] <= y1c].pivot_table(index="year", columns="month", values=col)
+    out = {}
+    for _, r in df[df["year"] <= y1c].iterrows():
+        yr, mo = int(r["year"]), int(r["month"])
+        lo = int(np.clip(yr - 15, y0, y1c - 29))
+        clim = wide.loc[lo:lo + 29, mo].mean()
+        out[pd.Period(f"{yr}-{mo:02d}", "M")] = float(r[col]) - float(clim)
+    return pd.Series(out).sort_index()
+
+
 def _record_peak(index_mode: str) -> tuple[float, str] | tuple[None, None]:
-    """Peak observed MONTHLY value of this index (like-for-like with the
-    members' monthly peaks) and an event label. ONI uses the era-relative
-    convention from the daily OISST history (complete months only); RONI
-    uses NOAA's scaled monthly rNINO3.4."""
+    """Peak observed MONTHLY value of this index and an event label.
+
+    ONI: NOAA CPC's monthly Niño 3.4 (the same series the plume and
+    historical panels plot), re-expressed on the era-relative convention so
+    the record is judged against its own era (a higher, more conservative
+    bar than the fixed 1991–2020 baseline). Until 2026-09-10 this used our
+    own daily OISSTv2.1 box mean instead, which ran ~0.09 °C warmer than
+    CPC's product for Nov 2015 (2.86 vs 2.77 here). RONI uses NOAA's scaled
+    monthly rNINO3.4 as published."""
     try:
         if index_mode == "roni":
             obs = pd.read_csv(OBSERVED_DIR / "rnino_monthly.csv")
@@ -1578,11 +1606,8 @@ def _record_peak(index_mode: str) -> tuple[float, str] | tuple[None, None]:
             val = float(obs.loc[i, "rnino34"])
             yr, mo = int(obs.loc[i, "year"]), int(obs.loc[i, "month"])
         else:
-            from src.nino_daily import era_relative_anomalies
-            d = era_relative_anomalies(load_nino34_history(), "oni")
-            d = d[d["year"] < int(d["year"].max())]   # complete years only
-            per = d.groupby(d["date"].dt.to_period("M"))["anom"]
-            monthly = per.mean()[per.count() >= 25]
+            obs = pd.read_csv(OBSERVED_DIR / "nino34_monthly.csv")
+            monthly = era_relative_monthly(obs, "nino34_anom")
             p = monthly.idxmax()
             val = float(monthly.max())
             yr, mo = p.year, p.month
@@ -1724,8 +1749,11 @@ def create_enso_peak_lollipop(forecast_df, dark_mode=False,
         showlegend=False,
         xaxis=dict(
             title=(f"Peak {meta['short']} anomaly, Jul–Dec {year} (°C)"),
-            range=[x_min, x_max], dtick=0.5,
+            range=[x_min, x_max], dtick=0.5, hoverformat='.2f',
         ),
+        # Per-point hover: the template's 'x unified' mode would add a header
+        # with the raw x coordinate (e.g. 3.8666667) above the rounded text.
+        hovermode='closest',
         yaxis=dict(   # lollipop panel
             domain=[0, 0.56], type='category',
             categoryorder='array', categoryarray=stats.index.tolist(),
@@ -1794,3 +1822,163 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
                     fig.write_image(str(filepath), width=width, height=height, scale=2)
                 except Exception as e:
                     logger.error(f"Failed to generate {filename}: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Coupling observations: SOI + trade winds, warm water volume (monthly)
+# ---------------------------------------------------------------------------
+
+_COUPLING_START = "1990-01-01"   # matches section 04 "In context"
+
+
+def _sign_colors(dark_mode):
+    """Warm (El Niño-like) / cool (La Niña-like) pair used across the tab."""
+    return (('#e4572e', '#7cc7e8') if dark_mode else ('#d94f25', '#2a7fa8'))
+
+
+def create_soi_trade_winds(obs_df, dark_mode=False, start=_COUPLING_START) -> go.Figure:
+    """Two stacked panels on one time axis (no dual axis): the Southern
+    Oscillation Index as sign-coloured bars, and the CPC 850 hPa trade-wind
+    anomaly indices for the west / central / east equatorial Pacific.
+    Positive wind anomaly = stronger easterly trades; negative = weakened
+    trades, the atmospheric signature of El Niño. Monthly products."""
+    from plotly.subplots import make_subplots
+    theme = get_theme(dark_mode)
+    warm, cool = _sign_colors(dark_mode)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                        row_heights=[0.42, 0.58], vertical_spacing=0.09)
+    if obs_df is None or obs_df.empty:
+        fig.update_layout(template=theme['template'])
+        return fig
+    df = obs_df[obs_df.index >= start]
+
+    soi = df['soi'].dropna()
+    fig.add_trace(go.Bar(
+        x=soi.index, y=soi.values, name='SOI',
+        marker_color=[warm if v < 0 else cool for v in soi.values],
+        marker_line_width=0,
+        hovertemplate='SOI %{y:+.1f}<extra></extra>'), row=1, col=1)
+
+    wind_colors = {'wind_wpac': '#c9a227' if dark_mode else '#b58a00',
+                   'wind_cpac': warm,
+                   'wind_epac': '#a29bfe' if dark_mode else '#6c5ce7'}
+    for col, label in WIND_LABELS_SHORT.items():
+        if col not in df:
+            continue
+        s = df[col].dropna()
+        fig.add_trace(go.Scatter(
+            x=s.index, y=s.values, mode='lines', name=label,
+            line=dict(color=wind_colors[col], width=2.0 if col == 'wind_cpac' else 1.2),
+            opacity=1.0 if col == 'wind_cpac' else 0.85,
+            hovertemplate=f'{label} ({WIND_SPANS[col]}) ' + '%{y:+.1f} m/s<extra></extra>'), row=2, col=1)
+
+    fg_soft = '#9a958d' if dark_mode else '#8a857c'
+    for r in (1, 2):
+        fig.add_hline(y=0, line_color=fg_soft, line_width=1, opacity=0.6, row=r, col=1)
+    # Reading aids, placed in the margins so they don't collide with data.
+    # (paper refs only — passing row/col would re-map x=0.005 onto the date
+    # axis and drag the range back to 1970)
+    for ytop, txt in ((0.585, 'negative = El Niño-like'),
+                      (0.035, 'negative = weakened trades (El Niño-like)')):
+        fig.add_annotation(xref='paper', yref='paper', x=0.005, y=ytop,
+                           yanchor='bottom', xanchor='left', text=txt,
+                           showarrow=False, font=dict(size=10, color=fg_soft))
+
+    fig.update_yaxes(title_text='SOI (standardized)', row=1, col=1)
+    fig.update_yaxes(title_text='850 hPa zonal wind anomaly (m/s)', row=2, col=1)
+    fig.update_xaxes(hoverformat='%b %Y', row=2, col=1)
+    fig.update_xaxes(hoverformat='%b %Y', row=1, col=1)
+    fig.update_layout(
+        template=theme['template'], height=520, hovermode='x unified',
+        bargap=0.15, showlegend=True,
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0, font=dict(size=11)),
+        margin=dict(l=60, r=30, t=48, b=40),
+    )
+    return fig
+
+
+# Legend labels stay short for the half-width panel; the longitude spans
+# live in the hover text and the caption.
+WIND_LABELS_SHORT = {'wind_wpac': 'W Pacific trades',
+                     'wind_cpac': 'C Pacific trades',
+                     'wind_epac': 'E Pacific trades'}
+WIND_SPANS = {'wind_wpac': '135°E–180°', 'wind_cpac': '175°W–140°W',
+              'wind_epac': '135°W–120°W'}
+
+
+def wwv_lead_correlation(wwv: pd.Series, nino: pd.Series, max_lag=12) -> tuple[float, int]:
+    """Max Pearson r of corr(WWV(t), Niño3.4(t + k)) over k = 0..max_lag
+    months, on the overlapping window. Returns (r, k)."""
+    best = (float('nan'), 0)
+    for k in range(max_lag + 1):
+        shifted = nino.copy()
+        shifted.index = shifted.index - pd.DateOffset(months=k)
+        pair = pd.concat([wwv, shifted], axis=1, join='inner').dropna()
+        if len(pair) < 60:
+            continue
+        r = float(pair.iloc[:, 0].corr(pair.iloc[:, 1]))
+        if np.isnan(best[0]) or r > best[0]:
+            best = (r, k)
+    return best
+
+
+def create_wwv_nino34(wwv: pd.Series, obs_monthly: pd.DataFrame, dark_mode=False,
+                      start=_COUPLING_START) -> go.Figure:
+    """Two stacked panels on one time axis: PMEL warm water volume anomaly
+    (subsurface heat, 5°N–5°S, 120°E–80°W) above the observed monthly Niño
+    3.4 anomaly. WWV leads the surface by two to three seasons (Meinen &
+    McPhaden 2000); the lead correlation is computed from the plotted data."""
+    from plotly.subplots import make_subplots
+    theme = get_theme(dark_mode)
+    warm, cool = _sign_colors(dark_mode)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                        row_heights=[0.5, 0.5], vertical_spacing=0.09)
+    if wwv is None or wwv.empty:
+        fig.update_layout(template=theme['template'])
+        return fig
+    w = wwv[wwv.index >= start]
+    nino = pd.Series(dtype=float)
+    if obs_monthly is not None and not obs_monthly.empty and 'nino34_anom' in obs_monthly:
+        n = obs_monthly.dropna(subset=['nino34_anom'])
+        nino = pd.Series(n['nino34_anom'].values, index=pd.to_datetime(n['date']))
+        nino = nino[nino.index >= start]
+
+    teal = '#4ecdc4' if dark_mode else '#0f9d94'
+    fig.add_trace(go.Scatter(
+        x=w.index, y=w.clip(lower=0).values, mode='lines', name='WWV anomaly (excess warm water)',
+        line=dict(color=warm, width=1.2), fill='tozeroy',
+        fillcolor='rgba(228, 87, 46, 0.35)' if dark_mode else 'rgba(217, 79, 37, 0.30)',
+        hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=w.index, y=w.clip(upper=0).values, mode='lines', name='WWV anomaly (deficit)',
+        line=dict(color=cool, width=1.2), fill='tozeroy',
+        fillcolor='rgba(124, 199, 232, 0.35)' if dark_mode else 'rgba(42, 127, 168, 0.28)',
+        hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=w.index, y=w.values, mode='lines', name='WWV anomaly',
+        line=dict(color=theme['text_color'], width=1.0), opacity=0.55, showlegend=False,
+        hovertemplate='WWV %{y:+.2f} ×10¹⁴ m³<extra></extra>'), row=1, col=1)
+    if not nino.empty:
+        fig.add_trace(go.Scatter(
+            x=nino.index, y=nino.values, mode='lines', name='Niño 3.4 anomaly (monthly)',
+            line=dict(color=teal, width=2.0),
+            hovertemplate='Niño 3.4 %{y:+.2f}°C<extra></extra>'), row=2, col=1)
+        r, k = wwv_lead_correlation(w, nino)
+        if not np.isnan(r):
+            fig.add_annotation(
+                xref='paper', yref='paper', x=0.005, y=0.99, xanchor='left', yanchor='top',
+                text=(f"Warm water builds first: r = {r:.2f} with Niño 3.4 lagged "
+                      f"{k} month{'s' if k != 1 else ''} ({w.index.min():%Y}–present)"),
+                showarrow=False, font=dict(size=11, color=theme['text_color']),
+                bgcolor=theme['paper_color'], opacity=0.9)
+    fg_soft = '#9a958d' if dark_mode else '#8a857c'
+    for r_ in (1, 2):
+        fig.add_hline(y=0, line_color=fg_soft, line_width=1, opacity=0.6, row=r_, col=1)
+    fig.update_yaxes(title_text='WWV anomaly (10¹⁴ m³)', row=1, col=1)
+    fig.update_yaxes(title_text='Niño 3.4 anomaly (°C)', row=2, col=1)
+    fig.update_xaxes(hoverformat='%b %Y')
+    fig.update_layout(
+        template=theme['template'], height=520, hovermode='x unified', showlegend=False,
+        margin=dict(l=60, r=30, t=40, b=40),
+    )
+    return fig

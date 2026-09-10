@@ -333,7 +333,9 @@ def export_heatmaps(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 _NINO_REGION_TITLES = {"nino12": "Nino 1+2", "nino3": "Nino 3",
-                       "nino34": "Nino 3.4", "nino4": "Nino 4"}
+                       "nino34": "Nino 3.4", "nino4": "Nino 4",
+                       "tropics": "tropical-belt (20S-20N) mean"}
+_NINO_DAILY_REGIONS = ("nino34", "nino12", "nino3", "nino4", "tropics")
 
 
 def export_nino_daily_years() -> None:
@@ -355,7 +357,7 @@ def export_nino_daily_years() -> None:
         "Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.",
         "Source: NOAA OISST v2.1 daily box means."]
 
-    for region in ("nino34", "nino12", "nino3", "nino4"):
+    for region in _NINO_DAILY_REGIONS:
         d = _era_relative_anomalies(hist, "oni", region=region)
         if d is None or d.empty:
             logger.warning(f"No daily data for region {region}; skipping")
@@ -382,7 +384,7 @@ def export_nino_daily_years() -> None:
 
     # Absolute-SST variants (the figure's Anomaly/Absolute toggle)
     from src.nino_daily import FIRST_NINO_YEAR, _doy_key
-    for region in ("nino34", "nino12", "nino3", "nino4"):
+    for region in _NINO_DAILY_REGIONS:
         if region not in hist.columns:
             continue
         d = hist.copy()
@@ -399,6 +401,49 @@ def export_nino_daily_years() -> None:
                 "Feb 29 values are mapped to day-of-year 59 (Feb 28) so "
                 "years align.",
                 "Source: NOAA OISST v2.1 daily box means."],
+               float_format="%.3f")
+
+
+def export_enso_observations() -> None:
+    """Monthly coupling observations behind the 'Is it coupled?' section:
+    SOI + 850 hPa trade-wind indices (one file) and PMEL warm water volume
+    with the observed monthly Nino 3.4 alongside (one file)."""
+    from src.enso_obs import load_enso_observations
+    obs = load_enso_observations()
+    sw = obs["soi_winds"]
+    if not sw.empty:
+        out = sw.reset_index()
+        out["date"] = out["date"].dt.strftime("%Y-%m")
+        out = out.rename(columns={"date": "month", "wind_wpac": "trade_wind_anom_wpac_ms",
+                                  "wind_cpac": "trade_wind_anom_cpac_ms",
+                                  "wind_epac": "trade_wind_anom_epac_ms"})
+        _write(out, "enso_soi_trade_winds.csv",
+               "Southern Oscillation Index and equatorial 850 hPa trade-wind anomalies (monthly)",
+               ["MONTHLY products, published a few weeks after month end (not real-time).",
+                "soi: standardized Tahiti minus Darwin sea-level pressure (NOAA CPC, 1951-); "
+                "negative = El Nino-like.",
+                "trade_wind_anom_*: 850 hPa zonal wind anomaly indices, 5N-5S, west 135E-180, "
+                "central 175W-140W, east 135W-120W (NOAA CPC, CDAS/NCEP-NCAR reanalysis, "
+                "1981-2010 base, m/s); positive = stronger easterly trades, negative = weakened.",
+                "Sources: https://www.cpc.ncep.noaa.gov/data/indices/{soi,wpac850,cpac850,epac850}"],
+               float_format="%.2f")
+    w = obs["wwv"]
+    if not w.empty:
+        from src.enso_plots import load_full_observed
+        nino = load_full_observed(1980)
+        n = pd.Series(nino["nino34_anom"].values, index=pd.to_datetime(nino["date"])) \
+            if not nino.empty else pd.Series(dtype=float)
+        out = pd.concat([w.rename("wwv_anom_1e14_m3"), n.rename("nino34_anom_c")], axis=1).sort_index()
+        out.index.name = "month"
+        out = out.reset_index()
+        out["month"] = out["month"].dt.strftime("%Y-%m")
+        _write(out, "enso_warm_water_volume.csv",
+               "Equatorial Pacific warm water volume anomaly with observed monthly Nino 3.4",
+               ["MONTHLY product, published in arrears (not real-time).",
+                "wwv_anom_1e14_m3: anomaly of the volume of water warmer than 20 C, 5N-5S, "
+                "120E-80W, in units of 1e14 m^3 (NOAA/PMEL, derived from ocean analyses).",
+                "nino34_anom_c: observed monthly Nino 3.4 SST anomaly vs 1991-2020 (NOAA CPC OISST).",
+                "Source: https://www.pmel.noaa.gov/tao/wwv/data/wwv.dat"],
                float_format="%.3f")
 
 
@@ -820,6 +865,7 @@ def generate_all_csv_exports(df: pd.DataFrame, enso_df=None,
         _step(export_rank_probabilities, stats)
 
     _step(export_nino_daily_years)
+    _step(export_enso_observations)
 
     try:
         from src.enso_plots import load_enso_forecast_data

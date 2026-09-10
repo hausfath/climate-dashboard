@@ -2316,6 +2316,25 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     except Exception as e:
         logger.warning(f"Could not pre-load CMIP data: {e}")
 
+    # Monthly coupling observations (SOI, trade winds, warm water volume) for
+    # section 05 and the Atmosphere KPI. Interactive-only panels; degrade to
+    # empty figures / an N/A card if the derived CSVs are missing.
+    _coupling_obs = {"soi_winds": pd.DataFrame(), "wwv": pd.Series(dtype=float)}
+    _coupling_status = None
+    _coupling_nino = pd.DataFrame()
+    try:
+        from src.enso_obs import load_enso_observations, latest_coupling_status
+        from src.enso_plots import (
+            load_full_observed as _load_full_observed,
+            create_soi_trade_winds as _create_soi_trade_winds,
+            create_wwv_nino34 as _create_wwv_nino34,
+        )
+        _coupling_obs = load_enso_observations()
+        _coupling_status = latest_coupling_status(_coupling_obs)
+        _coupling_nino = _load_full_observed(1990)
+    except Exception as e:
+        logger.error(f"Coupling observations load failed: {e}")
+
     # Pre-load ENSO forecast data
     _ENSO_AVAILABLE = False
     _enso_forecast_df = _enso_obs_df = _enso_oni_df = pd.DataFrame()
@@ -2732,6 +2751,22 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     enso_strip = _enso_odds_strip(_enso_odds, 'ONI')
     _pvs_label, _pvs_value, _pvs_sub = _pvs_card_parts(_enso_odds, 'ONI')
 
+    def _coupling_kpi():
+        """Atmosphere card: latest monthly SOI + central-Pacific trades. Bound
+        to computed values; labelled monthly because it is (the neighbouring
+        Niño 3.4 card is daily)."""
+        st = _coupling_status
+        if not st:
+            return L.kpi("Atmosphere · monthly", "N/A",
+                         "SOI and trade-wind indices unavailable")
+        card = L.kpi("Atmosphere · monthly",
+                     [f"SOI {st['soi']:+.1f} ", html.Small(st['month_label'])],
+                     [st['reading'], html.Br(),
+                      f"Central Pacific trades {st['wind_cpac']:+.1f} m/s · "
+                      "monthly means, not real-time"])
+        return html.A(card, href='#sec-coupled', className='kpi-link',
+                      title='Jump to section 05 · Is it coupled?')
+
     enso_kpis = L.kpi_row([
         L.kpi("Current state",
               (f"{_daily_state_label}: {_nino_daily['nino34_anom']:+.2f}°C"
@@ -2747,10 +2782,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.kpi(_pvs_label, _pvs_value, _pvs_sub,
               label_id='enso-card-3-label', value_id='enso-card-3-value',
               sub_id='enso-card-3-sub'),
-        L.kpi("Ensemble",
-              [f"{_enso_cards.get('n_models', '?')} ", html.Small("models")],
-              f"{_enso_cards.get('n_members', '?')} members · CFS, NMME, C3S, CanSIPS, SINTEX-F"),
+        _coupling_kpi(),
     ])
+    # Ensemble size moves into section 02's hint so nothing is lost.
+    _ensemble_hint = (f"Model-equal weighting · {_enso_cards.get('n_models', '?')} systems · "
+                      f"{_enso_cards.get('n_members', '?')} members")
 
     # Page-level ONI/RONI switch: pinned to the tab's upper right, above the
     # hero, so it reads as controlling the whole page (it does — every card,
@@ -2767,6 +2803,26 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ),
     ], className='index-switch')
 
+    # In-page section nav: keeps the page navigable as sections are added
+    # without another topbar tab. Section ids double as URL hashes.
+    _enso_subnav = html.Nav([
+        html.A([html.Span(no, className="no"), label], href=f"#{sid}")
+        for no, label, sid in [("01", "Right now", "sec-daily-nino"),
+                               ("02", "The forecast", "sec-plume"),
+                               ("03", "How strong, when", "sec-odds"),
+                               ("04", "In context", "sec-context"),
+                               ("05", "Is it coupled?", "sec-coupled")]
+    ], className="subnav", **{'aria-label': 'ENSO page sections'})
+    _soi_month = _coupling_status['month_label'] if _coupling_status else 'n/a'
+    _wwv_month = (_coupling_status['wwv'][1].strftime('%b %Y')
+                  if _coupling_status and _coupling_status.get('wwv') else 'n/a')
+
+    def _coupling_graph(gid):
+        return dcc.Loading(id=f"loading-{gid}", type="circle", children=[
+            dcc.Graph(id=gid, style={'height': '520px'},
+                      config={'toImageButtonOptions': {'scale': 3},
+                              'displaylogo': False})])
+
     tab_enso = html.Div(id='tab-content-enso', style={'display': 'none'}, children=[
         _enso_index_ctl,
         L.hero(enso_kicker, enso_headline, enso_lede,
@@ -2774,6 +2830,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                lede_id='enso-lede',
                right=enso_strip, right_id='enso-odds-wrap'),
         enso_kpis,
+        _enso_subnav,
         L.section("01", "Right now", "OISSTv2.1 daily · 1982–present",
                   "The daily index against every year in the satellite record, "
                   "each year measured against its own era's climatology so "
@@ -2792,7 +2849,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                             options=[{'label': '1+2', 'value': 'nino12'},
                                      {'label': '3', 'value': 'nino3'},
                                      {'label': '3.4', 'value': 'nino34'},
-                                     {'label': '4', 'value': 'nino4'}],
+                                     {'label': '4', 'value': 'nino4'},
+                                     {'label': 'Tropics', 'value': 'tropics'}],
                             value='nino34',
                         ),
                         dbc.RadioItems(
@@ -2820,7 +2878,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     csv_id='nino-daily-csv',
                     csv_href='/assets/data/nino_daily_years_nino34.csv'),
         ], section_id='sec-daily-nino'),
-        L.section("02", "The forecast", "Model-equal weighting",
+        L.section("02", "The forecast", _ensemble_hint,
                   "Every seasonal forecast system's full ensemble, drawn as one "
                   "plume. The dotted line is the model-equal-weighted median.", [
             L.panel("Combined forecast plume · ONI (Niño 3.4)",
@@ -2887,6 +2945,43 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     csv_id='enso-historical-csv',
                     csv_href='/assets/data/enso_historical_oni.csv'),
         ], section_id='sec-context'),
+        L.section("05", "Is it coupled?", "Monthly · not real-time",
+                  "The atmosphere and the subsurface ocean: the two halves of "
+                  "the feedback that turns banked warm water into an El Niño. "
+                  "Unlike the daily index in section 01, these are monthly "
+                  "products that post a few weeks after each month ends.", [
+            L.duo(
+                L.panel("Southern Oscillation Index and trade winds",
+                        tag=f"Monthly · through {_soi_month}",
+                        body=_coupling_graph('enso-soi-winds-plot'),
+                        caption=[
+                            html.B(f"Monthly means through {_soi_month}, "
+                                   "not real-time. "),
+                            "SOI: standardized Tahiti − Darwin pressure "
+                            "difference from station observations (NOAA CPC). "
+                            "Trade winds: 850 hPa zonal wind anomaly indices "
+                            "from the NCEP–NCAR/CDAS reanalysis, 1981–2010 base "
+                            "(NOAA CPC). Positive = stronger easterly trades; "
+                            "a negative SOI with weakened trades is the "
+                            "atmospheric half of El Niño."],
+                        csv_href='/assets/data/enso_soi_trade_winds.csv'),
+                L.panel("Warm water volume and Niño 3.4",
+                        tag=f"Monthly · through {_wwv_month}",
+                        body=_coupling_graph('enso-wwv-plot'),
+                        caption=[
+                            html.B(f"Monthly through {_wwv_month}, published "
+                                   "in arrears. "),
+                            "Volume of water warmer than 20 °C across the "
+                            "equatorial Pacific (5°N–5°S, 120°E–80°W), "
+                            "NOAA/PMEL, derived from ocean analyses rather "
+                            "than measured directly. Warm water banked below "
+                            "the surface typically leads Niño 3.4 by two to "
+                            "three seasons (Meinen & McPhaden 2000); the lead "
+                            "correlation shown is computed from the plotted "
+                            "window."],
+                        csv_href='/assets/data/enso_warm_water_volume.csv'),
+            ),
+        ], section_id='sec-coupled'),
     ])
 
     # ── Models tab ──────────────────────────────────────────────────────────
@@ -3187,6 +3282,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         return not is_open
 
     _VALID_TABS = {'global', 'enso', 'models', 'map'}
+    # Section anchors from the ENSO sub-nav; a shared #sec-… link should land
+    # on the ENSO tab rather than whichever tab the visitor last used.
+    _ENSO_SECTION_IDS = {'sec-daily-nino', 'sec-plume', 'sec-odds',
+                         'sec-context', 'sec-coupled'}
     _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet',
                     'map': 'accent-gold'}
     _NAV_ACTIVE = {'global': 'tab-active-temp', 'enso': 'tab-active-enso',
@@ -3236,6 +3335,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             h = (url_hash or '').lstrip('#').lower()
             if h in _VALID_TABS:
                 tab = h
+            elif h in _ENSO_SECTION_IDS:
+                tab = 'enso'
             else:
                 tab = current_tab or 'global'
         nav_cls = lambda t: ('nav-link ' + _NAV_ACTIVE[t]) if t == tab else 'nav-link'
@@ -3849,13 +3950,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         idx_title = ('RONI (relative Niño 3.4)' if roni_on
                      else 'ONI (Niño 3.4)')
         _region_titles = {'nino34': 'ONI (Niño 3.4)', 'nino12': 'Niño 1+2',
-                          'nino3': 'Niño 3', 'nino4': 'Niño 4'}
+                          'nino3': 'Niño 3', 'nino4': 'Niño 4',
+                          'tropics': 'Tropics 20°S–20°N'}
         daily_title = (idx_title if roni_on
                        else _region_titles.get(nino_region or 'nino34',
                                                'ONI (Niño 3.4)'))
         if not roni_on and nino_display == 'absolute':
             _abs_titles = {'nino34': 'Niño 3.4', 'nino12': 'Niño 1+2',
-                           'nino3': 'Niño 3', 'nino4': 'Niño 4'}
+                           'nino3': 'Niño 3', 'nino4': 'Niño 4',
+                           'tropics': 'Tropical belt (20°S–20°N)'}
             daily_title = (_abs_titles.get(nino_region or 'nino34',
                                            'Niño 3.4') + ' SST')
         odds = _enso_odds_roni if roni_on else _enso_odds
@@ -3926,7 +4029,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def lock_region_in_roni(roni_on, region, display):
         options = [{'label': lab, 'value': val, 'disabled': bool(roni_on)}
                    for lab, val in [('1+2', 'nino12'), ('3', 'nino3'),
-                                    ('3.4', 'nino34'), ('4', 'nino4')]]
+                                    ('3.4', 'nino34'), ('4', 'nino4'),
+                                    ('Tropics', 'tropics')]]
         # RONI is an anomaly index by construction — lock display too.
         display_options = [{'label': lab, 'value': val,
                             'disabled': bool(roni_on)}
@@ -3957,6 +4061,13 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         base.append("Anomalies are vs centered 30-year day-of-year "
                     "climatologies (the ONI convention, current year "
                     "excluded), so the warming trend is removed. ")
+        if region == 'tropics':
+            base.append("This 20°S–20°N, all-longitude belt is the background "
+                        "that RONI subtracts from Niño 3.4: when it runs warm "
+                        "for its era, part of the Niño 3.4 anomaly is "
+                        "basin-wide warmth rather than ENSO. Category bands "
+                        "are omitted (thresholds are defined on Niño 3.4).")
+            return base
         if region == 'nino34':
             base.append("Category bands are ONI event thresholds (3-month "
                         "means), shown for reference only.")
@@ -3964,6 +4075,33 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             base.append("Category bands are omitted: ENSO event thresholds "
                         "are defined on Niño 3.4, not this region.")
         return base
+
+    # Section 05: monthly coupling observations (interactive-only, own chain
+    # heads — they don't depend on the forecast data or the static toggle).
+    @app.callback(
+        Output('enso-soi-winds-plot', 'figure'),
+        [Input('dark-mode-switch', 'value')],
+    )
+    def update_soi_trade_winds(dark_mode):
+        try:
+            return _create_soi_trade_winds(_coupling_obs['soi_winds'], dark_mode)
+        except Exception as e:
+            logger.error(f"SOI/trade-wind plot error: {e}")
+            return go.Figure()
+
+    @app.callback(
+        Output('enso-wwv-plot', 'figure'),
+        [Input('dark-mode-switch', 'value'),
+         Input('unit-switch', 'value')],
+    )
+    def update_wwv_nino34(dark_mode, fahrenheit):
+        try:
+            return convert_figure_units(
+                _create_wwv_nino34(_coupling_obs['wwv'], _coupling_nino, dark_mode),
+                fahrenheit)
+        except Exception as e:
+            logger.error(f"WWV plot error: {e}")
+            return go.Figure()
 
     # ENSO Graph 1: Mega Plume (chained from the daily year-lines)
     @app.callback(

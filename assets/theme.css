@@ -615,3 +615,27 @@ body.light .modal-header .btn-close { filter: none; }
 @media (max-width: 720px) {
   .index-switch { justify-content: flex-start; margin-bottom: 0; padding-top: 16px; }
 }
+
+/* ------------------------------------------------------- in-page section nav */
+/* ENSO tab: numbered pills under the KPI row; sections double as URL hashes. */
+.subnav {
+  max-width: 1240px; margin: -22px auto 0; padding: 0 32px 44px;
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.subnav a {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-dim); text-decoration: none;
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  background: var(--bg-raised); display: inline-flex; gap: 9px; align-items: center;
+  transition: border-color .2s, color .2s;
+}
+.subnav a:hover { color: var(--text); border-color: var(--accent-line); }
+.subnav a .no { color: var(--accent); font-weight: 500; }
+.block { scroll-margin-top: 72px; }   /* anchors land below the sticky topbar */
+
+/* KPI card that links to a section */
+.kpi-link { text-decoration: none; color: inherit; display: block; }
+.kpi-link .kpi { height: 100%; cursor: pointer; }
+@media (max-width: 900px) {
+  .subnav { padding: 0 20px 32px; margin-top: -14px; }
+}

@@ -176,6 +176,16 @@ def update_data(force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Daily Niño 3.4 update failed: {e}")
 
+    # Monthly ENSO coupling observations (CPC SOI + 850 hPa trade winds,
+    # PMEL warm water volume) for the ENSO tab's "Is it coupled?" section.
+    # Tiny text files; re-pulled every few days or when last month is missing.
+    logger.info("Updating monthly ENSO coupling observations...")
+    try:
+        from src.enso_obs import update_enso_observations
+        update_enso_observations(force=force)
+    except Exception as e:
+        logger.error(f"ENSO coupling observations update failed: {e}")
+
     # Fetch ECMWF EC46 global-mean GSAT forecast (drives the daily-anomaly
     # plot's 46-day forecast tail). Cheap and idempotent on cron repeats.
     logger.info("Fetching ECMWF EC46 GSAT forecast...")
