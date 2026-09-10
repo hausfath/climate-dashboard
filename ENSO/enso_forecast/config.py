@@ -47,6 +47,15 @@ NMME_BASE_URL = "https://ftp.cpc.ncep.noaa.gov/NMME/realtime_anom/ENSMEAN/"
 OBSERVED_SSTOI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices"
 OBSERVED_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 OBSERVED_RONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt"
+# Monthly ERSSTv5 Niño 3.4 (total SST + anomaly vs 1991-2020). CPC posts this
+# table with a lag of a month or more; months it has not reached are filled
+# from the NCEI ERSSTv5 monthly grid using the table's own climatology.
+OBSERVED_ERSST_MONTHLY_URL = (
+    "https://www.cpc.ncep.noaa.gov/data/indices/ersst5.nino.mth.91-20.ascii"
+)
+NCEI_ERSST_GRID_URL = (
+    "https://www.ncei.noaa.gov/pub/data/cmb/ersst/v5/netcdf/ersst.v5.{ym}.nc"
+)
 # Monthly *relative* Niño 3.4 SST anomaly (Niño 3.4 − 20°S-20°N tropical mean),
 # 1991-2020 baseline. Two NOAA CPC products are available with the same
 # definition but different SST inputs:

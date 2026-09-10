@@ -7,7 +7,9 @@ import pandas as pd
 import requests
 
 from enso_forecast.config import (
+    NCEI_ERSST_GRID_URL,
     OBSERVED_DIR,
+    OBSERVED_ERSST_MONTHLY_URL,
     OBSERVED_ONI_URL,
     OBSERVED_RNINO_MONTHLY_ERSST_URL,
     OBSERVED_RNINO_MONTHLY_OISST_URL,
@@ -330,6 +332,122 @@ def fetch_rnino_monthly() -> pd.DataFrame:
     return df[["year", "month", "rnino34", "date", "source"]]
 
 
+
+# ---------------------------------------------------------------------------
+# ERSSTv5 monthly Niño 3.4 (the traditional ONI basis)
+# ---------------------------------------------------------------------------
+# Niño 3.4 box on the ERSSTv5 2° grid: cell centres 4°S–4°N, 190°E–240°E
+# (170°W–120°W). cos-lat weighted mean of this selection reproduces CPC's
+# published monthly totals to ≤0.02 °C on settled months (checked Aug 2024,
+# Aug 2025, Dec 2025, Mar 2026).
+_NINO34_LAT = (-5.0, 5.0)
+_NINO34_LON = (190.0, 240.0)
+_ERSST_CLIM_YEARS = (1991, 2020)
+
+
+def _parse_ersst5_monthly_table(text: str) -> pd.DataFrame:
+    """Parse CPC ``ersst5.nino.mth.91-20.ascii`` → year, month,
+    nino34_total, nino34_anom (°C, anomaly vs 1991-2020)."""
+    records = []
+    for line in text.strip().split("\n")[1:]:
+        parts = line.split()
+        if len(parts) < 10:
+            continue
+        try:
+            records.append({"year": int(parts[0]), "month": int(parts[1]),
+                            "nino34_total": float(parts[8]),
+                            "nino34_anom": float(parts[9])})
+        except ValueError:
+            continue
+    return pd.DataFrame(records)
+
+
+def _ersst5_grid_nino34_total(year: int, month: int) -> float | None:
+    """Area-weighted Niño 3.4 mean SST (°C) from the NCEI ERSSTv5 monthly
+    grid for one month; None if the file is not (yet) published."""
+    import os
+    import tempfile
+    import numpy as np
+    import xarray as xr
+
+    url = NCEI_ERSST_GRID_URL.format(ym=f"{year}{month:02d}")
+    resp = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    # netCDF4 backend needs a real path (~170 kB file; deleted afterwards)
+    fd, tmp = tempfile.mkstemp(suffix=".nc")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(resp.content)
+        with xr.open_dataset(tmp) as ds:
+            box = ds["sst"].squeeze().sel(lat=slice(*_NINO34_LAT),
+                                          lon=slice(*_NINO34_LON))
+            if box.size == 0:
+                raise ValueError("empty Niño 3.4 selection from ERSSTv5 grid")
+            w = np.cos(np.deg2rad(box["lat"]))
+            return float(box.weighted(w).mean(("lat", "lon")))
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def fetch_nino34_monthly_ersst() -> pd.DataFrame:
+    """Monthly ERSSTv5 Niño 3.4 anomaly (vs 1991-2020).
+
+    Rows through the last month in CPC's table come from the table
+    (``source = 'CPC ersst5 table'``). Later months, up to the month before
+    the current one, are computed from the NCEI ERSSTv5 monthly grid and
+    anomalised against the table's own 1991-2020 climatology
+    (``source = 'NCEI grid + CPC clim'``). ERSSTv5 revises recent months,
+    so grid-derived rows can move by a few hundredths until CPC's table
+    catches up and replaces them on a later run.
+
+    Columns: year, month, nino34_anom, nino34_total, date, source.
+    """
+    logger.info("Fetching monthly ERSSTv5 Nino3.4 from %s", OBSERVED_ERSST_MONTHLY_URL)
+    resp = requests.get(OBSERVED_ERSST_MONTHLY_URL, headers=REQUEST_HEADERS,
+                        timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    table = _parse_ersst5_monthly_table(resp.text)
+    if table.empty:
+        raise ValueError("empty ERSSTv5 monthly Nino3.4 table")
+    table["source"] = "CPC ersst5 table"
+
+    y0, y1 = _ERSST_CLIM_YEARS
+    base = table[(table["year"] >= y0) & (table["year"] <= y1)]
+    clim = (base["nino34_total"] - base["nino34_anom"]).groupby(base["month"]).mean()
+    if len(clim) != 12:
+        raise ValueError("ERSSTv5 climatology incomplete")
+
+    last = pd.Timestamp(int(table["year"].iloc[-1]), int(table["month"].iloc[-1]), 1)
+    today = pd.Timestamp(date.today())
+    cur = last + pd.offsets.MonthBegin(1)
+    extra = []
+    while cur < pd.Timestamp(today.year, today.month, 1):
+        try:
+            total = _ersst5_grid_nino34_total(cur.year, cur.month)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ERSSTv5 grid %s failed (%s); stopping fill", cur.date(), e)
+            break
+        if total is None:
+            logger.info("ERSSTv5 grid for %s not published yet", cur.strftime("%Y-%m"))
+            break
+        extra.append({"year": cur.year, "month": cur.month,
+                      "nino34_total": round(total, 3),
+                      "nino34_anom": round(total - float(clim.loc[cur.month]), 3),
+                      "source": "NCEI grid + CPC clim"})
+        cur += pd.offsets.MonthBegin(1)
+    if extra:
+        logger.info("ERSSTv5 monthly Nino3.4: %d rows from CPC table + %d from NCEI grid",
+                    len(table), len(extra))
+    df = pd.concat([table, pd.DataFrame(extra)], ignore_index=True)
+    df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
+    return df[["year", "month", "nino34_anom", "nino34_total", "date", "source"]]
+
+
 def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
     """Fetch and save both observed datasets. Returns dict of DataFrames."""
     results = {}
@@ -338,9 +456,11 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
     oni_path = OBSERVED_DIR / "oni.csv"
     roni_path = OBSERVED_DIR / "roni.csv"
     rnino_monthly_path = OBSERVED_DIR / "rnino_monthly.csv"
+    ersst_monthly_path = OBSERVED_DIR / "nino34_monthly_ersst.csv"
 
     if (not force and monthly_path.exists() and oni_path.exists()
-            and roni_path.exists() and rnino_monthly_path.exists()):
+            and roni_path.exists() and rnino_monthly_path.exists()
+            and ersst_monthly_path.exists()):
         # Check if data is recent (within 35 days)
         existing = pd.read_csv(monthly_path)
         if len(existing) > 0:
@@ -351,6 +471,7 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
                 results["oni"] = pd.read_csv(oni_path)
                 results["roni"] = pd.read_csv(roni_path)
                 results["rnino_monthly"] = pd.read_csv(rnino_monthly_path)
+                results["nino34_monthly_ersst"] = pd.read_csv(ersst_monthly_path)
                 return results
 
     monthly_df = fetch_monthly_nino34()
@@ -383,6 +504,17 @@ def save_observed(force: bool = False) -> dict[str, pd.DataFrame]:
         logger.warning("Failed to fetch monthly rNINO: %s", e)
         if rnino_monthly_path.exists():
             results["rnino_monthly"] = pd.read_csv(rnino_monthly_path)
+
+    try:
+        ersst_df = fetch_nino34_monthly_ersst()
+        ersst_df.to_csv(ersst_monthly_path, index=False)
+        logger.info("Saved %d monthly ERSSTv5 Nino3.4 records to %s",
+                    len(ersst_df), ersst_monthly_path)
+        results["nino34_monthly_ersst"] = ersst_df
+    except Exception as e:
+        logger.warning("Failed to fetch monthly ERSSTv5 Nino3.4: %s", e)
+        if ersst_monthly_path.exists():
+            results["nino34_monthly_ersst"] = pd.read_csv(ersst_monthly_path)
 
     return results
 

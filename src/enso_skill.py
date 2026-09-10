@@ -353,9 +353,16 @@ def _load_observed_oisst(index_mode: str, start: str = "2025-09-01") -> pd.DataF
 
 def _load_observed_ersst(index_mode: str, start: str = "2025-09-01") -> pd.DataFrame:
     """Monthly Niño 3.4 / rNINO3.4 from NOAA's ERSSTv5-based products (the
-    pre-OISST observed truth). Lags OISST by roughly a month; plotted
-    alongside it to show observational uncertainty."""
-    fname, col = {"oni": ("nino34_monthly.csv", "nino34_anom"),
+    traditional ONI basis), plotted alongside OISST to show observational
+    uncertainty.
+
+    ONI mode reads ``nino34_monthly_ersst.csv`` (CPC's ERSSTv5 table, with
+    months the table has not reached filled from the NCEI ERSSTv5 grid).
+    Until 2026-09-05 this read ``nino34_monthly.csv``, which is CPC's
+    OISSTv2 monthly table, so the "ERSSTv5" line was actually OISST.
+    rONI mode reads ``rnino_monthly.csv`` (ERSSTv5 primary, OISST fallback
+    for the latest month — see its ``source`` column)."""
+    fname, col = {"oni": ("nino34_monthly_ersst.csv", "nino34_anom"),
                   "roni": ("rnino_monthly.csv", "rnino34")}[index_mode]
     path = OBSERVED_DIR / fname
     if not path.exists():
