@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily tropical-belt (20S-20N) mean SST anomaly
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-10
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-11
 # Anomalies vs centered 30-year day-of-year climatologies (the ONI convention: each year measured against its own era, windows clamped at the record edges, current year excluded), so the warming trend is removed and years compare as ENSO states.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
 # Source: NOAA OISST v2.1 daily box means.
@@ -16312,8 +16312,8 @@ date,year,day_of_year,anomaly_c
 2026-08-22,2026,234,0.758
 2026-08-23,2026,235,0.752
 2026-08-24,2026,236,0.750
-2026-08-25,2026,237,0.725
-2026-08-26,2026,238,0.738
+2026-08-25,2026,237,0.751
+2026-08-26,2026,238,0.759
 2026-08-27,2026,239,0.754
 2026-08-28,2026,240,0.749
 2026-08-29,2026,241,0.742
@@ -16326,3 +16326,5 @@ date,year,day_of_year,anomaly_c
 2026-09-05,2026,248,0.819
 2026-09-06,2026,249,0.831
 2026-09-07,2026,250,0.862
+2026-09-08,2026,251,0.905
+2026-09-09,2026,252,0.871
