@@ -1,5 +1,5 @@
 # Per-member warming trends for three windows — CMIP6 (SSP2-4.5)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-12
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-15
 # OLS trends in degC per decade through the latest observed month; source distinguishes individual model ensemble members from the five observational records.
 # These are the values binned in the dashboard's trend histograms.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -47,7 +47,7 @@ period,source,name,trend_c_per_decade
 1970-present,observed,HadCRUT5,0.2046
 1970-present,observed,GISTEMP,0.2038
 1970-present,observed,NOAA,0.1958
-1970-present,observed,Berkeley Earth,0.2085
+1970-present,observed,Berkeley Earth,0.2078
 1970-present,observed,ERA5 (C3S),0.2140
 2001-present,model_member,0,0.3882
 2001-present,model_member,1,0.1755
@@ -92,7 +92,7 @@ period,source,name,trend_c_per_decade
 2001-present,observed,HadCRUT5,0.2464
 2001-present,observed,GISTEMP,0.2657
 2001-present,observed,NOAA,0.2649
-2001-present,observed,Berkeley Earth,0.2580
+2001-present,observed,Berkeley Earth,0.2571
 2001-present,observed,ERA5 (C3S),0.2816
 2011-present,model_member,0,0.3994
 2011-present,model_member,1,0.2095
@@ -137,5 +137,5 @@ period,source,name,trend_c_per_decade
 2011-present,observed,HadCRUT5,0.3505
 2011-present,observed,GISTEMP,0.3885
 2011-present,observed,NOAA,0.3709
-2011-present,observed,Berkeley Earth,0.3910
+2011-present,observed,Berkeley Earth,0.3903
 2011-present,observed,ERA5 (C3S),0.4120
