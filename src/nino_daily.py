@@ -318,6 +318,24 @@ def update_nino34_daily(force: bool = False) -> pd.DataFrame:
                     DS_NRT, str(nrt_start), str(nrt_end), name))
             series[name] = pd.concat(parts).sort_index()
         df = pd.DataFrame(series).dropna(subset=['nino34', 'tropics'])
+        # NCEI top-up. NCEI posts day D's preliminary file at ~13:31 UTC on
+        # D+1; the ERDDAP aggregate usually follows within the hour but can
+        # lag by hours (or until the next day when NCEI posts late, as on
+        # 2026-09-16). Pull any newer day straight from NCEI so the index
+        # is as current as the source allows.
+        probe_start = nrt_end + timedelta(days=1)
+        if probe_start <= today:
+            try:
+                extra = _fetch_daily_means_ncei(probe_start, today)
+                extra = extra.dropna(subset=['nino34', 'tropics'])
+                extra = extra[~extra.index.isin(df.index)]
+                if not extra.empty:
+                    df = pd.concat([df, extra]).sort_index()
+                    logger.info("NCEI top-up: %d day(s) beyond ERDDAP, "
+                                "through %s", len(extra),
+                                extra.index.max().date())
+            except Exception as e:   # nothing newer, or NCEI hiccup
+                logger.info("NCEI top-up: nothing beyond ERDDAP (%s)", e)
     except Exception as e:
         logger.warning(f"ERDDAP fetch failed ({e}); "
                        f"falling back to NCEI daily files")
