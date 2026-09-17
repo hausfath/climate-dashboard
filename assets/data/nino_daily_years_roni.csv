@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-16
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-17
 # RONI: Nino 3.4 anomaly minus the tropical-mean (20S-20N) SST anomaly, scaled by L'Heureux et al. monthly factors.
 # Anomalies vs centered 30-year day-of-year climatologies (the ONI convention: each year measured against its own era, windows clamped at the record edges, current year excluded), so the warming trend is removed and years compare as ENSO states.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
@@ -16335,3 +16335,4 @@ date,year,day_of_year,anomaly_c
 2026-09-13,2026,256,2.482
 2026-09-14,2026,257,2.515
 2026-09-15,2026,258,2.564
+2026-09-16,2026,259,2.502
