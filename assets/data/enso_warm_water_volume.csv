@@ -1,5 +1,5 @@
 # Equatorial Pacific warm water volume anomaly with observed monthly Nino 3.4
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-10
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-23
 # MONTHLY product, published in arrears (not real-time).
 # wwv_anom_1e14_m3: anomaly of the volume of water warmer than 20 C, 5N-5S, 120E-80W, in units of 1e14 m^3 (NOAA/PMEL, derived from ocean analyses).
 # nino34_anom_c: observed monthly Nino 3.4 SST anomaly vs 1991-2020 (NOAA CPC OISST).
@@ -565,4 +565,4 @@ month,wwv_anom_1e14_m3,nino34_anom_c
 2026-05,2.701,0.940
 2026-06,3.004,1.550
 2026-07,3.245,2.030
-2026-08,,2.520
+2026-08,3.460,2.520
