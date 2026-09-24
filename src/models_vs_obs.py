@@ -35,7 +35,7 @@ OBS_CACHE = DATA_DIR / 'combined_obs_1981_2010.csv'
 GISTEMP_URL = 'https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.txt'
 def _noaa_url():
     return f'https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/global/time-series/globe/land_ocean/tavg/1/0/1850-{datetime.today().year}/data.csv'
-HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.1.0.0/analysis/diagnostics/HadCRUT.5.1.0.0.analysis.summary_series.global.monthly.csv'
+HADCRUT5_URL = 'https://www.metoffice.gov.uk/hadobs/hadcrut5/data/HadCRUT.5.2.0.0/analysis/diagnostics/HadCRUT.5.2.0.0.analysis.summary_series.global.monthly.csv'
 BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/global/Global_TAVG_monthly.txt'
 
 # ── Rebaseline offsets: shift from 1981-2010 baseline to 1850-1900 ────────────
@@ -44,7 +44,7 @@ BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/glo
 # MONTHLY_PREINDUSTRIAL_OFFSETS directly when aggregating the daily series in
 # _import_copernicus (matching the Global Temperature tab's calculation).
 PREINDUSTRIAL_OFFSETS = {
-    'hadcrut5': -0.7021,
+    'hadcrut5': -0.7126,   # HadCRUT.5.2.0.0 (was -0.7021 for 5.1.0.0)
     'gistemp':  -0.6398,
     'noaa':     -0.5991,
     'berkeley': -0.6903,
