@@ -8,16 +8,6 @@ name: Afternoon Niño 3.4 Update
 on:
   schedule:
     - cron: '0 15 * * *'
-    # TEMPORARY (2026-09-16 → 2026-09-30): extra runs while Niño 3.4 is
-    # within ~0.1 °C of its daily record. NCEI posts at 13:31 UTC with
-    # remarkable regularity (13:31:24–13:31:31 on 9–14 Sep 2026), but
-    # GitHub cron can start 10–40 min late and NCEI occasionally posts
-    # later in the day, so: one run just after the usual posting time and
-    # two catch-ups. These schedules self-disable after 2026-09-30 via the
-    # expiry step below; delete the three lines when tidying up.
-    - cron: '45 13 * * *'
-    - cron: '30 17 * * *'
-    - cron: '30 21 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub UI
 
@@ -26,45 +16,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Temporary extra schedules (see `on.schedule`) stop doing work after
-      # 2026-09-30; the standard 15 UTC run and manual dispatch are unaffected.
-      - name: Expiry check for temporary extra schedules
-        id: expiry
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ] && \
-             [ "${{ github.event.schedule }}" != "0 15 * * *" ] && \
-             [ "$(date -u +%Y%m%d)" -gt 20260930 ]; then
-            echo "Temporary schedule '${{ github.event.schedule }}' expired 2026-09-30 — skipping"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout repository
-        if: steps.expiry.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
-        if: steps.expiry.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        if: steps.expiry.outputs.skip != 'true'
         run: |
           pip install --upgrade pip
           # scipy: xarray backend for ERDDAP's NetCDF3 responses
           pip install requests pandas numpy xarray netCDF4 scipy
 
       - name: Update daily Niño 3.4 / RONI
-        if: steps.expiry.outputs.skip != 'true'
         timeout-minutes: 30
         run: |
           python -m src.nino_daily
 
       - name: Refresh daily Niño CSV downloads
-        if: steps.expiry.outputs.skip != 'true'
         run: |
           python -m src.export_data --nino-daily
 
@@ -73,7 +44,7 @@ jobs:
       # the same afternoon, but only on the 10th and only while systems
       # are still on the prior month's init (same guard as run.py).
       - name: Catch same-day C3S release (10th only)
-        if: ${{ !cancelled() && steps.expiry.outputs.skip != 'true' }}
+        if: ${{ !cancelled() }}
         timeout-minutes: 45
         env:
           # the C3S fetcher reads these env vars (not ~/.cdsapirc)
@@ -116,7 +87,6 @@ jobs:
 
       - name: Check for changes
         id: git-check
-        if: steps.expiry.outputs.skip != 'true'
         run: |
           git diff --quiet -- data/nino34_daily.csv data/nino34_daily_history.csv ENSO/data/forecasts/C3S || echo "changes=true" >> $GITHUB_OUTPUT
 
