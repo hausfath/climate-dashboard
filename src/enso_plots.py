@@ -1831,6 +1831,15 @@ def generate_enso_static_images(forecast_df, obs_df, assets_dir):
 _COUPLING_START = "1990-01-01"   # matches section 04 "In context"
 
 
+def _padded_time_range(*series, start=_COUPLING_START, left_days=90, right_days=150):
+    """Explicit x range for monthly time panels. Plotly's autorange puts the
+    last point exactly on the plot edge for line traces (no padding), which
+    clipped the newest month and left its hover target on the boundary."""
+    last = max(pd.Timestamp(x.index.max()) for x in series if x is not None and len(x))
+    return [pd.Timestamp(start) - pd.Timedelta(days=left_days),
+            last + pd.Timedelta(days=right_days)]
+
+
 def _sign_colors(dark_mode):
     """Warm (El Niño-like) / cool (La Niña-like) pair used across the tab."""
     return (('#e4572e', '#7cc7e8') if dark_mode else ('#d94f25', '#2a7fa8'))
@@ -1886,8 +1895,9 @@ def create_soi_trade_winds(obs_df, dark_mode=False, start=_COUPLING_START) -> go
 
     fig.update_yaxes(title_text='SOI (standardized)', row=1, col=1)
     fig.update_yaxes(title_text='850 hPa zonal wind anomaly (m/s)', row=2, col=1)
-    fig.update_xaxes(hoverformat='%b %Y', row=2, col=1)
-    fig.update_xaxes(hoverformat='%b %Y', row=1, col=1)
+    xr = _padded_time_range(df, start=start)
+    fig.update_xaxes(hoverformat='%b %Y', range=xr, row=2, col=1)
+    fig.update_xaxes(hoverformat='%b %Y', range=xr, row=1, col=1)
     fig.update_layout(
         template=theme['template'], height=520, hovermode='x unified',
         bargap=0.15, showlegend=True,
@@ -1976,7 +1986,8 @@ def create_wwv_nino34(wwv: pd.Series, obs_monthly: pd.DataFrame, dark_mode=False
         fig.add_hline(y=0, line_color=fg_soft, line_width=1, opacity=0.6, row=r_, col=1)
     fig.update_yaxes(title_text='WWV anomaly (10¹⁴ m³)', row=1, col=1)
     fig.update_yaxes(title_text='Niño 3.4 anomaly (°C)', row=2, col=1)
-    fig.update_xaxes(hoverformat='%b %Y')
+    fig.update_xaxes(hoverformat='%b %Y',
+                     range=_padded_time_range(w, nino, start=start))
     fig.update_layout(
         template=theme['template'], height=520, hovermode='x unified', showlegend=False,
         margin=dict(l=60, r=30, t=40, b=40),
