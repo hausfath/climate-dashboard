@@ -19,6 +19,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -409,14 +410,19 @@ def make_plot(output_path: Path = OUTPUT_PNG) -> Path | None:
         else:
             color = cmap(norm(i))
             alpha = 0.45 + 0.55 * (i / (n - 1))  # newest = most opaque
+        # Newest inits drawn on top of older ones, but every forecast stays
+        # in zorder [2, 3) so the observed line always sits above them (with
+        # 2 + i the ~100th init and later used to overdraw the observations).
         ax.plot(
             fc["date"], fc["forecast_anom"],
-            color=color, alpha=alpha, linewidth=1.6, zorder=2 + i,
+            color=color, alpha=alpha, linewidth=1.6,
+            zorder=2 + i / max(n, 1),
         )
 
     ax.plot(
         obs_window["date"], obs_window["anomaly"],
-        color="black", linewidth=2.2, label="ERA5 observed", zorder=100,
+        color="black", linewidth=2.2, label="ERA5 observed", zorder=10,
+        path_effects=[pe.withStroke(linewidth=3.8, foreground="white", alpha=0.85)],
     )
 
     if full_curve["method"] == "sat_exp":
