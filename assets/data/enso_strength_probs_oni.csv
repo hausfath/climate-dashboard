@@ -1,5 +1,5 @@
 # ENSO strength probabilities by season — ONI (Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-24
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-25
 # Model-weighted category probabilities (percent) per overlapping 3-month season, from the multi-model ensemble; observed months are blended into seasonal means where available.
 # Categories use ONI event thresholds (0.5/1.0/1.5/2.0 degC).
 # n_models: number of forecast systems contributing to that season.
@@ -11,6 +11,6 @@ OND 2026,2026-11,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
 NDJ 2026,2026-12,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
 DJF 2027,2027-01,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
 JFM 2027,2027-02,95.00,5.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,7
-FMA 2027,2027-03,63.45,30.48,4.76,1.31,0.00,0.00,0.00,0.00,0.00,7
+FMA 2027,2027-03,63.81,30.12,4.76,1.31,0.00,0.00,0.00,0.00,0.00,7
 MAM 2027,2027-04,48.10,19.40,23.69,5.36,3.45,0.00,0.00,0.00,0.00,7
-AMJ 2027,2027-05,25.00,8.12,16.25,22.50,23.12,3.75,1.25,0.00,0.00,4
+AMJ 2027,2027-05,25.00,8.12,16.25,21.88,23.75,3.75,1.25,0.00,0.00,4
