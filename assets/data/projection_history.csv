@@ -1,5 +1,5 @@
 # How the 2026 annual projection has evolved (daily)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-25
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-26
 # Each row is the projection issued on that date, from data available through that date; anomalies vs preindustrial 1850-1900.
 # ci95 columns are the projection +/- 2 sigma.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -270,3 +270,4 @@ date,projected_annual_c,sigma_c,ci95_lo_c,ci95_hi_c,ytd_mean_c
 2026-09-21,1.6074,0.0200,1.5674,1.6474,1.4879
 2026-09-22,1.6054,0.0200,1.5654,1.6454,1.4883
 2026-09-23,1.6035,0.0200,1.5635,1.6435,1.4888
+2026-09-24,1.6016,0.0200,1.5616,1.6416,1.4895
