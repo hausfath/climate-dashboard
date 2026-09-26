@@ -2465,7 +2465,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         L.kpi(f"Latest day · {stats['latest_date']}", stats['latest_anomaly'],
               ([html.Span(stats['daily_rank'], className='rank'),
                 " for this calendar day"]
-               if stats.get('daily_rank') else f"Absolute: {stats['latest_temp']}")),
+               if stats.get('daily_rank') else f"Absolute: {stats['latest_temp']}"),
+              href='#sec-now', title='Jump to section 01 · Right now'),
         L.kpi(f"{stats['month_name']} projection",
               [stats['month_prediction'],
                html.Small(f" {stats['month_error']}")],
@@ -2474,16 +2475,20 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                ([f" ({stats['month_rank_range']})"]
                 if stats.get('month_rank_range')
                 and stats['month_rank_range'] != stats['month_rank'] else [])
-               if stats.get('month_rank') else [f"{stats['month_days']} days in"])),
+               if stats.get('month_rank') else [f"{stats['month_days']} days in"]),
+              href='#sec-projection',
+              title=f"Jump to section 02 · Where {stats['current_year']} is heading"),
         L.kpi("365-day mean", stats.get('rolling_365') or "N/A",
-              "vs preindustrial 1850–1900"),
+              "vs preindustrial 1850–1900",
+              href='#sec-history', title='Jump to section 03 · The long view'),
         L.kpi("ENSO state",
               (f"{_daily_state_label}: {_nino_daily['nino34_anom']:+.2f}°C"
                if _nino_daily else _enso_state_label),
               (f"Daily Niño 3.4 · {_nino_daily['date']} · OISSTv2.1"
                if _nino_daily else
                (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
-                if _enso_state_val else "Forecast on the ENSO tab"))),
+                if _enso_state_val else "Forecast on the ENSO tab")),
+              href='#enso', title='Open the ENSO Forecast tab'),
     ])
 
     tab_global = html.Div(id='tab-content-global', children=[
@@ -2756,16 +2761,15 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         to computed values; labelled monthly because it is (the neighbouring
         Niño 3.4 card is daily)."""
         st = _coupling_status
+        link = dict(href='#sec-coupled', title='Jump to section 05 · Is it coupled?')
         if not st:
             return L.kpi("Atmosphere · monthly", "N/A",
-                         "SOI and trade-wind indices unavailable")
-        card = L.kpi("Atmosphere · monthly",
+                         "SOI and trade-wind indices unavailable", **link)
+        return L.kpi("Atmosphere · monthly",
                      [f"SOI {st['soi']:+.1f} ", html.Small(st['month_label'])],
                      [st['reading'], html.Br(),
                       f"Central Pacific trades {st['wind_cpac']:+.1f} m/s · "
-                      "monthly means, not real-time"])
-        return html.A(card, href='#sec-coupled', className='kpi-link',
-                      title='Jump to section 05 · Is it coupled?')
+                      "monthly means, not real-time"], **link)
 
     enso_kpis = L.kpi_row([
         L.kpi("Current state",
@@ -2775,13 +2779,16 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                if _nino_daily else
                (f"Niño 3.4 at {_enso_state_val} ({_enso_state_when})"
                 if _enso_state_val else "N/A")),
-              value_id='enso-card-1-value', sub_id='enso-card-1-sub'),
+              value_id='enso-card-1-value', sub_id='enso-card-1-sub',
+              href='#sec-daily-nino', title='Jump to section 01 · Right now'),
         L.kpi("Forecast peak", _enso_cards.get('max_change_str', 'N/A'),
               _enso_cards.get('max_change_range', 'N/A'),
-              value_id='enso-card-2-value', sub_id='enso-card-2-sub'),
+              value_id='enso-card-2-value', sub_id='enso-card-2-sub',
+              href='#sec-plume', title='Jump to section 02 · The forecast'),
         L.kpi(_pvs_label, _pvs_value, _pvs_sub,
               label_id='enso-card-3-label', value_id='enso-card-3-value',
-              sub_id='enso-card-3-sub'),
+              sub_id='enso-card-3-sub',
+              href='#sec-odds', title='Jump to section 03 · How strong, when'),
         _coupling_kpi(),
     ])
     # Ensemble size moves into section 02's hint so nothing is lost.
@@ -3022,24 +3029,28 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
               _models_cards.get('obs_warming', 'N/A'),
               (f"Models: {_models_cards.get('model_warming', 'N/A')} "
                f"({_models_cards.get('model_warming_range', 'N/A')})"),
-              value_id='models-card-1-value', sub_id='models-card-1-sub'),
+              value_id='models-card-1-value', sub_id='models-card-1-sub',
+              href='#sec-scorecard', title='Jump to section 01 · The scorecard'),
         L.kpi("Trend · 1970–present",
               _models_cards.get('obs_trend_1970', 'N/A'),
               (f"Models: {_models_cards.get('model_trend_1970', 'N/A')} "
                f"({_models_cards.get('model_range_1970', 'N/A')})"),
-              value_id='models-card-2-value', sub_id='models-card-2-sub'),
+              value_id='models-card-2-value', sub_id='models-card-2-sub',
+              href='#sec-trends', title='Jump to section 02 · Trends'),
         L.kpi([html.Span(f"Trend · {_models_cards.get('start_25', '')}–present",
                          id='models-card-3-title')],
               _models_cards.get('obs_trend_25', 'N/A'),
               (f"Models: {_models_cards.get('model_trend_25', 'N/A')} "
                f"({_models_cards.get('model_range_25', 'N/A')})"),
-              value_id='models-card-3-value', sub_id='models-card-3-sub'),
+              value_id='models-card-3-value', sub_id='models-card-3-sub',
+              href='#sec-trends', title='Jump to section 02 · Trends'),
         L.kpi([html.Span(f"Trend · {_models_cards.get('start_15', '')}–present",
                          id='models-card-4-title')],
               _models_cards.get('obs_trend_15', 'N/A'),
               (f"Models: {_models_cards.get('model_trend_15', 'N/A')} "
                f"({_models_cards.get('model_range_15', 'N/A')})"),
-              value_id='models-card-4-value', sub_id='models-card-4-sub'),
+              value_id='models-card-4-value', sub_id='models-card-4-sub',
+              href='#sec-trends', title='Jump to section 02 · Trends'),
     ])
 
     models_controls = html.Div(html.Div([

@@ -129,13 +129,23 @@ def percentile_gauge(label_left: str, label_right: str, percentile: float,
     ], className="herostrip")
 
 
-def kpi(label, value, sub, value_id=None, sub_id=None, label_id=None) -> html.Div:
+def kpi(label, value, sub, value_id=None, sub_id=None, label_id=None,
+        href=None, title=None):
+    """KPI card. With ``href`` the card becomes a link (``a.kpi-link``) to
+    the section that explains it; assets/subnav.js scrolls to in-page
+    ``#sec-…`` targets without touching the URL hash, and lets tab hashes
+    (``#enso``) fall through to the tab switcher. Only the card label is
+    underlined on hover (theme.css)."""
     kw = lambda i: {'id': i} if i else {}
-    return html.Div([
+    card = html.Div([
         html.Div(label, className="k-label", **kw(label_id)),
         html.Div(value, className="k-value", **kw(value_id)),
         html.Div(sub, className="k-sub", **kw(sub_id)),
     ], className="kpi")
+    if href:
+        return html.A(card, href=href, className="kpi-link",
+                      **({'title': title} if title else {}))
+    return card
 
 
 def kpi_row(cards) -> html.Div:

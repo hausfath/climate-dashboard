@@ -634,8 +634,11 @@ body.light .modal-header .btn-close { filter: none; }
 .block { scroll-margin-top: 72px; }   /* anchors land below the sticky topbar */
 
 /* KPI card that links to a section */
-.kpi-link { text-decoration: none; color: inherit; display: block; }
+.kpi-link, .kpi-link:hover, .kpi-link:focus { text-decoration: none; color: inherit; display: block; }
 .kpi-link .kpi { height: 100%; cursor: pointer; }
+/* hover: underline the card label only, never the value or sub text */
+.kpi-link:hover .k-label { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.kpi-link:focus-visible .kpi { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 900px) {
   .subnav { padding: 0 20px 32px; margin-top: -14px; }
 }

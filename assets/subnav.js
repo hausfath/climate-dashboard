@@ -1,4 +1,4 @@
-/* In-page section navigation (ENSO tab sub-nav pills + linked KPI cards).
+/* In-page section navigation (sub-nav pills + linked KPI cards on every tab).
  *
  * The tab-switch callback owns the URL hash (#global / #enso / …) and
  * rewrites it on every trigger, so a plain <a href="#sec-…"> jump gets
@@ -27,8 +27,21 @@
     if (!a) return;
     var href = a.getAttribute('href') || '';
     if (href.charAt(0) !== '#') return;
-    ev.preventDefault();
-    scrollToId(href.slice(1));
+    var id = href.slice(1);
+    // In-page section: scroll ourselves and keep the hash untouched.
+    if (document.getElementById(id)) {
+      ev.preventDefault();
+      scrollToId(id);
+      return;
+    }
+    // Tab hash (e.g. #enso): drive the topbar nav link directly, which is
+    // what the tab-switch callback listens to, then go to the top.
+    var nav = document.getElementById('nav-' + id);
+    if (nav) {
+      ev.preventDefault();
+      nav.click();
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
   });
 
   // Deep link on first load: wait for Dash to render the section, then scroll.
