@@ -285,5 +285,7 @@
  "model_horizon": {
   "all": "Feb 2027",
   "nmme": "May 2027"
- }
+ },
+ "baseline": "normal",
+ "bars": "typical"
 }

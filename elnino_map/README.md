@@ -8,7 +8,7 @@ Standalone: `http://<host>/elnino-map/` (add `?theme=light|dark`, or `?region=<k
 
 - **Impact regions.** The 26 polygons from the Climate Brink impacts map (Sep 2026). The shade is the assessed confidence. A dashed outline means the signal underperformed in 2015–16 or 2023–24.
 - **Region cards** (click a region, or zoom in and one opens by itself):
-  - the observed record in the 8 strong El Niños since 1957 (bars = % of the 1991–2020 average; line = a typical ENSO-neutral year; check = expected side of it);
+  - the observed record in the 8 strong El Niños since 1957 (bars = % of a typical ENSO-neutral year, the same reference as the checks; line = the 1991–2020 average);
   - how often La Niña years went the same way;
   - one tile per model from this year's forecasts, averaged over the region's whole season up to the last month all 13 systems cover (Feb 2027 for the Sep start), or the 6 NMME models for seasons mostly after that (`model_patterns/windows.py`);
   - literature text with links.
@@ -54,3 +54,7 @@ python3.13 tools/export_dashboard.py   # writes this folder's data/ and img/
 - Seasonal forecasts: NOAA NMME (public) and Copernicus C3S multi-system seasonal forecasts. The C3S data carry the Copernicus licence, which requires attribution: "Generated using Copernicus Climate Change Service information 2026."
 - Map geometry: Natural Earth (public domain).
 - Code: MIT, like the rest of the dashboard.
+
+## Two reference points
+
+The past-event bars are measured against a typical neutral year (`meta.bars = "typical"`), so each bar lines up with its check mark. The forecast shading and model tiles stay relative to the 1991–2020 average (`meta.baseline = "normal"`). `El Nino Impacts/video/tools/export_dashboard.py` can also rebase the forecasts (`BASELINE=typical`). That option was previewed on 27 Sep 2026 and rejected; the reasons are in `hit_rates/METHODS.md` and in the tab's "How to read this" card.

@@ -37,7 +37,7 @@
   async function boot() {
     E.init($('map'));
     const [geo, regs, meta, lit] = await Promise.all([j('data/geo.json'), j('data/regions.json'), j('data/meta.json'), j('data/lit.json').catch(() => ({}))]);
-    META = meta; LIT = lit;
+    META = meta; LIT = lit; setBaseline(meta.baseline, meta.bars);
     E.setGeo(geo); E.setRegions(regs); REG = E.REG; XREG = E.XREG;
     for (const k of ['nindia', 'lit_ohio', 'c_uk_ceurope', 'c_scandinavia']) if (XREG[k]?.rings) prepExtra(XREG[k]);
     for (const k of ORDER) if (!REG[k]) console.warn('region missing from data:', k);
@@ -471,7 +471,9 @@
     const cap = $('lg-cap');
     $('lg-field').style.opacity = S.replay ? 0.4 : 1;
     if (S.replay) cap.textContent = `Replaying ${S.replay}–${String(S.replay + 1).slice(2)}: green went the expected way, red did not.`;
-    else cap.innerHTML = `Model-mean rainfall change, ${esc(M.label)}, % of normal (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`;
+    else cap.innerHTML = META.baseline === 'typical'
+      ? `Model-mean rainfall, ${esc(M.label)}, vs a typical neutral year (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`
+      : `Model-mean rainfall change, ${esc(M.label)}, % of normal (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`;
     // colour bar drawn from the same colormap and alpha as the map, over the land colour
     let c = $('lg-field').querySelector('canvas');
     if (!c) { c = document.createElement('canvas'); c.width = 220; c.height = 8; c.className = 'lg-bar'; $('lg-field').querySelector('.lg-bar').replaceWith(c); }
