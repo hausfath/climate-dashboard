@@ -167,6 +167,7 @@ function pointHTML(q, season, meta, near) {
     s += `<div class="ev-head" style="margin-top:10px"><div class="ev-lbl">${n} models</div><div class="count models${agree / n >= 0.8 ? (dry ? '' : ' wet') : ' mixed'}"><b data-count="models">${REDUCED ? agree : 0}</b><span>/${n}</span><small>lean ${dry ? 'drier' : 'wetter'}</small></div></div>`;
     s += modelTilesHTML(null, members, { season: S.label, where: 'at this 1° grid cell' });
     s += `<div class="tiles-foot"><span>Model average <b>${signed(q.mean)}%</b> vs normal</span></div>`;
+    if (q.mean > 200) s += '<p class="note">Normal rainfall here is low in this season, so a modest change in millimetres shows up as a very large percentage.</p>';
   }
   s += `<p class="note">A raw readout of this year's models for one grid cell. ${near?.inside ? 'The region card adds the observed record and the literature.' : 'There is no observed track record behind it, and single cells are noisy. The shaded regions are where history and the literature back the forecast.'}</p>`;
   if (near) s += `<button class="btn near" type="button" data-go="${near.key}">${near.inside ? 'Open region card' : `Nearest mapped region: ${esc(near.title)}`}<span>→</span></button>`;

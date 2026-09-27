@@ -134,17 +134,19 @@ const Engine = (() => {
     return PR[PR.length - 1].slice(1);
   }
   const prAlpha = (v) => Math.pow(clamp((Math.abs(v) - 5) / 40), 0.85) * (235 / 255);
-  // grid: Int8Array [(n + 1) × 181 × 360], last layer = multi-model mean; 127 = no value
+  // grid: Int16 (little-endian) [(n + 1) × 181 × 360], last layer = multi-model mean; ND = no value
+  const ND = -32768;
   function setGrid(season, buf, n) {
-    const g = new Int8Array(buf), NL = 181 * 360;
+    const g = new Int16Array(buf), NL = 181 * 360;
     GRID[season] = { g, n, NL };
     // field image at 4 px per degree, bilinear in value space, soft edge where cells are missing
     const R = 4, w = 360 * R, h = 180 * R, img = new ImageData(w, h), mm = g.subarray(n * NL, (n + 1) * NL);
-    const val = (j, i) => mm[clamp(j, 0, 180) * 360 + ((i % 360) + 360) % 360];
+    // the field clips at +150% before smoothing, as the video's pr_<S>.png does (colours saturate at ±100% anyway)
+    const val = (j, i) => { const v = mm[clamp(j, 0, 180) * 360 + ((i % 360) + 360) % 360]; return v === ND ? ND : Math.min(v, 150); };
     // soft validity mask (3×3 box over has-value cells), so masked deserts get smooth edges instead of 1° steps
     const vs = new Float32Array(NL);
     for (let j = 0; j < 181; j++) for (let i = 0; i < 360; i++) {
-      let c = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) c += val(j + dj, i + di) !== 127 ? 1 : 0;
+      let c = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) c += val(j + dj, i + di) !== ND ? 1 : 0;
       vs[j * 360 + i] = c / 9;
     }
     const vv = (j, i) => vs[clamp(j, 0, 180) * 360 + ((i % 360) + 360) % 360];
@@ -154,7 +156,7 @@ const Engine = (() => {
         const gx = (px + 0.5) / R + 360, i0 = Math.floor(gx), fx = gx - i0;
         const v = [val(j0, i0), val(j0, i0 + 1), val(j0 + 1, i0), val(j0 + 1, i0 + 1)], wt = [(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy];
         let s = 0, ws = 0, cover = 0;
-        for (let q = 0; q < 4; q++) if (v[q] !== 127) { s += v[q] * wt[q]; ws += wt[q]; cover += wt[q]; }
+        for (let q = 0; q < 4; q++) if (v[q] !== ND) { s += v[q] * wt[q]; ws += wt[q]; cover += wt[q]; }
         if (ws < 1e-6) continue;
         const m = vv(j0, i0) * wt[0] + vv(j0, i0 + 1) * wt[1] + vv(j0 + 1, i0) * wt[2] + vv(j0 + 1, i0 + 1) * wt[3];
         const x = s / ws, [r, gg, b] = prColor(x), o = (py * w + px) * 4, e = clamp((m - 0.4) / 0.45);
@@ -167,8 +169,8 @@ const Engine = (() => {
     // agreement dots: ≥ 80% of models share the sign of the mean and |mean| ≥ 10% (as in the video)
     const pts = [];
     for (let j = 0; j < 181; j++) for (let i = 0; i < 360; i++) {
-      const m = mm[j * 360 + i]; if (m === 127 || Math.abs(m) < 10) continue;
-      let ag = 0; for (let k = 0; k < n; k++) { const v = g[k * NL + j * 360 + i]; if (v !== 127 && Math.sign(v) === Math.sign(m)) ag++; }
+      const m = mm[j * 360 + i]; if (m === ND || Math.abs(m) < 10) continue;
+      let ag = 0; for (let k = 0; k < n; k++) { const v = g[k * NL + j * 360 + i]; if (v !== ND && Math.sign(v) === Math.sign(m)) ag++; }
       if (ag / n >= 0.8 - 1e-9) pts.push(i - 180, 90 - j);
     }
     DOTS[season] = new Int16Array(pts);
@@ -176,9 +178,9 @@ const Engine = (() => {
   function pointQuery(season, lon, lat) {
     const G = GRID[season]; if (!G) return null;
     const j = clamp(Math.round(90 - lat), 0, 180), i = ((Math.round(lon) + 180) % 360 + 360) % 360, o = j * 360 + i;
-    const vals = []; for (let k = 0; k < G.n; k++) { const v = G.g[k * G.NL + o]; vals.push(v === 127 ? null : v); }
+    const vals = []; for (let k = 0; k < G.n; k++) { const v = G.g[k * G.NL + o]; vals.push(v === ND ? null : v); }
     const mm = G.g[G.n * G.NL + o];
-    return { lat: 90 - j, lon: i - 180, vals, mean: mm === 127 ? null : mm };
+    return { lat: 90 - j, lon: i - 180, vals, mean: mm === ND ? null : mm };
   }
 
   // ---- drawing ----

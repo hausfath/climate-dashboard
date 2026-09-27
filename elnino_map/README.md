@@ -28,7 +28,7 @@ Standalone: `http://<host>/elnino-map/` (add `?theme=light|dark`, or `?region=<k
 | `js/cards.js` | Region, point, global and how-to cards. Every number is read from `data/` |
 | `js/app.js` | State, pan/zoom/pinch, hover, click, tour, replay, season player, theme sync |
 | `data/regions.json` | Region polygons, observed record per event (`pct_normal`, `pct_typ`, `typ_level`, `hit`), per-model values |
-| `data/grid_<S>.bin` | Int8 `[n_models + 1, 181, 360]`: each model's precipitation anomaly as % of the GPCP 1991–2020 normal, then the multi-model mean. lat 90→−90, lon −180→179, 1°. 127 = no value (land cells with < 0.5 mm/day normal) |
+| `data/grid_<S>.bin` | Int16 little-endian `[n_models + 1, 181, 360]`: each model's precipitation anomaly as whole % of the GPCP 1991–2020 normal, then the multi-model mean. lat 90→−90, lon −180→179, 1°. −32768 = no value (land cells with < 0.5 mm/day normal). Not clipped: normally dry ocean cells reach several thousand % |
 | `data/meta.json` | Forecast start month, models per season, strong-event list and per-event tallies, 2027 record odds |
 | `data/lit.json` | Literature text per region, the global card and the tour |
 | `data/geo.json` | Natural Earth land, borders |
