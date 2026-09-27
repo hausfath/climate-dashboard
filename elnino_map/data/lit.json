@@ -1,0 +1,931 @@
+{
+  "_global": {
+    "headline": "Record global heat, a CO2 spike and coral stress, mostly in 2027",
+    "why": "Global surface temperature lags the tropical Pacific by a few months, so the year after a late-year El Niño peak gets most of the boost (Trenberth et al. 2002), which makes 2027 almost certain to be the warmest year on record. Because El Niño shifts rainfall on several continents at once, \"only ENSO can force globally synchronous crop failures\" (Anderson et al. 2019).",
+    "past": "The CO2 growth rate at Mauna Loa hit 3.33 ppm in 2024, the largest on record (NOAA GML), and the high 2023 rate was traced mainly to a weaker tropical land carbon sink (Gui et al. 2024). The fourth global coral bleaching event, driven in part by the 2023–24 El Niño, affected 84% of the world's reef area (ICRI 2025). In regions linked to ENSO, disease activity ran roughly 2.5–28% higher in El Niño years than in other years (Anyamba et al. 2019).",
+    "caveat": "Economic cost estimates are uncertain. One study puts global income losses from the 1982–83 and 1997–98 events as high as $4.1 trillion and $5.7 trillion, counting slower growth in tropical economies over the following years (Callahan and Mankin 2023), while other methods give smaller numbers (Cashin et al. 2017; Smith and Ubilava 2017).",
+    "links": [
+      {
+        "label": "Trenberth et al. 2002",
+        "url": "https://doi.org/10.1029/2000JD000298"
+      },
+      {
+        "label": "Anderson et al. 2019",
+        "url": "https://doi.org/10.1126/sciadv.aaw1976"
+      },
+      {
+        "label": "NOAA GML",
+        "url": "https://gml.noaa.gov/ccgg/trends/gr.html"
+      },
+      {
+        "label": "Gui et al. 2024",
+        "url": "https://doi.org/10.1093/nsr/nwae365"
+      },
+      {
+        "label": "ICRI 2025",
+        "url": "https://icriforum.org/4gbe-2025/"
+      },
+      {
+        "label": "Anyamba et al. 2019",
+        "url": "https://doi.org/10.1038/s41598-018-38034-z"
+      },
+      {
+        "label": "Callahan and Mankin 2023",
+        "url": "https://doi.org/10.1126/science.adf2983"
+      },
+      {
+        "label": "Cashin et al. 2017",
+        "url": "https://doi.org/10.1016/j.jinteco.2017.01.010"
+      },
+      {
+        "label": "Smith and Ubilava 2017",
+        "url": "https://doi.org/10.1016/j.gloenvcha.2017.05.007"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:127",
+      "cb_el_nino_impacts_draft.md:129",
+      "research/impacts-literature.md:351",
+      "research/impacts-literature.md:353",
+      "research/impacts-literature.md:378",
+      "research/impacts-literature.md:379",
+      "research/impacts-literature.md:382",
+      "research/impacts-literature.md:383",
+      "research/impacts-literature.md:391",
+      "research/impacts-literature.md:400",
+      "research/impacts-literature.md:410",
+      "research/impacts-literature.md:446",
+      "research/impacts-literature.md:449",
+      "research/FACTCHECK.md:78",
+      "research/FACTCHECK.md:79"
+    ]
+  },
+  "maritime": {
+    "headline": "Drought and severe fire risk, Sep–Dec",
+    "why": "Indonesia normally sits under the rising branch of the Walker circulation. When El Niño shifts that rising air east toward the central Pacific, rainfall over the Maritime Continent is suppressed.",
+    "past": "Burning on drained peatlands responds very nonlinearly to drought (Field et al. 2016). The 1997 fires released an estimated 0.81–2.57 billion tonnes of carbon, equal to 13–40% of global fossil fuel emissions (Page et al. 2002), and haze from the 2015 fires has been linked to about 100,300 excess deaths across Indonesia, Malaysia and Singapore (Koplitz et al. 2016).",
+    "caveat": "The models show the dry signal fading by December to February, which is why the map window ends in December. Severe fire seasons can also happen in neutral years, although El Niño raises the risk about 2.7-fold (Lam et al. 2026).",
+    "links": [
+      {
+        "label": "Field et al. 2016",
+        "url": "https://doi.org/10.1073/pnas.1524888113"
+      },
+      {
+        "label": "Page et al. 2002",
+        "url": "https://doi.org/10.1038/nature01131"
+      },
+      {
+        "label": "Koplitz et al. 2016",
+        "url": "https://doi.org/10.1088/1748-9326/11/9/094023"
+      },
+      {
+        "label": "Lam et al. 2026",
+        "url": "https://doi.org/10.1038/s44304-026-00209-4"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:35",
+      "cb_el_nino_impacts_draft.md:41",
+      "research/impacts-literature.md:99",
+      "research/impacts-literature.md:104",
+      "research/impacts-literature.md:105",
+      "research/impacts-literature.md:106",
+      "research/impacts-literature.md:107"
+    ]
+  },
+  "philippines": {
+    "headline": "Dry winter and spring, Dec–Apr",
+    "why": "An anomalous high pressure system sets up over the western North Pacific during El Niño winters and suppresses rainfall over the archipelago (Lyon and Camargo 2009). The same system feeds moisture into southern China on its other flank.",
+    "past": "Rainfall in most of the Philippines is typically below average in the fall and winter of El Niño events, a pattern documented since the first station composites. The map flags rice as one of the crops at risk in the first half of 2027.",
+    "caveat": "The spring half of the window is less certain than the winter core, because it depends on how long the western Pacific high persists after the El Niño peak.",
+    "links": [
+      {
+        "label": "Lyon and Camargo 2009",
+        "url": "https://doi.org/10.1007/s00382-008-0380-z"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:43",
+      "cb_el_nino_impacts_draft.md:129",
+      "research/lit_missing_asiapacific.md:11",
+      "research/lit_missing_asiapacific.md:17",
+      "research/lit_missing_asiapacific.md:44"
+    ]
+  },
+  "wpacific": {
+    "headline": "Drought and falling sea level on western Pacific islands",
+    "why": "As the Walker circulation's rising branch moves east, the western Pacific islands fall under drier air and the South Pacific Convergence Zone swings toward the equator (Cai et al. 2012). Warm water sloshing east also lowers sea level in the west (Widlansky et al. 2015).",
+    "past": "Lower sea level can expose and kill shallow reef flats. The Marshall Islands declared a state of emergency for drought in February 2016.",
+    "caveat": "The observed rainfall record rests on a small number of long-running island rain gauges, some with gaps.",
+    "links": [
+      {
+        "label": "Cai et al. 2012",
+        "url": "https://doi.org/10.1038/nature11358"
+      },
+      {
+        "label": "Widlansky et al. 2015",
+        "url": "https://doi.org/10.1126/sciadv.1500560"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:35",
+      "cb_el_nino_impacts_draft.md:45",
+      "cb_el_nino_impacts_draft.md:147",
+      "research/impacts-literature.md:321",
+      "research/impacts-literature.md:324",
+      "research/impacts-literature.md:325",
+      "research/impacts-literature.md:328"
+    ]
+  },
+  "cpacific": {
+    "headline": "Heavy rain on Kiribati and Tuvalu, Sep–May",
+    "why": "The rising branch of the Walker circulation moves over the central equatorial Pacific, bringing deep convection to islands that are normally dry. Sea level rises in the east as the warm water arrives (Widlansky et al. 2015).",
+    "past": "Kiribati's normally very dry equatorial islands get deluged. Canton Island recorded around 1,850 mm in the 1957–58 season and 1,780 mm in 1965–66, compared to a median of 280 mm in neutral years.",
+    "caveat": "Satellite rainfall data only begin in 1979 and the only long station record (Canton Island) ends in 1967, so the record covers few strong events.",
+    "links": [
+      {
+        "label": "Widlansky et al. 2015",
+        "url": "https://doi.org/10.1126/sciadv.1500560"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:45",
+      "cb_el_nino_impacts_draft.md:147",
+      "research/impacts-literature.md:321",
+      "research/impacts-literature.md:325"
+    ]
+  },
+  "schina": {
+    "headline": "Wetter winter and spring, Dec–May",
+    "why": "During mature El Niño winters, southerly wind anomalies along the East Asian coast, on the flank of the western North Pacific high, carry moisture into southern China (Zhang, Sumi and Kimoto 1996).",
+    "past": "The big events were very wet, including 1982–83 and 2015–16.",
+    "caveat": "The observed record is weaker than for the Philippines, so this region rests more on this year's forecasts than on history. The relationship has also shifted between decades (Chen et al. 2014), and the spring half of the window is less certain than the winter.",
+    "links": [
+      {
+        "label": "Zhang, Sumi and Kimoto 1996",
+        "url": "https://doi.org/10.2151/jmsj1965.74.1_49"
+      },
+      {
+        "label": "Chen et al. 2014",
+        "url": "https://doi.org/10.1007/s00382-013-1947-x"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:47",
+      "research/lit_missing_asiapacific.md:93",
+      "research/lit_missing_asiapacific.md:101",
+      "research/lit_missing_asiapacific.md:107",
+      "research/lit_missing_asiapacific.md:114",
+      "research/lit_missing_asiapacific.md:116"
+    ]
+  },
+  "yangtze": {
+    "headline": "Possible early-summer flood risk, Jun–Jul 2027",
+    "why": "After a strong El Niño, the warmed Indian Ocean acts as a \"capacitor\" that keeps the western North Pacific high in place into summer and steers moisture toward the basin (Xie et al. 2009).",
+    "past": "That signal was real in 1998, the year of catastrophic Yangtze floods.",
+    "caveat": "Over the full June–August season the observed record is close to a coin flip, which is why the region was downgraded to medium confidence and drawn with a dashed outline. The signal looks stronger in June and July, when the East Asian monsoon rain band normally sits over the basin, but that window was checked only after seeing the full-summer result, and summer 2027 is beyond the range of current seasonal forecasts.",
+    "links": [
+      {
+        "label": "Xie et al. 2009",
+        "url": "https://doi.org/10.1175/2008JCLI2544.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:49",
+      "cb_el_nino_impacts_draft.md:57",
+      "cb_el_nino_impacts_draft.md:135",
+      "research/impacts-literature.md:339"
+    ]
+  },
+  "mekong": {
+    "headline": "Drought risk in the Mar–May 2027 dry season",
+    "why": "El Niño places the sinking branch of the Pacific Walker circulation over Indochina, suppressing convection. The drought signal in mainland Southeast Asia is \"most consistent and expressed over the largest areal extents during March–May of the year when the ENSO events decay\" (Räsänen et al. 2016).",
+    "past": "The strongest winter El Niño events tend to be followed by meteorological drought in March–May in the southern Mekong basin, while the northern basin shows no significant signal (Nguyen et al. 2023).",
+    "caveat": "The spatial pattern varies between events (Räsänen et al. 2016), and Southeast Asian rainfall responds more strongly to La Niña than to El Niño (Le Roy and Ummenhofer 2025). This year's models are less convinced than the observed record.",
+    "links": [
+      {
+        "label": "Räsänen et al. 2016",
+        "url": "https://doi.org/10.5194/cp-12-1889-2016"
+      },
+      {
+        "label": "Nguyen et al. 2023",
+        "url": "https://doi.org/10.1016/j.scitotenv.2022.158589"
+      },
+      {
+        "label": "Le Roy and Ummenhofer 2025",
+        "url": "https://doi.org/10.1029/2024GL111916"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:51",
+      "research/lit_missing_asiapacific.md:52",
+      "research/lit_missing_asiapacific.md:57",
+      "research/lit_missing_asiapacific.md:61",
+      "research/lit_missing_asiapacific.md:70",
+      "research/lit_missing_asiapacific.md:83"
+    ]
+  },
+  "srilanka": {
+    "headline": "Heavier northeast monsoon rains, Oct–Dec",
+    "why": "El Niño tends to strengthen the October–December northeast monsoon over Sri Lanka and southern India, and that relationship has grown stronger in recent decades (Zubair and Ropelewski 2006).",
+    "past": "Southern India shows a similar observed signal but is not on the map, because this year's models disagree about it.",
+    "caveat": "Sri Lanka's autumn rain is also often on the wet side in La Niña years, so it is less tied to El Niño specifically than the observed record suggests. The signal is also regionally narrow.",
+    "links": [
+      {
+        "label": "Zubair and Ropelewski 2006",
+        "url": "https://doi.org/10.1175/JCLI3670.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:55",
+      "research/impacts-literature.md:123",
+      "research/impacts-literature.md:124"
+    ]
+  },
+  "seaustralia": {
+    "headline": "Dry spring and higher fire risk, Sep–Nov",
+    "why": "The El Niño dry signal in southeast Australia is concentrated in spring, when it is reinforced by the positive Indian Ocean Dipole that often accompanies El Niño (Cai et al. 2009).",
+    "past": "In 2023, national rainfall ran 20% below average in spring (BoM 2023) before summer came in 19% above average (BoM summer 2023–24). The 2019–20 Black Summer fires, often linked to El Niño in the public mind, happened during a record positive Indian Ocean Dipole with only a borderline El Niño.",
+    "caveat": "The signal has a habit of reversing in summer, and the El Niño dry signal is statistically weaker than the La Niña wet signal (Cai et al. 2010). This year's models show little signal for eastern Australia as a whole.",
+    "links": [
+      {
+        "label": "Cai et al. 2009",
+        "url": "https://doi.org/10.1029/2009GL039902"
+      },
+      {
+        "label": "BoM 2023",
+        "url": "http://www.bom.gov.au/climate/current/annual/aus/2023/"
+      },
+      {
+        "label": "BoM summer 2023–24",
+        "url": "http://www.bom.gov.au/clim_data/IDCKGC2AR0/202402.summary.shtml"
+      },
+      {
+        "label": "Cai et al. 2010",
+        "url": "https://doi.org/10.1175/2010JCLI3501.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:57",
+      "research/impacts-literature.md:142",
+      "research/impacts-literature.md:151",
+      "research/impacts-literature.md:152"
+    ]
+  },
+  "safrica": {
+    "headline": "Drought risk for the Dec–Feb maize season",
+    "why": "El Niño cools the ocean south of Madagascar and cuts the flow of Indian Ocean moisture toward southeastern Africa, favoring hot, dry summers (Cai et al. 2025). Strong El Niños carry around an 80% chance of below-normal rain (Pomposi et al. 2018).",
+    "past": "The 2023–24 drought prompted a $5.5 billion regional humanitarian appeal for more than 61 million people (SADC appeal), and World Weather Attribution found such droughts are \"twice as likely to occur in El Niño years,\" with climate change not a significant driver (WWA 2024). The Zambezi at Chavuma fell to 410 m³/s in April 2024, against a long-term average near 2,000 m³/s (Toreti et al. 2024).",
+    "caveat": "In 1997–98 the expected drought failed to materialize (Lyon and Mason 2007), a failure attributed to regional circulation features (the Angola Low and Botswana High) that vary independently of ENSO (Cai et al. 2025). The 2023–24 season, with an Indian Ocean Dipole almost as strong as 1997's, did not repeat that failure, so a strong dipole alone is not a reason to expect a miss.",
+    "links": [
+      {
+        "label": "Cai et al. 2025",
+        "url": "https://doi.org/10.1038/s43017-025-00705-7"
+      },
+      {
+        "label": "Pomposi et al. 2018",
+        "url": "https://doi.org/10.1088/1748-9326/aacc4c"
+      },
+      {
+        "label": "SADC appeal",
+        "url": "https://www.sadc.int/latest-news/sadc-launches-us55-billion-regional-humanitarian-appeal-support-people-affected-el-nino"
+      },
+      {
+        "label": "WWA 2024",
+        "url": "https://www.worldweatherattribution.org/el-nino-key-driver-of-drought-in-highly-vulnerable-southern-african-countries/"
+      },
+      {
+        "label": "Toreti et al. 2024",
+        "url": "https://doi.org/10.2760/960341"
+      },
+      {
+        "label": "Lyon and Mason 2007",
+        "url": "https://doi.org/10.1175/JCLI4225.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:61",
+      "cb_el_nino_impacts_draft.md:67",
+      "research/lit_africa_iod.md:45",
+      "research/lit_africa_iod.md:55",
+      "research/lit_africa_iod.md:59",
+      "research/lit_africa_iod.md:73",
+      "research/lit_africa_iod.md:81",
+      "research/impacts-literature.md:188",
+      "research/impacts-literature.md:198",
+      "research/impacts-literature.md:199",
+      "research/impacts-literature.md:200"
+    ]
+  },
+  "horn": {
+    "headline": "Heavy short rains and flood risk, Oct–Dec",
+    "why": "Here the Indian Ocean Dipole matters more than El Niño itself: its influence on the short rains is \"overwhelming as compared to that of ENSO\" (Behera et al. 2005). Strong eastern Pacific El Niños tend to come with positive dipole events, and the two together amplify the rains (Palmer et al. 2023).",
+    "past": "The 1997 floods in Somalia, Ethiopia, Kenya, Sudan and Uganda caused several thousand deaths (Cai et al. 2025), and a Rift Valley fever outbreak killed 170 people in Kenya's Garissa District alone (Woods et al. 2002). The 2023 floods killed more than 300 people and displaced over a million in Kenya and Somalia, and attribution found \"no significant role of ENSO but a significant influence of the IOD\" (WWA 2023).",
+    "caveat": "Seasonal models have a known wet bias here tied to their Indian Ocean mean state (Hirons and Turner 2018), and the size of the floods depends on how strong the dipole gets. In 2015 the short rains were wetter than normal but much less intense than forecasts had suggested (MacLeod and Caminade 2019).",
+    "links": [
+      {
+        "label": "Behera et al. 2005",
+        "url": "https://doi.org/10.1175/JCLI3541.1"
+      },
+      {
+        "label": "Palmer et al. 2023",
+        "url": "https://doi.org/10.1038/s43017-023-00397-x"
+      },
+      {
+        "label": "Cai et al. 2025",
+        "url": "https://doi.org/10.1038/s43017-025-00705-7"
+      },
+      {
+        "label": "Woods et al. 2002",
+        "url": "https://doi.org/10.3201/eid0802.010023"
+      },
+      {
+        "label": "WWA 2023",
+        "url": "https://www.worldweatherattribution.org/climate-change-indian-ocean-dipole-compounding-natural-hazards-and-high-vulnerability-increased-severity-of-flooding-in-the-horn-of-africa/"
+      },
+      {
+        "label": "Hirons and Turner 2018",
+        "url": "https://doi.org/10.1175/JCLI-D-17-0804.1"
+      },
+      {
+        "label": "MacLeod and Caminade 2019",
+        "url": "https://doi.org/10.1175/JCLI-D-19-0201.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:61",
+      "cb_el_nino_impacts_draft.md:69",
+      "research/lit_africa_iod.md:123",
+      "research/lit_africa_iod.md:129",
+      "research/lit_africa_iod.md:145",
+      "research/impacts-literature.md:165",
+      "research/impacts-literature.md:173",
+      "research/impacts-literature.md:174",
+      "research/impacts-literature.md:175"
+    ]
+  },
+  "amazon": {
+    "headline": "Drought, low rivers and fire risk through May",
+    "why": "El Niño's reorganization of the Walker circulation suppresses rainfall over the Amazon basin, which the IPCC's Sixth Assessment Report lists among the best-known El Niño teleconnections (IPCC AR6).",
+    "past": "In 2015, Amazon fire incidence ran 36% above the previous 12-year mean (Aragão et al. 2018). The Rio Negro at Manaus fell to 12.70 m in October 2023, at the time the lowest since records began in 1902 (Espinoza et al. 2024), a record broken in October 2024 at 12.11 m (Revista Cenarium).",
+    "caveat": "Climate change looms large here: World Weather Attribution concluded the severity of the 2023–24 drought was \"largely driven by climate change\" (WWA Amazon 2024). Fire risk also depends heavily on land management, since the large majority of Amazon fires are set by people.",
+    "links": [
+      {
+        "label": "IPCC AR6",
+        "url": "https://www.ipcc.ch/report/ar6/wg1/"
+      },
+      {
+        "label": "Aragão et al. 2018",
+        "url": "https://doi.org/10.1038/s41467-017-02771-y"
+      },
+      {
+        "label": "Espinoza et al. 2024",
+        "url": "https://doi.org/10.1038/s41598-024-58782-5"
+      },
+      {
+        "label": "Revista Cenarium",
+        "url": "https://revistacenarium.com.br/rio-negro-estabiliza-em-manaus-e-fica-nos-1211-metros/"
+      },
+      {
+        "label": "WWA Amazon 2024",
+        "url": "https://www.worldweatherattribution.org/climate-change-not-el-nino-main-driver-of-exceptional-drought-in-highly-vulnerable-amazon-river-basin/"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:79",
+      "research/impacts-literature.md:71",
+      "research/impacts-literature.md:81",
+      "research/impacts-literature.md:236",
+      "research/impacts-literature.md:237",
+      "research/impacts-literature.md:238"
+    ]
+  },
+  "nsam": {
+    "headline": "Dry Dec–Feb in Colombia, Venezuela and the Guianas",
+    "why": "During a mature El Niño, a pressure seesaw between the eastern Pacific and the tropical Atlantic drives sinking air over the southern Caribbean and northern South America (Giannini et al. 2000). Over Colombia the effect is strongest in December to February and weaker in March to May (Poveda et al. 2011).",
+    "past": "In El Niño years Colombia sees below-normal rainfall, river flows and soil moisture (Poveda et al. 2011). The map flags a range of crops in northern South America as at risk in the first half of 2027.",
+    "caveat": "The signal is patchy, with no significant anomaly along the Orinoco low-level jet corridor in interior Venezuela (Salas et al. 2024). A warm tropical Atlantic after the El Niño peak can also cut the dry spell short.",
+    "links": [
+      {
+        "label": "Giannini et al. 2000",
+        "url": "https://doi.org/10.1175/1520-0442(2000)013%3C0297:IVOCRE%3E2.0.CO;2"
+      },
+      {
+        "label": "Poveda et al. 2011",
+        "url": "https://doi.org/10.1007/s00382-010-0931-y"
+      },
+      {
+        "label": "Salas et al. 2024",
+        "url": "https://doi.org/10.1002/joc.8443"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:81",
+      "cb_el_nino_impacts_draft.md:129",
+      "research/lit_missing_americas.md:35",
+      "research/lit_missing_americas.md:41",
+      "research/lit_missing_americas.md:43",
+      "research/lit_missing_americas.md:46",
+      "research/lit_missing_americas.md:54"
+    ]
+  },
+  "nebrazil": {
+    "headline": "Drought risk in the Mar–May 2027 rainy season",
+    "why": "El Niño shifts the Walker circulation and displaces the Atlantic rain belt (the ITCZ) that feeds the region's short rainy season (Hastenrath 2011).",
+    "past": "After the last El Niño, the 2024 rainy season came in right at normal, which is why the region has a dashed outline.",
+    "caveat": "The signal depends on tropical Atlantic temperatures as well as the Pacific, which is why confidence is not higher.",
+    "links": [
+      {
+        "label": "Hastenrath 2011",
+        "url": "https://doi.org/10.1007/s10584-011-0227-1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:81",
+      "research/impacts-literature.md:231"
+    ]
+  },
+  "peru": {
+    "headline": "Coastal flood risk, Dec–Apr, if the offshore warmth holds",
+    "why": "The coast of northern Peru and Ecuador is normally a desert. It floods when the ocean just offshore warms enough to support deep convection, and eastern Pacific events like this one are the damaging configuration.",
+    "past": "Only 1982–83 and 1997–98 brought truly extreme coastal rains among the strong events, and both had very warm water right along the coast. The 2017 coastal El Niño, which occurred without a basin-wide event, killed 169 people and displaced 194,000 (Yglesias-González et al. 2023). In 2023–24 the expected rains largely failed after Peru had set aside around $1.2 billion for flood preparation (SENAMHI).",
+    "caveat": "The high rating is conditional on the coastal warmth persisting. In mid-September 2026 the far eastern Pacific was warmer than at the same point in 1997, 2015 or 2023, but gridded rainfall data cannot resolve the narrow coastal plain, so the observed record here is a rough guide.",
+    "links": [
+      {
+        "label": "Yglesias-González et al. 2023",
+        "url": "https://doi.org/10.1371/journal.pone.0290767"
+      },
+      {
+        "label": "SENAMHI",
+        "url": "https://www.gob.pe/senamhi"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:83",
+      "cb_el_nino_impacts_draft.md:135",
+      "research/impacts-literature.md:255",
+      "research/impacts-literature.md:261",
+      "research/impacts-literature.md:263"
+    ]
+  },
+  "sesa": {
+    "headline": "Heavy rain and river flooding, Sep–Feb",
+    "why": "A Pacific–South American wave train strengthens the subtropical jet and the moisture convergence fed by the South American low-level jet, focusing rain over Uruguay, northeastern Argentina, southern Brazil and Paraguay (Grimm and Tedeschi 2009).",
+    "past": "The May 2024 Rio Grande do Sul floods came in the autumn after the El Niño peak, outside this window, but one attribution study found the El Niño approximately doubled their likelihood, with a very wide uncertainty range of 0.7 to 37 times (Clarke et al.).",
+    "caveat": "The 2023–24 season came in close to normal on average.",
+    "links": [
+      {
+        "label": "Grimm and Tedeschi 2009",
+        "url": "https://doi.org/10.1175/2008JCLI2429.1"
+      },
+      {
+        "label": "Clarke et al.",
+        "url": "https://doi.org/10.1038/s44304-025-00162-8"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:85",
+      "research/impacts-literature.md:272",
+      "research/impacts-literature.md:274",
+      "research/impacts-literature.md:275",
+      "research/impacts-literature.md:280"
+    ]
+  },
+  "altiplano": {
+    "headline": "Drier Dec–Mar rainy season on the high plateau",
+    "why": "A warmer tropical atmosphere strengthens the upper-level westerly winds over the Andes, which cuts off the easterly flow that normally carries Amazon moisture up onto the plateau (Garreaud and Aceituno 2001).",
+    "past": "The extreme 1982–83 drought coincided with a very strong El Niño and caused the largest drought-related economic losses in the Bolivian Altiplano record studied, with 1997–98 second (Canedo-Rosso et al. 2021).",
+    "caveat": "Not every El Niño delivers: January 1973 was slightly wetter than normal because the westerlies strengthened farther south instead of over the Andes (Garreaud and Aceituno 2001). The link is closest over the drier western plateau and weaker toward Lake Titicaca (Vuille et al. 2000), which is left off the map.",
+    "links": [
+      {
+        "label": "Garreaud and Aceituno 2001",
+        "url": "https://doi.org/10.1175/1520-0442(2001)014%3C2779:IRVOTS%3E2.0.CO;2"
+      },
+      {
+        "label": "Canedo-Rosso et al. 2021",
+        "url": "https://doi.org/10.5194/nhess-21-995-2021"
+      },
+      {
+        "label": "Vuille et al. 2000",
+        "url": "https://doi.org/10.1029/2000JD900134"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:87",
+      "research/lit_chile_altiplano.md:31",
+      "research/lit_chile_altiplano.md:35",
+      "research/lit_chile_altiplano.md:38",
+      "research/lit_chile_altiplano.md:40",
+      "research/lit_chile_altiplano.md:57",
+      "research/lit_chile_altiplano.md:58"
+    ]
+  },
+  "cchile": {
+    "headline": "Wetter late spring, Oct–Nov 2026, 35–38°S",
+    "why": "During El Niño, blocking over the Amundsen–Bellingshausen Seas and a weaker southeast Pacific high push the storm track north, favoring above-average rain between 35°S and 38°S in October and November (Montecinos and Aceituno 2003).",
+    "past": "The winter part of the El Niño signal, farther north, has already passed for this event, and it is not guaranteed: in 2015 a strong El Niño winter still came in dry during the central Chile megadrought (Garreaud et al. 2017).",
+    "caveat": "October and November are the tail of the wet season, so absolute amounts are modest. The record does not support a wet 2027 either, since winters after strong El Niños have often turned dry as La Niña took hold, and 1998 is one of the region's five hyperdrought years (Garreaud et al. 2025).",
+    "links": [
+      {
+        "label": "Montecinos and Aceituno 2003",
+        "url": "https://doi.org/10.1175/1520-0442(2003)016%3C0281:SOTERR%3E2.0.CO;2"
+      },
+      {
+        "label": "Garreaud et al. 2017",
+        "url": "https://doi.org/10.5194/hess-21-6307-2017"
+      },
+      {
+        "label": "Garreaud et al. 2025",
+        "url": "https://doi.org/10.5194/hess-29-5347-2025"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:89",
+      "cb_el_nino_impacts_draft.md:91",
+      "research/lit_chile_altiplano.md:114",
+      "research/lit_chile_altiplano.md:118",
+      "research/lit_chile_altiplano.md:135",
+      "research/lit_chile_altiplano.md:145",
+      "research/lit_chile_altiplano.md:161"
+    ]
+  },
+  "gulf": {
+    "headline": "Wetter, stormier winter, Dec–Feb",
+    "why": "El Niño strengthens and extends the subtropical jet stream and shifts the storm track south, steering more winter storms along the Gulf Coast and into the Southeast.",
+    "past": "In the classic station analysis, above-normal October–March precipitation over parts of the southeastern United States and northern Mexico accompanied 18 out of 22 ENSO episodes (Ropelewski and Halpert 1986). The big 1982–83 and 1997–98 winters were very wet.",
+    "caveat": "The wet effect is weaker in central Pacific El Niños (Yu and Zou 2013), but this event has been east-leaning so far. The signal is a seasonal tilt and says little about any single storm.",
+    "links": [
+      {
+        "label": "Ropelewski and Halpert 1986",
+        "url": "https://doi.org/10.1175/1520-0493(1986)114%3C2352:NAPATP%3E2.0.CO;2"
+      },
+      {
+        "label": "Yu and Zou 2013",
+        "url": "https://doi.org/10.1088/1748-9326/8/1/014019"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:3",
+      "cb_el_nino_impacts_draft.md:99",
+      "research/lit_missing_americas.md:62",
+      "research/lit_missing_americas.md:68",
+      "research/lit_missing_americas.md:82",
+      "research/impacts-literature.md:42"
+    ]
+  },
+  "antilles": {
+    "headline": "Wetter dry season in Cuba and the Bahamas, Dec–Feb",
+    "why": "The same strengthened subtropical jet that wets the US Gulf Coast reaches Cuba and the Bahamas. During the mature phase of El Niño the normal dry season is wetter than average over Cuba, Yucatán and the Caribbean coast of Honduras (Giannini et al. 2000).",
+    "past": "The wet tendency can carry into the following year: the early rainy season (mid-April to July) after an El Niño tends to be wet across the Caribbean (Chen and Taylor 2002), especially over the Greater Antilles (Giannini et al. 2000).",
+    "caveat": "The rest of the Caribbean basin, from Costa Rica to northern South America, goes the other way and turns drier, so the boundary between the two matters.",
+    "links": [
+      {
+        "label": "Giannini et al. 2000",
+        "url": "https://doi.org/10.1175/1520-0442(2000)013%3C0297:IVOCRE%3E2.0.CO;2"
+      },
+      {
+        "label": "Chen and Taylor 2002",
+        "url": "https://doi.org/10.1002/joc.711"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:99",
+      "research/lit_missing_americas.md:43",
+      "research/lit_missing_americas.md:175",
+      "research/lit_missing_americas.md:177",
+      "research/lit_missing_americas.md:178"
+    ]
+  },
+  "swus": {
+    "headline": "Wetter winter favored, Dec–Mar, after a 2015–16 miss",
+    "why": "An eastward-extended, strengthened Pacific jet and a southward-shifted storm track steer more winter storms into the southern tier, and days of heavy precipitation become more frequent in the Southwest (Cayan et al. 1999).",
+    "past": "The big 1982–83 and 1997–98 winters were very wet. In 2015–16, the strongest event on record at the time, most seasonal models rerun from September 2015 starts called for a wet winter, and coastal southern California ended up at only 60% to 68% of normal, a miss tied partly to Indian Ocean and western Pacific sea surface temperatures (Siler et al. 2017). That miss is why the region has a dashed outline.",
+    "caveat": "El Niño explains at most around a third of West Coast winter rainfall variability even in strong years (Cash and Burls 2019), so a lot comes down to where individual storms go. Across individual model reruns of strong El Niño winters, about one in ten came out as dry as 2015–16.",
+    "links": [
+      {
+        "label": "Cayan et al. 1999",
+        "url": "https://doi.org/10.1175/1520-0442(1999)012%3C2881:EAHEIT%3E2.0.CO;2"
+      },
+      {
+        "label": "Siler et al. 2017",
+        "url": "https://doi.org/10.1175/JCLI-D-17-0177.1"
+      },
+      {
+        "label": "Cash and Burls 2019",
+        "url": "https://doi.org/10.1175/JCLI-D-18-0181.1"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:101",
+      "research/lit_missing_americas.md:62",
+      "research/lit_missing_americas.md:66",
+      "research/lit_missing_americas.md:78",
+      "research/lit_missing_americas.md:80",
+      "research/lit_missing_americas.md:98"
+    ]
+  },
+  "norcal": {
+    "headline": "Leaning wet, Dec–Mar, but a weak El Niño link",
+    "why": "Northern California sits near the northern edge of the southward-shifted winter storm track, and past work finds the El Niño rainfall signal is concentrated in Southern California (Jong et al. 2016).",
+    "past": "Northern California was wet in 2015–16 when Southern California missed, and the 1982–83 and 1997–98 winters were both well above normal. The misses were 1965–66 and 2009–10.",
+    "caveat": "The signal is not very specific to El Niño. Northern California is often wet in La Niña winters too, most moderate El Niños were not wet, and the El Niño relationship across all winters since 1950 is weak.",
+    "links": [
+      {
+        "label": "Jong et al. 2016",
+        "url": "https://doi.org/10.1088/1748-9326/11/5/054021"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:103"
+    ]
+  },
+  "hawaii": {
+    "headline": "Dry winter, Nov–Mar",
+    "why": "In eastern Pacific El Niño winters, an enhanced local Hadley cell and an eastward-extended subtropical jet bring sinking air and weaker trade winds near Hawaii (Lu et al. 2020).",
+    "past": "The two earliest strong events in the gauge record, 1957–58 and 1965–66, were both wet, while the strong events since the 1970s have been dry.",
+    "caveat": "In central Pacific El Niño winters Hawaiian rainfall stays close to the long-term mean (Lu et al. 2020), and wet-season variability is dominated by the Pacific–North American pattern rather than by ENSO itself (Frazier et al. 2018).",
+    "links": [
+      {
+        "label": "Lu et al. 2020",
+        "url": "https://doi.org/10.1175/JCLI-D-19-0985.1"
+      },
+      {
+        "label": "Frazier et al. 2018",
+        "url": "https://doi.org/10.1007/s00382-017-4003-4"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:109",
+      "research/lit_missing_americas.md:106",
+      "research/lit_missing_americas.md:110",
+      "research/lit_missing_americas.md:113",
+      "research/lit_missing_americas.md:123",
+      "research/lit_missing_americas.md:124"
+    ]
+  },
+  "drycorridor": {
+    "headline": "Drier Dec–Feb in Costa Rica, Panama and Caribbean Colombia",
+    "why": "During the mature phase of El Niño the dry season is drier than average over Costa Rica and northern South America, while the northwest Caribbean turns wetter (Giannini et al. 2000).",
+    "past": "The 2023 drought that restricted traffic through the Panama Canal is the recent example. World Weather Attribution linked the low water to rising demand exacerbated by El Niño and could not attribute the drying to climate change (WWA Panama 2024).",
+    "caveat": "December to February is the dry season across much of this region anyway, and in 2015–16, the strongest event before this one, the season came in right at the neutral-year median, which is why the region has a dashed outline. The more robust Central American drought signal is the midsummer drought of the developing year, July–August 2026, which has already passed (Maldonado et al. 2016).",
+    "links": [
+      {
+        "label": "Giannini et al. 2000",
+        "url": "https://doi.org/10.1175/1520-0442(2000)013%3C0297:IVOCRE%3E2.0.CO;2"
+      },
+      {
+        "label": "WWA Panama 2024",
+        "url": "https://www.worldweatherattribution.org/low-water-levels-in-panama-canal-due-to-increasing-demand-exacerbated-by-el-nino-event/"
+      },
+      {
+        "label": "Maldonado et al. 2016",
+        "url": "https://doi.org/10.5194/adgeo-42-35-2016"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:111",
+      "research/lit_missing_americas.md:43",
+      "research/lit_missing_americas.md:170",
+      "research/lit_missing_americas.md:184",
+      "research/lit_missing_americas.md:185",
+      "research/impacts-literature.md:293"
+    ]
+  },
+  "inlandnw": {
+    "headline": "Drier winter and lower snowpack, Dec–Feb",
+    "why": "El Niño shifts the winter storm track south, leaving interior British Columbia, the northern Rockies and the inland Northwest under drier flow. Negative winter precipitation anomalies stretch across southern Canada from British Columbia to the Great Lakes after El Niño onset (Shabbar et al. 1997).",
+    "past": "In the Columbia River Basin, snowpack tends to be lower in El Niño years, but the anomalies are much less pronounced than the La Niña increases, and coastal parts of the basin can even see more snow in midwinter (Clark et al. 2001).",
+    "caveat": "This is a fragile signal: the observed record depends heavily on how the region is drawn, and the typical dry anomaly is small. The classic station composite found no coherent high-latitude precipitation signal at all (Ropelewski and Halpert 1986).",
+    "links": [
+      {
+        "label": "Shabbar et al. 1997",
+        "url": "https://doi.org/10.1175/1520-0442(1997)010%3C3016:CPPAWT%3E2.0.CO;2"
+      },
+      {
+        "label": "Clark et al. 2001",
+        "url": "https://doi.org/10.1029/2000WR900305"
+      },
+      {
+        "label": "Ropelewski and Halpert 1986",
+        "url": "https://doi.org/10.1175/1520-0493(1986)114%3C2352:NAPATP%3E2.0.CO;2"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:105",
+      "cb_el_nino_impacts_draft.md:135",
+      "research/lit_canada_nw.md:31",
+      "research/lit_canada_nw.md:37",
+      "research/lit_canada_nw.md:42",
+      "research/lit_canada_nw.md:72"
+    ]
+  },
+  "ccanada_warm": {
+    "headline": "Mild winter, strongest just west of Hudson Bay",
+    "why": "During El Niño winters a deeper, southeast-shifted Aleutian Low sends mild Pacific air across Canada, with the largest warm anomalies just west of Hudson Bay (Shabbar and Khandekar 1996).",
+    "past": "The 2023–24 winter was Canada's warmest on record, 1.1 °C warmer than the previous record set in 2009–10 (ECCC winter 2023–24), although the government bulletin does not attribute it to El Niño.",
+    "caveat": "La Niña winters have often been warm here too once long-term warming is removed, so the signal is less specific to El Niño than it looks, and it is sensitive to how the trend is removed. Farther east the warmth depends on the North Atlantic Oscillation, and a negative Pacific Decadal Oscillation weakens El Niño warmth over western Canada (Bonsal et al. 2001).",
+    "links": [
+      {
+        "label": "Shabbar and Khandekar 1996",
+        "url": "https://doi.org/10.1080/07055900.1996.9649570"
+      },
+      {
+        "label": "ECCC winter 2023–24",
+        "url": "https://www.canada.ca/en/environment-climate-change/services/climate-change/science-research-data/climate-trends-variability/trends-variations/winter-2024-bulletin.html"
+      },
+      {
+        "label": "Bonsal et al. 2001",
+        "url": "https://doi.org/10.1002/joc.590"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:107",
+      "research/impacts-literature.md:305",
+      "research/lit_canada_nw.md:93",
+      "research/lit_canada_nw.md:98",
+      "research/lit_canada_nw.md:108",
+      "research/lit_canada_nw.md:115"
+    ]
+  },
+  "nindia": {
+    "headline": "Off the map: a weak 2027 monsoon is not supported",
+    "why": "El Niño can suppress the Indian monsoon through sinking air over India, but events with the warmest water in the central Pacific do this more effectively than eastern Pacific events like this one (Kumar et al. 2006).",
+    "past": "In the year after a strong El Niño, the monsoon over north and central India has usually been near or above normal, partly because strong El Niños often flip into La Niña by the following summer.",
+    "caveat": "The ENSO–monsoon relationship has also weakened since the 1980s (Kumar et al. 1999), another reason not to call for a weak 2027 monsoon.",
+    "links": [
+      {
+        "label": "Kumar et al. 2006",
+        "url": "https://doi.org/10.1126/science.1131152"
+      },
+      {
+        "label": "Kumar et al. 1999",
+        "url": "https://doi.org/10.1126/science.284.5423.2156"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:53",
+      "cb_el_nino_impacts_draft.md:135",
+      "cb_el_nino_impacts_draft.md:149",
+      "research/impacts-literature.md:128",
+      "research/impacts-literature.md:129"
+    ]
+  },
+  "nindia_yr0": {
+    "headline": "Developing-year monsoon fits El Niño, but it is already past",
+    "why": "The El Niño drought signal for north and central India belongs mainly to the monsoon of the developing year, which for this event was June–September 2026.",
+    "past": "The 2026 monsoon was running around 12% below normal by mid-August (IMD). Even so, the strongest El Niño on record at the time, 1997, produced a near-normal monsoon in its developing year.",
+    "caveat": "This season is behind us, so it does not appear on the forward-looking map.",
+    "links": [
+      {
+        "label": "IMD",
+        "url": "https://internal.imd.gov.in/press_release/20260813_pr_5232.pdf"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:53",
+      "cb_el_nino_impacts_draft.md:149",
+      "research/impacts-literature.md:561"
+    ]
+  },
+  "lit_ohio": {
+    "headline": "Removed: this year's models lean wet in the Ohio Valley",
+    "why": "The older literature places a dry winter over the Ohio Valley during El Niño, and central Pacific El Niños enhance the drying there (Yu and Zou 2013).",
+    "past": "The observed record in strong El Niño winters is close to a coin flip.",
+    "caveat": "This year's models lean wet there, so the region was taken off the map.",
+    "links": [
+      {
+        "label": "Yu and Zou 2013",
+        "url": "https://doi.org/10.1088/1748-9326/8/1/014019"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:113",
+      "research/lit_missing_americas.md:82",
+      "research/lit_missing_americas.md:83",
+      "research/impacts-literature.md:300"
+    ]
+  },
+  "c_uk_ceurope": {
+    "headline": "Not mapped: a small wet lean for UK and central Europe, Oct–Dec",
+    "why": "In early winter the El Niño signal reaches the North Atlantic through the troposphere, via the Gulf of Mexico and Caribbean, and can differ from the better-known late-winter response (Ayarzagüena et al. 2018).",
+    "past": "The 2015–16 winter was exceptionally wet and mild across the UK and Ireland, with record-breaking rainfall from Storm Desmond in December (McCarthy et al. 2016), although that summary does not attribute the season to El Niño.",
+    "caveat": "The models lean wet here, but the shifts are small, the observed record in strong events is weak, and the El Niño link to the North Atlantic–European region may have weakened since the 1970s (Ivasić et al. 2021).",
+    "links": [
+      {
+        "label": "Ayarzagüena et al. 2018",
+        "url": "https://doi.org/10.1175/JCLI-D-18-0097.1"
+      },
+      {
+        "label": "McCarthy et al. 2016",
+        "url": "https://doi.org/10.1002/wea.2823"
+      },
+      {
+        "label": "Ivasić et al. 2021",
+        "url": "https://doi.org/10.1007/s00382-021-05783-z"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:117",
+      "cb_el_nino_impacts_draft.md:123",
+      "research/lit_europe.md:82",
+      "research/lit_europe.md:95",
+      "research/lit_europe.md:136"
+    ]
+  },
+  "c_scandinavia": {
+    "headline": "Not mapped: a cold Scandinavian late winter is a long shot",
+    "why": "The textbook late-winter pattern of cold northern Europe and a wet south mostly shows up when a sudden stratospheric warming occurs (Ineson and Scaife 2009), and those cannot be forecast months in advance.",
+    "past": "Past strong El Niño winters have been split roughly evenly between positive and negative phases of the North Atlantic Oscillation.",
+    "caveat": "The observed cold signal in strong events is weak, and the El Niño link to the region may have weakened since the 1970s (Ivasić et al. 2021).",
+    "links": [
+      {
+        "label": "Ineson and Scaife 2009",
+        "url": "https://doi.org/10.1038/ngeo381"
+      },
+      {
+        "label": "Ivasić et al. 2021",
+        "url": "https://doi.org/10.1007/s00382-021-05783-z"
+      }
+    ],
+    "sources": [
+      "cb_el_nino_impacts_draft.md:123",
+      "research/lit_europe.md:39",
+      "research/lit_europe.md:82"
+    ]
+  },
+  "_tour": [
+    {
+      "id": "pacific-core",
+      "title": "The Pacific core",
+      "regions": [
+        "maritime",
+        "philippines",
+        "wpacific",
+        "cpacific",
+        "schina"
+      ],
+      "text": "El Niño's fingerprint is clearest in the western tropical Pacific, where the rising branch of the Walker circulation normally sits. When it shifts east, Indonesia, the Philippines and the western Pacific islands dry out, while Kiribati and Tuvalu get deluged. In Indonesia the main risk is fire on drained peatland."
+    },
+    {
+      "id": "asia-softer",
+      "title": "Softer signals in Asia and Australia",
+      "regions": [
+        "yangtze",
+        "mekong",
+        "srilanka",
+        "seaustralia",
+        "nindia"
+      ],
+      "text": "Several familiar impacts have a weaker track record once you count. Yangtze summer flooding is close to a coin flip over the full summer, and southeast Australia's dry signal is concentrated in spring and can reverse in summer. A weak Indian monsoon in the year after a strong El Niño has rarely happened, so India is off the map."
+    },
+    {
+      "id": "africa",
+      "title": "Africa, through the Indian Ocean",
+      "regions": [
+        "safrica",
+        "horn"
+      ],
+      "text": "El Niño's effects on Africa run through the Indian Ocean, and this year a positive Indian Ocean Dipole has been developing alongside it. That points to drought for southern Africa's maize season and heavy short rains in the Horn of Africa, where the dipole matters more than El Niño itself."
+    },
+    {
+      "id": "south-america",
+      "title": "South America",
+      "regions": [
+        "amazon",
+        "nsam",
+        "peru",
+        "sesa",
+        "nebrazil",
+        "altiplano",
+        "cchile"
+      ],
+      "text": "Northern South America and the Amazon face drought, while southeastern South America turns wet. The coast of Peru and Ecuador, where El Niño got its name, floods badly only when the water right offshore gets very warm, as it did in 1982–83 and 1997–98."
+    },
+    {
+      "id": "north-central-america",
+      "title": "North and Central America",
+      "regions": [
+        "gulf",
+        "antilles",
+        "swus",
+        "norcal",
+        "hawaii",
+        "drycorridor",
+        "inlandnw",
+        "ccanada_warm"
+      ],
+      "text": "A strengthened subtropical jet brings wetter winters from the US Gulf Coast to Cuba, among the most dependable El Niño impacts anywhere. Southern California usually gets wet too, but its 2015–16 miss is a reminder that El Niño only shifts the odds. Hawaii and southern Central America lean dry, and central Canada leans mild."
+    },
+    {
+      "id": "off-the-map",
+      "title": "What El Niño doesn't reliably do",
+      "regions": [
+        "c_uk_ceurope",
+        "c_scandinavia",
+        "lit_ohio",
+        "nindia"
+      ],
+      "text": "Europe is absent from the map because the late-winter signal depends on sudden stratospheric warmings that cannot be forecast months ahead, and past strong El Niño winters split on the North Atlantic Oscillation. The Ohio Valley was removed because this year's models lean wet and the observed record is a coin flip."
+    }
+  ]
+}

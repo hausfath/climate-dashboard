@@ -171,12 +171,22 @@ body.light::after { opacity: .35; }
   background: rgba(232, 184, 75, 0.12);
 }
 
-/* full/short nav labels: shorten on phones so four pills fit on one row */
+#main-nav .nav-link.tab-active-impacts {
+  color: var(--ember);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+/* full/short nav labels: shorten on phones so five pills fit on one row */
 #main-nav .nav-lbl-short { display: none; }
 @media (max-width: 700px) {
   #main-nav .nav-lbl-full { display: none; }
   #main-nav .nav-lbl-short { display: inline; }
   #main-nav .nav-link { padding: 6px 11px; }
+}
+@media (max-width: 440px) {
+  #main-nav { gap: 2px; }
+  #main-nav .nav-link { padding: 6px 7px; letter-spacing: 0.02em; }
 }
 
 .topbar-right {
@@ -641,4 +651,23 @@ body.light .modal-header .btn-close { filter: none; }
 .kpi-link:focus-visible .kpi { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 900px) {
   .subnav { padding: 0 20px 32px; margin-top: -14px; }
+}
+
+/* ------------------------------------------------- topbar fitting */
+/* assets/topbar_fit.js adds tb-1 … tb-5 to <body>, one step at a time, only
+   as far as needed for the topbar to fit on one row (tb-5 = two rows).
+   Kept last so these win over the base topbar rules above. */
+body.tb-1 .brand .brand-sub { display: none; }
+body.tb-2 .topbar { gap: 14px; padding: 0 18px; }
+body.tb-2 .topbar-right { gap: 10px; }
+body.tb-2 #main-nav .nav-link { padding: 6px 10px; }
+body.tb-3 .live { font-size: 0; gap: 0; }
+body.tb-4 #main-nav .nav-lbl-full { display: none; }
+body.tb-4 #main-nav .nav-lbl-short { display: inline; }
+body.tb-5 .topbar { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
+body.tb-5 .topbar-right { margin-left: 0; width: 100%; justify-content: space-between; }
+@media (max-width: 560px) {
+  .topbar-right { gap: 8px; justify-content: space-between; }
+  .live { font-size: 0; gap: 0; }
+  .toggle-cluster { gap: 4px; }
 }

@@ -2193,6 +2193,50 @@ def _build_rank_probability_table(stats: dict, dark_mode: bool = False) -> html.
     return html.Div(out_rows, className="ranktable")
 
 
+_IMPACTS_DIR = Path(__file__).parent.parent / 'elnino_map'
+_IMPACTS_TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+                  '.css': 'text/css; charset=utf-8', '.json': 'application/json',
+                  '.bin': 'application/octet-stream', '.png': 'image/png'}
+
+
+def _register_impacts_route(server):
+    """Serve the El Niño impacts map bundle (elnino_map/) at /elnino-map/.
+
+    It lives outside assets/ on purpose: Dash injects every .js/.css under
+    assets/ into the main page, and the map's scripts must only run inside
+    its iframe. Text and grid files are gzipped once and cached in memory
+    (the forecast grids shrink from ~0.9 MB to ~0.5 MB each).
+    """
+    import gzip
+    from flask import request, Response, abort
+
+    cache = {}
+
+    @server.route('/elnino-map/', defaults={'path': 'index.html'})
+    @server.route('/elnino-map/<path:path>')
+    def _impacts_file(path):
+        f = (_IMPACTS_DIR / path).resolve()
+        if _IMPACTS_DIR.resolve() not in f.parents or not f.is_file():
+            abort(404)
+        ext = f.suffix.lower()
+        if ext not in _IMPACTS_TYPES:
+            abort(404)
+        mtime = f.stat().st_mtime
+        hit = cache.get(f)
+        if not hit or hit[0] != mtime:
+            raw = f.read_bytes()
+            gz = gzip.compress(raw, 6) if ext != '.png' else None
+            hit = cache[f] = (mtime, raw, gz)
+        _, raw, gz = hit
+        use_gz = gz is not None and 'gzip' in request.headers.get('Accept-Encoding', '')
+        resp = Response(gz if use_gz else raw, mimetype=_IMPACTS_TYPES[ext])
+        if use_gz:
+            resp.headers['Content-Encoding'] = 'gzip'
+            resp.headers['Vary'] = 'Accept-Encoding'
+        resp.headers['Cache-Control'] = 'no-cache' if ext in ('.html', '.js', '.css') else 'public, max-age=3600'
+        return resp
+
+
 def create_dashboard(df: pd.DataFrame) -> Dash:
     """Create the Dash application with dark mode support."""
     import logging
@@ -2210,6 +2254,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         dbc.icons.FONT_AWESOME
     ], suppress_callback_exceptions=True,
        assets_folder=str(assets_path))
+
+    _register_impacts_route(app.server)
 
     SITE_URL = "https://dashboard.theclimatebrink.com"
     # Dedicated 1200x630 link-preview card (composed from the Berkeley Earth
@@ -3153,6 +3199,21 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         ], className='map-wrap'),
     ])
 
+    # El Niño Impacts tab: the interactive impacts map (elnino_map/, a static
+    # bundle served by the route below, built by El Nino Impacts/video/tools/
+    # export_dashboard.py). assets/impacts_embed.js sets the iframe src on
+    # first visit and relays the theme toggle, like the Warming Map tab.
+    tab_impacts = html.Div(id='tab-content-impacts', style={'display': 'none'}, children=[
+        html.Div([
+            html.Iframe(
+                id='impacts-map-frame',
+                className='warming-map-frame',
+                title='El Niño 2026-27 impacts map: regions checked against '
+                      'past strong El Niños and this year\'s forecast models',
+            ),
+        ], className='map-wrap'),
+    ])
+
     # Methodology text for the footer modal
     try:
         _methodology_md = (Path(__file__).parent.parent /
@@ -3180,6 +3241,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         tab_enso,
         tab_models,
         tab_map,
+        tab_impacts,
 
         L.footer_block(stats['latest_date']),
 
@@ -3292,18 +3354,20 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def toggle_methodology(n, is_open):
         return not is_open
 
-    _VALID_TABS = {'global', 'enso', 'models', 'map'}
+    _VALID_TABS = {'global', 'enso', 'models', 'map', 'impacts'}
     # Section anchors from the ENSO sub-nav; a shared #sec-… link should land
     # on the ENSO tab rather than whichever tab the visitor last used.
     _ENSO_SECTION_IDS = {'sec-daily-nino', 'sec-plume', 'sec-odds',
                          'sec-context', 'sec-coupled'}
     _TAB_ACCENTS = {'global': '', 'enso': 'accent-teal', 'models': 'accent-violet',
-                    'map': 'accent-gold'}
+                    'map': 'accent-gold', 'impacts': ''}
     _NAV_ACTIVE = {'global': 'tab-active-temp', 'enso': 'tab-active-enso',
-                   'models': 'tab-active-models', 'map': 'tab-active-map'}
+                   'models': 'tab-active-models', 'map': 'tab-active-map',
+                   'impacts': 'tab-active-impacts'}
     # Brand subtitle follows the active tab's data source
     _TAB_BRAND_SUB = {'global': 'ERA5 · daily', 'enso': 'Niño 3.4 · monthly',
-                      'models': 'CMIP · obs', 'map': 'Berkeley Earth · 0.25°'}
+                      'models': 'CMIP · obs', 'map': 'Berkeley Earth · 0.25°',
+                      'impacts': 'GPCC · NMME + C3S'}
 
     # Callback to switch between tab content divs
     @app.callback(
@@ -3311,23 +3375,27 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Output('tab-content-enso', 'style'),
          Output('tab-content-models', 'style'),
          Output('tab-content-map', 'style'),
+         Output('tab-content-impacts', 'style'),
          Output('active-tab-store', 'data'),
          Output('main-container', 'className'),
          Output('nav-global', 'className'),
          Output('nav-enso', 'className'),
          Output('nav-models', 'className'),
          Output('nav-map', 'className'),
+         Output('nav-impacts', 'className'),
          Output('brand-sub', 'children'),
          Output('url', 'hash')],
         [Input('nav-global', 'n_clicks'),
          Input('nav-enso', 'n_clicks'),
          Input('nav-models', 'n_clicks'),
          Input('nav-map', 'n_clicks'),
+         Input('nav-impacts', 'n_clicks'),
          Input('url', 'hash'),
          Input('active-tab-store', 'modified_timestamp')],
         [State('active-tab-store', 'data')],
     )
-    def switch_tab(n_global, n_enso, n_models, n_map, url_hash, _ts, current_tab):
+    def switch_tab(n_global, n_enso, n_models, n_map, n_impacts, url_hash, _ts,
+                   current_tab):
         triggered = callback_context.triggered[0]['prop_id'].split('.')[0]
         # An explicit nav click always wins.
         if triggered == 'nav-global':
@@ -3338,6 +3406,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             tab = 'models'
         elif triggered == 'nav-map':
             tab = 'map'
+        elif triggered == 'nav-impacts':
+            tab = 'impacts'
         else:
             # URL hash drives both the 'url'-triggered case and the page-load
             # tick (where active-tab-store fires first because of session
@@ -3356,12 +3426,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             {} if tab == 'enso' else {'display': 'none'},
             {} if tab == 'models' else {'display': 'none'},
             {} if tab == 'map' else {'display': 'none'},
+            {} if tab == 'impacts' else {'display': 'none'},
             tab,
             _TAB_ACCENTS[tab],
             nav_cls('global'),
             nav_cls('enso'),
             nav_cls('models'),
             nav_cls('map'),
+            nav_cls('impacts'),
             _TAB_BRAND_SUB[tab],
             f'#{tab}',
         )

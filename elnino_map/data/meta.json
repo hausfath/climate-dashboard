@@ -1,0 +1,285 @@
+{
+ "init": "Sep 2026",
+ "seasons": {
+  "SON": {
+   "label": "Sep–Nov 2026",
+   "n": 13,
+   "models": [
+    {
+     "id": "CFSv2",
+     "label": "NOAA CFSv2"
+    },
+    {
+     "id": "CanESM5",
+     "label": "Canada CanESM5"
+    },
+    {
+     "id": "GEM5.2_NEMO",
+     "label": "Canada GEM5.2"
+    },
+    {
+     "id": "NASA_GEOS5v2",
+     "label": "NASA GEOS"
+    },
+    {
+     "id": "NCAR_CCSM4",
+     "label": "NCAR CCSM4"
+    },
+    {
+     "id": "NCAR_CESM1",
+     "label": "NCAR CESM1"
+    },
+    {
+     "id": "ecmwf",
+     "label": "ECMWF"
+    },
+    {
+     "id": "ukmo",
+     "label": "UK Met Office"
+    },
+    {
+     "id": "meteo_france",
+     "label": "Météo-France"
+    },
+    {
+     "id": "dwd",
+     "label": "DWD Germany"
+    },
+    {
+     "id": "cmcc",
+     "label": "CMCC Italy"
+    },
+    {
+     "id": "jma",
+     "label": "JMA Japan"
+    },
+    {
+     "id": "bom",
+     "label": "BoM Australia"
+    }
+   ],
+   "source": "NMME + Copernicus C3S"
+  },
+  "OND": {
+   "label": "Oct–Dec 2026",
+   "n": 13,
+   "models": [
+    {
+     "id": "CFSv2",
+     "label": "NOAA CFSv2"
+    },
+    {
+     "id": "CanESM5",
+     "label": "Canada CanESM5"
+    },
+    {
+     "id": "GEM5.2_NEMO",
+     "label": "Canada GEM5.2"
+    },
+    {
+     "id": "NASA_GEOS5v2",
+     "label": "NASA GEOS"
+    },
+    {
+     "id": "NCAR_CCSM4",
+     "label": "NCAR CCSM4"
+    },
+    {
+     "id": "NCAR_CESM1",
+     "label": "NCAR CESM1"
+    },
+    {
+     "id": "ecmwf",
+     "label": "ECMWF"
+    },
+    {
+     "id": "ukmo",
+     "label": "UK Met Office"
+    },
+    {
+     "id": "meteo_france",
+     "label": "Météo-France"
+    },
+    {
+     "id": "dwd",
+     "label": "DWD Germany"
+    },
+    {
+     "id": "cmcc",
+     "label": "CMCC Italy"
+    },
+    {
+     "id": "jma",
+     "label": "JMA Japan"
+    },
+    {
+     "id": "bom",
+     "label": "BoM Australia"
+    }
+   ],
+   "source": "NMME + Copernicus C3S"
+  },
+  "DJF": {
+   "label": "Dec 2026–Feb 2027",
+   "n": 13,
+   "models": [
+    {
+     "id": "CFSv2",
+     "label": "NOAA CFSv2"
+    },
+    {
+     "id": "CanESM5",
+     "label": "Canada CanESM5"
+    },
+    {
+     "id": "GEM5.2_NEMO",
+     "label": "Canada GEM5.2"
+    },
+    {
+     "id": "NASA_GEOS5v2",
+     "label": "NASA GEOS"
+    },
+    {
+     "id": "NCAR_CCSM4",
+     "label": "NCAR CCSM4"
+    },
+    {
+     "id": "NCAR_CESM1",
+     "label": "NCAR CESM1"
+    },
+    {
+     "id": "ecmwf",
+     "label": "ECMWF"
+    },
+    {
+     "id": "ukmo",
+     "label": "UK Met Office"
+    },
+    {
+     "id": "meteo_france",
+     "label": "Météo-France"
+    },
+    {
+     "id": "dwd",
+     "label": "DWD Germany"
+    },
+    {
+     "id": "cmcc",
+     "label": "CMCC Italy"
+    },
+    {
+     "id": "jma",
+     "label": "JMA Japan"
+    },
+    {
+     "id": "bom",
+     "label": "BoM Australia"
+    }
+   ],
+   "source": "NMME + Copernicus C3S"
+  },
+  "MAM": {
+   "label": "Mar–May 2027",
+   "n": 6,
+   "models": [
+    {
+     "id": "CFSv2",
+     "label": "NOAA CFSv2"
+    },
+    {
+     "id": "CanESM5",
+     "label": "Canada CanESM5"
+    },
+    {
+     "id": "GEM5.2_NEMO",
+     "label": "Canada GEM5.2"
+    },
+    {
+     "id": "NASA_GEOS5v2",
+     "label": "NASA GEOS"
+    },
+    {
+     "id": "NCAR_CCSM4",
+     "label": "NCAR CCSM4"
+    },
+    {
+     "id": "NCAR_CESM1",
+     "label": "NCAR CESM1"
+    }
+   ],
+   "source": "NMME (C3S runs end in Feb)"
+  }
+ },
+ "strong_events": [
+  1957,
+  1965,
+  1972,
+  1982,
+  1997,
+  2009,
+  2015,
+  2023
+ ],
+ "oni_ndj_strong": {
+  "1957": 1.62,
+  "1965": 1.6,
+  "1972": 1.77,
+  "1982": 2.12,
+  "1997": 2.37,
+  "2009": 1.5,
+  "2015": 2.59,
+  "2023": 1.99
+ },
+ "by_event": {
+  "1957": [
+   17,
+   25
+  ],
+  "1965": [
+   17,
+   25
+  ],
+  "1972": [
+   22,
+   25
+  ],
+  "1982": [
+   26,
+   26
+  ],
+  "1997": [
+   26,
+   26
+  ],
+  "2009": [
+   21,
+   26
+  ],
+  "2015": [
+   24,
+   26
+  ],
+  "2023": [
+   23,
+   26
+  ]
+ },
+ "aggregate": {
+  "hits": 176,
+  "n": 205
+ },
+ "lanina_same": [
+  91,
+  308
+ ],
+ "moderate_hits": [
+  114,
+  155
+ ],
+ "p2027_warmest": {
+  "ONI": 0.948,
+  "RONI": 0.962
+ },
+ "n_map_regions": 26,
+ "obs_source": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands"
+}

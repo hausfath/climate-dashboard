@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>El Niño Impacts Map</title>
+<meta name="description" content="Where the 2026–27 El Niño is most likely to shift rainfall: each region checked against the 8 strong El Niños since 1957 and this year's seasonal forecast models.">
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="stylesheet" href="app.css">
+<script>
+  // theme before first paint: ?theme= (set by the dashboard), else the OS preference
+  (function () {
+    var q = new URLSearchParams(location.search).get('theme');
+    var t = q === 'light' || q === 'dark' ? q : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.dataset.theme = t;
+    if (new URLSearchParams(location.search).get('embed') === '1') document.documentElement.classList.add('embed');
+  })();
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="map" aria-label="Interactive map of expected El Niño impacts. Drag to pan, scroll or pinch to zoom, click a region for its evidence." role="img"></canvas>
+  <div id="chips" aria-hidden="false"></div>
+
+  <!-- title -->
+  <section class="dock" id="dock">
+    <div class="kicker">El Niño 2026–27 · impacts outlook</div>
+    <h1>Where this El Niño is most likely to hit</h1>
+    <p class="lede" id="lede">Each region is checked against the strong El Niños since 1957 and this year's seasonal forecast models. Click a region, or anywhere on the map, for the evidence.</p>
+    <div class="intro-actions">
+      <button class="btn btn-primary" id="tour-btn" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>Take the tour</button>
+      <button class="btn" id="howto-btn" type="button">How to read this</button>
+      <button class="btn btn-icon" id="collapse-btn" type="button" aria-expanded="true" aria-controls="lede" title="Collapse"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <p class="credit" id="credit">Observed rainfall: GPCC v2025 and station records · Forecasts: NMME + Copernicus C3S (generated using Copernicus Climate Change Service information 2026) · Analysis: Zeke Hausfather, <a href="https://www.theclimatebrink.com" target="_blank" rel="noopener">The Climate Brink</a></p>
+  </section>
+
+  <!-- bottom control bar: season timeline, replay, layers -->
+  <nav class="ctrlbar" id="bar" aria-label="Map controls">
+    <div class="grp">
+      <div class="ctl-label"><span>Forecast season</span><span class="ctl-note" id="init-note"></span></div>
+      <div class="seasons" role="radiogroup" aria-label="Forecast season" id="seasons"></div>
+    </div>
+    <div class="grp">
+      <div class="ctl-label"><span>Replay a past strong El Niño</span></div>
+      <div class="years" id="years"></div>
+    </div>
+    <div class="grp grp-layers">
+      <div class="ctl-label"><span>Map</span></div>
+      <button class="btn layers-btn" id="layers-btn" type="button" aria-expanded="false" aria-controls="layers"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6 3.2-6 3.2-6-3.2zM2 8.2l6 3.2 6-3.2M2 11l6 3.2 6-3.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Layers</button>
+    </div>
+  </nav>
+  <div class="layers" id="layers" hidden>
+    <div class="ctl-label"><span>Show regions</span></div>
+    <div class="seg" role="radiogroup" aria-label="Region filter" id="filter">
+      <button type="button" role="radio" data-v="all" aria-checked="true">All</button>
+      <button type="button" role="radio" data-v="dry" aria-checked="false"><i class="sw sw-dry"></i>Drier</button>
+      <button type="button" role="radio" data-v="wet" aria-checked="false"><i class="sw sw-wet"></i>Wetter</button>
+    </div>
+    <div class="ctl-label"><span>Layers</span></div>
+    <div class="toggles" id="toggles">
+      <label class="tg"><input type="checkbox" id="lyr-field" checked><span>Model rainfall forecast</span></label>
+      <label class="tg"><input type="checkbox" id="lyr-dots" checked><span>Where models agree (dots)</span></label>
+      <label class="tg"><input type="checkbox" id="lyr-sst"><span>Ocean temperature forecast, Dec–Feb</span></label>
+      <label class="tg"><input type="checkbox" id="lyr-extra"><span>Regions tested and left off the map</span></label>
+    </div>
+  </div>
+
+  <!-- replay scoreboard -->
+  <div class="replay" id="replay" hidden>
+    <div class="replay-year" id="replay-year"></div>
+    <div class="replay-text" id="replay-text"></div>
+    <button class="btn btn-icon" id="replay-close" type="button" title="Back to this year's forecast" aria-label="Back to this year's forecast"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  </div>
+
+  <!-- region / global / how-to card -->
+  <aside class="card" id="card" aria-live="polite" hidden>
+    <div class="card-scroll" id="card-body"></div>
+    <button class="card-close btn btn-icon" id="card-close" type="button" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  </aside>
+
+  <!-- point query -->
+  <div class="pop" id="pop" hidden></div>
+  <!-- hover tooltip -->
+  <div class="tip" id="tip" hidden></div>
+
+  <!-- tour caption -->
+  <div class="tour" id="tour" hidden>
+    <div class="tour-step" id="tour-step"></div>
+    <h2 id="tour-title"></h2>
+    <p id="tour-text"></p>
+    <div class="tour-regions" id="tour-regions"></div>
+    <div class="tour-nav">
+      <button class="btn" id="tour-prev" type="button">Back</button>
+      <button class="btn btn-primary" id="tour-next" type="button">Next</button>
+      <button class="btn btn-ghost" id="tour-exit" type="button">Exit tour</button>
+    </div>
+  </div>
+
+  <!-- legend -->
+  <div class="legend" id="legend">
+    <div class="lg-row">
+      <span class="lg-h">Drier</span>
+      <i class="tier" data-kind="dry" data-conf="high"></i><i class="tier" data-kind="dry" data-conf="medhigh"></i><i class="tier" data-kind="dry" data-conf="medium"></i>
+      <span class="lg-h lg-gap">Wetter</span>
+      <i class="tier" data-kind="wet" data-conf="high"></i><i class="tier" data-kind="wet" data-conf="medhigh"></i><i class="tier" data-kind="wet" data-conf="medium"></i>
+    </div>
+    <div class="lg-row lg-sub"><span>high</span><span>→</span><span>medium confidence</span><span class="lg-dash"><i></i>underperformed in a recent strong event</span></div>
+    <div class="lg-field" id="lg-field">
+      <div class="lg-bar"></div>
+      <div class="lg-ticks"><span>−60%</span><span>0</span><span>+60%</span></div>
+      <div class="lg-cap" id="lg-cap"></div>
+    </div>
+  </div>
+
+  <div class="zoom">
+    <button class="btn btn-icon" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+    <button class="btn btn-icon" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+    <button class="btn btn-icon" id="zoom-home" type="button" aria-label="Show the whole world"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 8h11M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+  </div>
+
+  <div class="loading" id="loading">Loading map…</div>
+</div>
+<script src="js/engine.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

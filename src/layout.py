@@ -20,7 +20,7 @@ import dash_bootstrap_components as dbc
 
 def _nav_label(full: str, short: str) -> list:
     """Full label on wide screens, short label on phones (CSS-swapped) so
-    four pills fit without wrapping."""
+    five pills fit without wrapping."""
     return [html.Span(full, className="nav-lbl-full"),
             html.Span(short, className="nav-lbl-short")]
 
@@ -36,6 +36,8 @@ def topbar(last_updated: str) -> html.Header:
                                     id='nav-global', href='#global', n_clicks=0)),
             dbc.NavItem(dbc.NavLink(_nav_label("ENSO Forecast", "ENSO"),
                                     id='nav-enso', href='#enso', n_clicks=0)),
+            dbc.NavItem(dbc.NavLink(_nav_label("El Niño Impacts", "Impacts"),
+                                    id='nav-impacts', href='#impacts', n_clicks=0)),
             dbc.NavItem(dbc.NavLink(_nav_label("Warming Map", "Map"),
                                     id='nav-map', href='#map', n_clicks=0)),
             dbc.NavItem(dbc.NavLink(_nav_label("Models vs Obs", "Models"),

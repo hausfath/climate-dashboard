@@ -52,6 +52,8 @@ Thumbs.db
 !forecast_skill/ec46_skill.png
 # Keep the ENSO multi-model plume skill plots (committed by cron)
 !forecast_skill/enso_skill_*.png
+# El Niño Impacts tab: the SST layer ships with the static bundle
+!elnino_map/img/*.png
 
 # ERA5 large binary data (re-downloadable via era5_api.py / CDS API)
 data/era5/*.nc
