@@ -144,10 +144,11 @@ function regionCardHTML(key, R, ctx) {
   }
   if (M) {
     const S = ctx.meta.seasons[M.season], dirw = M.sign < 0 ? 'drier' : 'wetter', cls = M.agree / M.n >= 0.8 ? (M.sign < 0 ? '' : ' wet') : ' mixed';
-    s += `<section class="ev"><div class="ev-head"><div class="ev-lbl">This year's ${M.n} forecast models · ${esc(S?.label ?? M.season)}</div>`;
+    const src = M.ens === 'nmme' ? `NMME only (Copernicus runs end in ${ctx.meta.model_horizon?.all?.split(' ')[0] ?? 'Feb'})` : (S?.source ?? 'NMME + Copernicus C3S');
+    s += `<section class="ev"><div class="ev-head"><div class="ev-lbl">This year's ${M.n} forecast models · ${esc(M.window ?? S?.label ?? M.season)}</div>`;
     s += `<div class="count models${cls}"><b data-count="models">${REDUCED ? M.agree : 0}</b><span>/${M.n}</span><small>lean ${dirw}</small></div></div>`;
     s += modelTilesHTML(M, M.members, { season: S?.label, where: 'averaged over the region' });
-    s += `<div class="tiles-foot"><span>Model average <b>${signed(Math.round(M.mmm_pct))}%</b> vs normal</span><span>${esc(S?.source ?? '')}, ${esc(ctx.meta.init)} start</span></div>${M.note ? `<p class="nomodels" style="margin-top:8px;font-size:12px">${esc(M.note)}</p>` : ''}</section>`;
+    s += `<div class="tiles-foot"><span>Model average <b>${signed(Math.round(M.mmm_pct))}%</b> vs normal</span><span>${esc(src)}, ${esc(ctx.meta.init)} start</span></div>${M.note ? `<p class="nomodels" style="margin-top:8px;font-size:12px">${esc(M.note)}</p>` : ''}</section>`;
   } else if (!off) {
     s += `<section class="ev"><div class="ev-lbl">This year's forecast models</div><p class="nomodels">${isTemp(R) ? 'Temperature region: the model check on this map covers rainfall only.' : 'This window is beyond the range of current seasonal forecasts.'}</p></section>`;
   }
@@ -197,7 +198,7 @@ function howtoHTML(meta) {
   <dt>The ${meta.strong_events.length} strong El Niños</dt><dd>Events with a Nov–Jan Oceanic Niño Index of at least 1.5 °C: ${ev}.</dd>
   <dt>Bars, line and checks</dt><dd>Each bar is that event's rainfall in the region's season as a % of the 1991–2020 average. The line marks a typical ENSO-neutral year (the neutral-year trend plus the median neutral residual). A check means the event landed on the expected side of that line. By chance you would expect about half.</dd>
   <dt>La Niña check</dt><dd>How often La Niña years went the same way. A low count means the signal really is tied to El Niño.</dd>
-  <dt>Model tiles</dt><dd>One tile per forecast system (${meta.seasons.SON.n} for autumn and winter: 6 NMME and 7 Copernicus C3S; ${meta.seasons.MAM.n} NMME for spring), from the ${esc(meta.init)} start. Colour shows the model's regional-mean rainfall change. A red outline marks a model that goes the other way.</dd>
+  <dt>Model tiles</dt><dd>One tile per forecast system, from the ${esc(meta.init)} start, averaged over the region's whole season up to ${esc(meta.model_horizon?.all ?? 'Feb 2027')}, the last month all ${meta.seasons.SON.n} systems (6 NMME and 7 Copernicus C3S) cover. Seasons that fall mostly after that use the ${meta.seasons.MAM.n} NMME models, which run to ${esc(meta.model_horizon?.nmme ?? 'May 2027')}. Colour shows the model's regional-mean rainfall change. A red outline marks a model that goes the other way.</dd>
   <dt>Background shading and dots</dt><dd>The multi-model mean rainfall change for the selected season, as % of the GPCP 1991–2020 normal. Dots mark cells where at least 80% of models agree on the sign and the mean change is at least 10%.</dd>
   <dt>Click anywhere</dt><dd>Outside the regions you get a raw model readout for one 1° grid cell. It has no observed track record behind it.</dd>
   <dt>Replay</dt><dd>Pick a past event to colour every region by whether it went the expected way that year.</dd>

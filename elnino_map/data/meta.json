@@ -281,5 +281,9 @@
   "RONI": 0.962
  },
  "n_map_regions": 26,
- "obs_source": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands"
+ "obs_source": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands",
+ "model_horizon": {
+  "all": "Feb 2027",
+  "nmme": "May 2027"
+ }
 }

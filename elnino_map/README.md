@@ -10,7 +10,7 @@ Standalone: `http://<host>/elnino-map/` (add `?theme=light|dark`, or `?region=<k
 - **Region cards** (click a region, or zoom in and one opens by itself):
   - the observed record in the 8 strong El Niños since 1957 (bars = % of the 1991–2020 average; line = a typical ENSO-neutral year; check = expected side of it);
   - how often La Niña years went the same way;
-  - one tile per model from this year's forecasts (13 systems for Sep–Feb, 6 NMME for Mar–May);
+  - one tile per model from this year's forecasts, averaged over the region's whole season up to the last month all 13 systems cover (Feb 2027 for the Sep start), or the 6 NMME models for seasons mostly after that (`model_patterns/windows.py`);
   - literature text with links.
 - **Point readout.** Click anywhere outside a region for the raw model values in that 1° grid cell. The card says plainly that no observed record sits behind it.
 - **Season timeline.** Switch or play Sep–Nov, Oct–Dec, Dec–Feb and Mar–May. The background shows the multi-model mean rainfall change, dots mark ≥80% model agreement with |change| ≥ 10%, and regions outside the season fade. (No stop for Jun–Aug 2027 yet: the September forecasts end in spring. To add one, append it to `SEASONS` in `js/app.js`. The Yangtze region, a Jun–Jul signal, stays faded until then.)
