@@ -147,7 +147,7 @@ function regionCardHTML(key, R, ctx) {
     s += `<section class="ev"><div class="ev-head"><div class="ev-lbl">This year's ${M.n} forecast models · ${esc(S?.label ?? M.season)}</div>`;
     s += `<div class="count models${cls}"><b data-count="models">${REDUCED ? M.agree : 0}</b><span>/${M.n}</span><small>lean ${dirw}</small></div></div>`;
     s += modelTilesHTML(M, M.members, { season: S?.label, where: 'averaged over the region' });
-    s += `<div class="tiles-foot"><span>Model average <b>${signed(Math.round(M.mmm_pct))}%</b> vs normal</span><span>${esc(S?.source ?? '')}, ${esc(ctx.meta.init)} start</span></div></section>`;
+    s += `<div class="tiles-foot"><span>Model average <b>${signed(Math.round(M.mmm_pct))}%</b> vs normal</span><span>${esc(S?.source ?? '')}, ${esc(ctx.meta.init)} start</span></div>${M.note ? `<p class="nomodels" style="margin-top:8px;font-size:12px">${esc(M.note)}</p>` : ''}</section>`;
   } else if (!off) {
     s += `<section class="ev"><div class="ev-lbl">This year's forecast models</div><p class="nomodels">${isTemp(R) ? 'Temperature region: the model check on this map covers rainfall only.' : 'This window is beyond the range of current seasonal forecasts.'}</p></section>`;
   }
