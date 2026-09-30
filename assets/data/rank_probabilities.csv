@@ -4,8 +4,8 @@
 # holder_year / holder_value_c: the year currently holding that rank and its annual anomaly (degC vs preindustrial 1850-1900).
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 rank,rank_label,probability,holder_year,holder_value_c
-1,Warmest on record,0.4574,2024,1.5987
-2,2nd warmest,0.5426,2023,1.4823
+1,Warmest on record,0.4109,2024,1.5987
+2,2nd warmest,0.5891,2023,1.4823
 3,3rd warmest,0.0000,2025,1.4711
 4,4th warmest,0.0000,2016,1.3177
 5,5th warmest,0.0000,2020,1.3102
