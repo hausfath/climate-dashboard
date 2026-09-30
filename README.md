@@ -123,7 +123,7 @@ Deployed on [Render](https://render.com) with automated daily updates:
 
 1. **Render web service** (starter plan) runs via Gunicorn with `render.yaml` blueprint
 2. **Render cron job** runs `python run.py update --force` daily
-3. **GitHub Actions** (`.github/workflows/update-data.yml`) runs daily at 6 AM UTC, commits updated data to git
+3. **GitHub Actions** (`.github/workflows/update-data.yml`) runs daily at 16:30 UTC (after the day's ERA5 and OISST source refreshes), commits updated data to git
 4. CDS API credentials stored as GitHub secrets (`CDS_URL`, `CDS_KEY`)
 
 ## Project Structure

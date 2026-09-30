@@ -2,8 +2,13 @@ name: Update Climate Data
 
 on:
   schedule:
-    # Run daily at 6 AM UTC (same as Render cron)
-    - cron: '0 6 * * *'
+    # 16:30 UTC (moved from 06:00 on 2026-09-30). ECMWF Climate Pulse refreshes
+    # the ERA5 daily series at ~15:15 UTC, NCEI posts the OISST daily file at
+    # 13:31 UTC, and C3S releases on the 10th at 12 UTC; GitHub cron then adds
+    # 3–5 h of delay, so this fires ~20 UTC with every source already fresh.
+    # The 06:00 slot ran before the Climate Pulse refresh and published data
+    # a day older than the source.
+    - cron: '30 16 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub UI
 

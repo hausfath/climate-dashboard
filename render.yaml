@@ -25,7 +25,7 @@ services:
     name: climate-data-updater
     runtime: python
     buildCommand: pip install -r requirements.txt
-    schedule: "0 6 * * *"  # Run daily at 6 AM UTC
+    schedule: "30 16 * * *"  # 16:30 UTC, after the Climate Pulse (~15:15 UTC) and OISST (13:31 UTC) refreshes
     startCommand: python run.py update --force
     envVars:
       - key: PYTHON_VERSION
