@@ -917,5 +917,6 @@ year,month,nino34_anom,nino34_total,date,source
 2026,4,0.29,28.11,2026-04-01,CPC ersst5 table
 2026,5,0.9,28.83,2026-05-01,CPC ersst5 table
 2026,6,1.44,29.17,2026-06-01,CPC ersst5 table
-2026,7,1.985,29.278,2026-07-01,NCEI grid + CPC clim
-2026,8,2.488,29.343,2026-08-01,NCEI grid + CPC clim
+2026,7,1.991,29.284,2026-07-01,NCEI grid + CPC clim
+2026,8,2.533,29.388,2026-08-01,NCEI grid + CPC clim
+2026,9,2.858,29.577,2026-09-01,NCEI grid + CPC clim
