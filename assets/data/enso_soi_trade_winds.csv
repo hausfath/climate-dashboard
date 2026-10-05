@@ -1,5 +1,5 @@
 # Southern Oscillation Index and equatorial 850 hPa trade-wind anomalies (monthly)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-09-10
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-05
 # MONTHLY products, published a few weeks after month end (not real-time).
 # soi: standardized Tahiti minus Darwin sea-level pressure (NOAA CPC, 1951-); negative = El Nino-like.
 # trade_wind_anom_*: 850 hPa zonal wind anomaly indices, 5N-5S, west 135E-180, central 175W-140W, east 135W-120W (NOAA CPC, CDAS/NCEP-NCAR reanalysis, 1981-2010 base, m/s); positive = stronger easterly trades, negative = weakened.
@@ -914,3 +914,4 @@ month,soi,trade_wind_anom_wpac_ms,trade_wind_anom_cpac_ms,trade_wind_anom_epac_m
 2026-06,-1.40,-3.20,-4.00,-2.60
 2026-07,-2.40,-4.90,-6.10,-2.60
 2026-08,-1.10,-4.80,-6.30,-3.70
+2026-09,-2.00,-5.30,-7.60,-3.50
