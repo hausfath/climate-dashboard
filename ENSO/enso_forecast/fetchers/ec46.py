@@ -98,6 +98,21 @@ def _point_daily_per_member(payload: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _horizon_end(payload: dict) -> pd.Timestamp:
+    """Last timestamp with a non-null value in any member."""
+    h = payload["hourly"]
+    t = pd.to_datetime(h["time"])
+    last = -1
+    for k, v in h.items():
+        if not k.startswith("temperature_2m_member"):
+            continue
+        arr = np.array(v, dtype=float)
+        idx = np.flatnonzero(~np.isnan(arr))
+        if idx.size and idx[-1] > last:
+            last = int(idx[-1])
+    return t[last] if last >= 0 else pd.NaT
+
+
 def _global_mean(per_pt: pd.DataFrame) -> pd.DataFrame:
     """Reduce (date, member, lat, lon, t2m_C) → (date, member, t2m_C),
     cos(lat) area-weighting."""
@@ -159,6 +174,12 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
             continue
         df["lat"] = lat
         df["lon"] = lon
+        # Horizon end (last non-null step over all members) identifies the
+        # model run this gridpoint was served from: the time axis always
+        # starts at the request date, so the first step cannot. Open-Meteo
+        # rolls a new EC46 run out gridpoint by gridpoint, and a fetch that
+        # straddles the update mixes two runs (see the gates below).
+        df["t_end"] = _horizon_end(payload)
         parts.append(df)
         if (i + 1) % 50 == 0:
             elapsed = time.time() - t0
@@ -192,6 +213,54 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
         return pd.DataFrame(), pd.DataFrame()
 
     per_pt = pd.concat(parts, ignore_index=True)
+
+    # Single-run gate: if the fetch straddled an Open-Meteo update, keep
+    # only the gridpoints served from the majority run (same horizon end).
+    # Mixed runs put the newer points' final day on a date the older
+    # points do not have, so that day is averaged over a biased subset.
+    t_end = per_pt.groupby(["lat", "lon"])["t_end"].first()
+    end_counts = t_end.value_counts()
+    if len(end_counts) > 1:
+        keep_end = end_counts.idxmax()
+        n_drop = int(end_counts.drop(keep_end).sum())
+        logger.warning("EC46: %d gridpoints served from a different run "
+                       "(horizon end %s) — dropping them, keeping %s",
+                       n_drop, [str(t) for t in end_counts.index
+                                if t != keep_end], keep_end)
+        per_pt = per_pt[per_pt["t_end"] == keep_end]
+        n_ok -= n_drop
+        if n_ok < 0.9 * len(grid_pts):
+            logger.error("EC46: only %d/%d gridpoints on one run — "
+                         "refusing fetch", n_ok, len(grid_pts))
+            return pd.DataFrame(), pd.DataFrame()
+    per_pt = per_pt.drop(columns=["t_end"])
+
+    # Per-day coverage gate: a day that only some gridpoints report (the
+    # trailing day of the horizon, or a point whose last day failed the
+    # 4-step check) would be averaged over a biased subset of the globe.
+    # 2026-10-05: the final day printed a +3.8 °C global anomaly on the
+    # dashboard (tropics-heavy subset); the 10-04 run gave -7 °C absolute
+    # (polar-heavy). Count gridpoints per day (any member) and require
+    # near-complete coverage plus every latitude band, so one flaky point
+    # cannot blank the whole forecast.
+    pts_by_day = per_pt.drop_duplicates(["date", "lat", "lon"])
+    n_pts = pts_by_day.groupby("date").size()
+    n_lats = pts_by_day.groupby("date")["lat"].nunique()
+    ok = (n_pts >= 0.97 * n_ok) & (n_lats == len(lats_all))
+    full_days = ok[ok].index
+    dropped = sorted(set(n_pts.index) - set(full_days))
+    if dropped:
+        logger.warning("EC46: dropping %d day(s) with partial gridpoint "
+                       "coverage: %s", len(dropped),
+                       ", ".join(f"{d:%Y-%m-%d} ({int(n_pts[d])}/{n_ok} pts, "
+                                 f"{int(n_lats[d])}/{len(lats_all)} lats)"
+                                 for d in dropped))
+        per_pt = per_pt[per_pt["date"].isin(full_days)]
+    if per_pt["date"].nunique() < 40:
+        logger.error("EC46: only %d fully covered days — refusing fetch",
+                     per_pt["date"].nunique())
+        return pd.DataFrame(), pd.DataFrame()
+
     member_long = _global_mean(per_pt)
 
     n_members = member_long["member"].nunique()
