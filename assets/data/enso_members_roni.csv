@@ -1,5 +1,5 @@
 # ENSO forecast ensemble members — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-04
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-06
 # One row per ensemble member per target month (deduplicated multi-model plume; months with fewer than 4 models dropped).
 # Dashboard statistics weight each model equally regardless of ensemble size. CFSv2 member ens_E3_041 is the control run and is excluded from the dashboard's probability statistics.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -1165,8 +1165,8 @@ target_month,model,member_id,init_date,anomaly_c
 2026-10,SINTEX-F,N1K1,2026-09-01,3.6114
 2026-10,SINTEX-F,N1K1V,2026-09-01,2.7984
 2026-10,SINTEX-F,N1K1hi,2026-09-01,3.0301
-2026-10,SINTEX-F,N1K1hiV,2026-09-01,2.6585
-2026-10,SINTEX-F,N1K2,2026-09-01,3.0230
+2026-10,SINTEX-F,N1K1hiV,2026-09-01,
+2026-10,SINTEX-F,N1K2,2026-09-01,
 2026-10,SINTEX-F,N1K2V,2026-09-01,2.4311
 2026-10,SINTEX-F,N1K2hi,2026-09-01,2.9956
 2026-10,SINTEX-F,N1K2hiV,2026-09-01,2.5681
@@ -1839,8 +1839,8 @@ target_month,model,member_id,init_date,anomaly_c
 2026-11,SINTEX-F,N1K1,2026-09-01,4.0099
 2026-11,SINTEX-F,N1K1V,2026-09-01,2.9305
 2026-11,SINTEX-F,N1K1hi,2026-09-01,3.6914
-2026-11,SINTEX-F,N1K1hiV,2026-09-01,2.9024
-2026-11,SINTEX-F,N1K2,2026-09-01,3.2128
+2026-11,SINTEX-F,N1K1hiV,2026-09-01,
+2026-11,SINTEX-F,N1K2,2026-09-01,
 2026-11,SINTEX-F,N1K2V,2026-09-01,2.4339
 2026-11,SINTEX-F,N1K2hi,2026-09-01,3.1558
 2026-11,SINTEX-F,N1K2hiV,2026-09-01,2.9161

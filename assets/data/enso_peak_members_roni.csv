@@ -1,5 +1,5 @@
 # Forecast peak intensity — RONI (relative Nino 3.4): each ensemble member's Jul-Dec 2026 peak
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-04
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-06
 # peak_c: the member's maximum monthly forecast over Jul-Dec 2026; peak_month: when it occurs. Members must cover both Nov and Dec to be included.
 # Dashboard statistics weight every model equally regardless of ensemble size.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -595,8 +595,6 @@ NCAR-CESM1,ens_010,4.0459,2026-12
 SINTEX-F,N1K1,4.0099,2026-11
 SINTEX-F,N1K1V,2.9305,2026-11
 SINTEX-F,N1K1hi,3.8340,2026-12
-SINTEX-F,N1K1hiV,3.0896,2026-12
-SINTEX-F,N1K2,3.3495,2026-12
 SINTEX-F,N1K2V,2.4593,2026-12
 SINTEX-F,N1K2hi,3.1558,2026-11
 SINTEX-F,N1K2hiV,3.0350,2026-12
