@@ -144,3 +144,8 @@ September bundle exactly (seasonal fields and metrics to 0, grid files and `regi
 - **Not changed.** `data/forecast_2027_extract.json` (P(2027 warmest)) remains the September extract from the
   global temperature forecast workflow. Region polygons are the published map's (author-approved shapes are not
   re-derived from the October fields).
+- **Frozen inputs in the repo copy.** `hit_rates/derived/drycorridor_wet.json` is the dry-corridor wet-cell shape
+  computed by `extract.py` from PREC/L in the private project (10 Oct 2026); the repo has no PREC/L file, so
+  `extract.py` loads the frozen shape, and the September reproduction (byte-identical `regions.json`) ran through
+  that branch. The repo's `model_counts.csv` and `region_table.csv` carry an `init` column and supersede the
+  September tables in the private project, which stay as the record of the published post.
