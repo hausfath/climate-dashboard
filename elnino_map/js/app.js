@@ -477,7 +477,7 @@
     if (S.replay) cap.textContent = `Replaying ${S.replay}–${String(S.replay + 1).slice(2)}: green went the expected way, red did not.`;
     else cap.innerHTML = META.baseline === 'typical'
       ? `Model-mean rainfall, ${esc(M.label)}, vs a typical neutral year (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`
-      : `Model-mean rainfall change, ${esc(M.label)}, % of normal (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`;
+      : `Model-mean rainfall, ${esc(M.label)}, % of normal (${M.n} models)<span class="dotk"></span>dots: ≥80% agree`;
     // colour bar drawn from the same colormap and alpha as the map, over the land colour
     let c = $('lg-field').querySelector('canvas');
     if (!c) { c = document.createElement('canvas'); c.width = 220; c.height = 8; c.className = 'lg-bar'; $('lg-field').querySelector('.lg-bar').replaceWith(c); }

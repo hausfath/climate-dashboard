@@ -95,8 +95,8 @@ function modelTilesHTML(M, members, opts = {}) {
   const n = members.length;
   return `<div class="tiles" style="--n:${n}">${members.map((m, i) => {
     const p = m.pct, agree = m.agree ?? true;
-    const body = p === null ? 'No value for this cell' : `<span class="tv ${p < 0 ? 'd' : 'w'}">${signed(Math.round(p))}%</span> rainfall vs ${REF()}${opts.season ? `, ${esc(opts.season)}` : ''}<br><span class="m">${esc(opts.where ?? '')}${agree ? '' : `${opts.where ? ' · ' : ''}goes against the model majority`}</span>`;
-    return `<div class="tile pending${agree ? '' : ' no'}" style="--i:${i};background:${p === null ? 'transparent' : tileColor(p)}" data-tt="${esc(m.label)}" data-tb="${esc(body)}" tabindex="0" aria-label="${esc(m.label)}: ${p === null ? 'no value' : `${signed(Math.round(p))}% rainfall vs ${REF()}`}">${p === null ? '·' : p > 0 ? '+' : '−'}</div>`;
+    const body = p === null ? 'No value for this cell' : `<span class="tv ${p < 0 ? 'd' : 'w'}">${Math.round(100 + p)}%</span> of ${REF()} rainfall${opts.season ? `, ${esc(opts.season)}` : ''}<br><span class="m">${esc(opts.where ?? '')}${agree ? '' : `${opts.where ? ' · ' : ''}goes against the model majority`}</span>`;
+    return `<div class="tile pending${agree ? '' : ' no'}" style="--i:${i};background:${p === null ? 'transparent' : tileColor(p)}" data-tt="${esc(m.label)}" data-tb="${esc(body)}" tabindex="0" aria-label="${esc(m.label)}: ${p === null ? 'no value' : `${Math.round(100 + p)}% of ${REF()} rainfall`}">${p === null ? '·' : p > 0 ? '+' : '−'}</div>`;
   }).join('')}</div>`;
 }
 
@@ -161,7 +161,7 @@ function regionCardHTML(key, R, ctx) {
     s += `<section class="ev"><div class="ev-head"><div class="ev-lbl">This year's ${M.n} forecast models · ${esc(M.window ?? S?.label ?? M.season)}</div>`;
     s += `<div class="count models${cls}"><b data-count="models">${REDUCED ? M.agree : 0}</b><span>/${M.n}</span><small>lean ${dirw}</small></div></div>`;
     s += modelTilesHTML(M, M.members, { season: S?.label, where: 'averaged over the region' });
-    s += `<div class="tiles-foot"><span>Model average <b>${signed(Math.round(M.mmm_pct))}%</b> vs ${REF()}</span><span>${esc(src)}, ${esc(ctx.meta.init)} start</span></div>${M.note ? `<p class="nomodels" style="margin-top:8px;font-size:12px">${esc(M.note)}</p>` : ''}</section>`;
+    s += `<div class="tiles-foot"><span>Model average <b>${Math.round(100 + M.mmm_pct)}%</b> of ${REF()}</span><span>${esc(src)}, ${esc(ctx.meta.init)} start</span></div>${M.note ? `<p class="nomodels" style="margin-top:8px;font-size:12px">${esc(M.note)}</p>` : ''}</section>`;
   } else if (!off) {
     s += `<section class="ev"><div class="ev-lbl">This year's forecast models</div><p class="nomodels">${isTemp(R) ? 'Temperature region: the model check on this map covers rainfall only.' : 'This window is beyond the range of current seasonal forecasts.'}</p></section>`;
   }
@@ -174,14 +174,14 @@ function pointHTML(q, season, meta, near) {
   const S = meta.seasons[season], latS = `${Math.abs(q.lat)}°${q.lat >= 0 ? 'N' : 'S'}`, lonS = `${Math.abs(q.lon)}°${q.lon >= 0 ? 'E' : 'W'}`;
   let s = `<div class="c-kicker neutral">Model forecast · ${esc(S.label)}</div><h3>${near?.inside ? esc(near.title) : 'At this point'}</h3><div class="coord">${latS}, ${lonS} · 1° grid cell</div>`;
   if (q.mean === null) {
-    s += '<p class="note">Normal rainfall here is below 0.5 mm/day in this season, so a percentage change is not meaningful.</p>';
+    s += '<p class="note">Normal rainfall here is below 0.5 mm/day in this season, so a percentage of normal is not meaningful.</p>';
   } else {
     const dry = q.mean < 0, agree = q.vals.filter((v) => v !== null && Math.sign(v) === Math.sign(q.mean)).length, n = q.vals.filter((v) => v !== null).length;
     const members = S.models.map((m, i) => ({ label: m.label, pct: q.vals[i], agree: q.vals[i] === null || Math.sign(q.vals[i]) === Math.sign(q.mean) }));
     s += `<div class="ev-head" style="margin-top:10px"><div class="ev-lbl">${n} models</div><div class="count models${agree / n >= 0.8 ? (dry ? '' : ' wet') : ' mixed'}"><b data-count="models">${REDUCED ? agree : 0}</b><span>/${n}</span><small>lean ${dry ? 'drier' : 'wetter'}</small></div></div>`;
     s += modelTilesHTML(null, members, { season: S.label, where: 'at this 1° grid cell' });
-    s += `<div class="tiles-foot"><span>Model average <b>${signed(q.mean)}%</b> vs ${REF()}</span></div>`;
-    if (q.mean > 200) s += '<p class="note">Normal rainfall here is low in this season, so a modest change in millimetres shows up as a very large percentage.</p>';
+    s += `<div class="tiles-foot"><span>Model average <b>${Math.round(100 + q.mean)}%</b> of ${REF()}</span></div>`;
+    if (q.mean > 200) s += '<p class="note">Normal rainfall here is low in this season, so a modest change in millimetres shows up as a very large percentage of normal.</p>';
   }
   s += `<p class="note">A raw readout of this year's models for one grid cell. ${near?.inside ? 'The region card adds the observed record and the literature.' : 'There is no observed track record behind it, and single cells are noisy. The shaded regions are where history and the literature back the forecast.'}</p>`;
   if (near) s += `<button class="btn near" type="button" data-go="${near.key}">${near.inside ? 'Open region card' : `Nearest mapped region: ${esc(near.title)}`}<span>→</span></button>`;
@@ -216,10 +216,10 @@ function howtoHTML(meta) {
   <dt>Why two reference points?</dt><dd>${BARS === 'typical' && BASE === 'normal'
     ? 'The past-event bars are measured against a typical neutral year, so a bar above or below 100% always matches its check mark. That reference removes long-term trends and is not pulled around by a few extreme years, and it is estimated from GPCC rain gauges since 1951. The forecast shading and model tiles stay relative to the 1991–2020 average. Each model forecasts a departure from its own long-run average, not from a typical neutral year. Re-expressing the forecasts that way would need a typical neutral year for every grid cell, which the satellite-era record (only 13 neutral years since 1979) pins down poorly: even a forecast of exactly normal rainfall would shade most of the map. So the shading shows what the models predict, and the bars show how past events compared with the same test the counts use.'
     : 'The counts compare each event with a typical neutral year; the percentages are relative to the 1991–2020 average. These usually agree, but in skewed climates a few very wet or dry years pull the average away from a typical year.'}</dd>
-  <dt>Model tiles</dt><dd>One tile per forecast system, from the ${esc(meta.init)} start, averaged over the region's whole season up to ${esc(meta.model_horizon?.all ?? 'Feb 2027')}, the last month all ${meta.n_all ?? 13} systems (${meta.n_nmme ?? 6} NMME and ${(meta.n_all ?? 13) - (meta.n_nmme ?? 6)} Copernicus C3S) cover. Seasons that fall mostly after that use the ${meta.n_nmme ?? 6} NMME models, which run to ${esc(meta.model_horizon?.nmme ?? 'May 2027')}. Colour shows the model's regional-mean rainfall change. A red outline marks a model that goes the other way.</dd>
+  <dt>Model tiles</dt><dd>One tile per forecast system, from the ${esc(meta.init)} start, averaged over the region's whole season up to ${esc(meta.model_horizon?.all ?? 'Feb 2027')}, the last month all ${meta.n_all ?? 13} systems (${meta.n_nmme ?? 6} NMME and ${(meta.n_all ?? 13) - (meta.n_nmme ?? 6)} Copernicus C3S) cover. Seasons that fall mostly after that use the ${meta.n_nmme ?? 6} NMME models, which run to ${esc(meta.model_horizon?.nmme ?? 'May 2027')}. Each tile reads as a percentage of normal rainfall, on the same scale as the past-event bars (100% = normal; 71% means 29% below). Colour shows that value. A red outline marks a model that goes the other way.</dd>
   <dt>Background shading and dots</dt><dd>${BASE === 'typical'
-    ? 'The multi-model mean forecast rainfall for the selected season as a % of a typical neutral year for this event (GPCP neutral years since 1979, trend extended to 2026). Dots mark cells where at least 80% of models agree on the direction and the mean change is at least 10%.'
-    : 'The multi-model mean rainfall change for the selected season, as % of the GPCP 1991–2020 normal. Dots mark cells where at least 80% of models agree on the sign and the mean change is at least 10%.'}</dd>
+    ? 'The multi-model mean forecast rainfall for the selected season as a % of a typical neutral year for this event (GPCP neutral years since 1979, trend extended to 2026; 100% = typical). Dots mark cells where at least 80% of models agree on the direction and the mean departs by at least 10%.'
+    : 'The multi-model mean rainfall for the selected season as % of the GPCP 1991–2020 normal (100% = normal). Dots mark cells where at least 80% of models agree on the direction and the mean departs from normal by at least 10%.'}</dd>
   <dt>Click anywhere</dt><dd>Outside the regions you get a raw model readout for one 1° grid cell. It has no observed track record behind it.</dd>
   <dt>Replay</dt><dd>Pick a past event to colour every region by whether it went the expected way that year.</dd>
   </dl></div>`;

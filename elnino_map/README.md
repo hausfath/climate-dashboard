@@ -13,11 +13,11 @@ Standalone: `http://<host>/elnino-map/` (add `?theme=light|dark`, or `?region=<k
   - one tile per model from this year's forecasts, averaged over the region's whole season up to the last month all 13 systems cover (Mar 2027 for the Oct start), or the 6 NMME models for seasons mostly after that (`pipeline/model_patterns/windows.py`);
   - literature text with links.
 - **Point readout.** Click anywhere outside a region for the raw model values in that 1° grid cell. The card says plainly that no observed record sits behind it.
-- **Season timeline.** Switch or play the 3-month seasons the current initialization covers (for the October 2026 start: Oct–Dec, Dec–Feb, Jan–Mar and Mar–May; the list comes from `meta.json`). The background shows the multi-model mean rainfall change, dots mark ≥80% model agreement with |change| ≥ 10%, and regions outside the season fade. (No stop for Jun–Aug 2027 yet: the forecasts end in spring. The Yangtze region, a Jun–Jul signal, stays faded until then.)
+- **Season timeline.** Switch or play the 3-month seasons the current initialization covers (for the October 2026 start: Oct–Dec, Dec–Feb, Jan–Mar and Mar–May; the list comes from `meta.json`). The background shows the multi-model mean rainfall as % of normal (100% = normal), dots mark ≥80% model agreement with a departure of ≥ 10%, and regions outside the season fade. (No stop for Jun–Aug 2027 yet: the forecasts end in spring. The Yangtze region, a Jun–Jul signal, stays faded until then.)
 - **Replay a past El Niño.** Each region is coloured by whether it went the expected way in that event. The tally is checked in the browser against `meta.json` `by_event`.
 - **Guided tour.** The stops follow the blog post's regional order.
 - **Zoom chips.** Past a zoom threshold, each visible region shows a small box with its observed and model counts. Zooming in (scroll or pinch) with the pointer over a region until it fills part of the view opens its card. This never happens after a pan, and it never moves the camera.
-- **Tooltips.** Hover a model tile for the model's name and its % rainfall change (the regional mean, or the grid cell in the point readout). Hover a past-event bar for its value against the 1991–2020 average and a typical neutral year.
+- **Tooltips.** Hover a model tile for the model's name and its rainfall as % of normal (the regional mean, or the grid cell in the point readout), the same level convention as the past-event bars. Hover a past-event bar for its value against the 1991–2020 average and a typical neutral year.
 
 ## Files
 
