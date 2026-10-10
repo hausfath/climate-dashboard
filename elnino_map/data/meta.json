@@ -1,65 +1,6 @@
 {
- "init": "Sep 2026",
+ "init": "Oct 2026",
  "seasons": {
-  "SON": {
-   "label": "Sep–Nov 2026",
-   "n": 13,
-   "models": [
-    {
-     "id": "CFSv2",
-     "label": "NOAA CFSv2"
-    },
-    {
-     "id": "CanESM5",
-     "label": "Canada CanESM5"
-    },
-    {
-     "id": "GEM5.2_NEMO",
-     "label": "Canada GEM5.2"
-    },
-    {
-     "id": "NASA_GEOS5v2",
-     "label": "NASA GEOS"
-    },
-    {
-     "id": "NCAR_CCSM4",
-     "label": "NCAR CCSM4"
-    },
-    {
-     "id": "NCAR_CESM1",
-     "label": "NCAR CESM1"
-    },
-    {
-     "id": "ecmwf",
-     "label": "ECMWF"
-    },
-    {
-     "id": "ukmo",
-     "label": "UK Met Office"
-    },
-    {
-     "id": "meteo_france",
-     "label": "Météo-France"
-    },
-    {
-     "id": "dwd",
-     "label": "DWD Germany"
-    },
-    {
-     "id": "cmcc",
-     "label": "CMCC Italy"
-    },
-    {
-     "id": "jma",
-     "label": "JMA Japan"
-    },
-    {
-     "id": "bom",
-     "label": "BoM Australia"
-    }
-   ],
-   "source": "NMME + Copernicus C3S"
-  },
   "OND": {
    "label": "Oct–Dec 2026",
    "n": 13,
@@ -117,6 +58,11 @@
      "label": "BoM Australia"
     }
    ],
+   "win": [
+    9,
+    3
+   ],
+   "sub": "2026",
    "source": "NMME + Copernicus C3S"
   },
   "DJF": {
@@ -176,6 +122,75 @@
      "label": "BoM Australia"
     }
    ],
+   "win": [
+    11,
+    3
+   ],
+   "sub": "Dec 2026–Feb 2027",
+   "source": "NMME + Copernicus C3S"
+  },
+  "JFM": {
+   "label": "Jan–Mar 2027",
+   "n": 13,
+   "models": [
+    {
+     "id": "CFSv2",
+     "label": "NOAA CFSv2"
+    },
+    {
+     "id": "CanESM5",
+     "label": "Canada CanESM5"
+    },
+    {
+     "id": "GEM5.2_NEMO",
+     "label": "Canada GEM5.2"
+    },
+    {
+     "id": "NASA_GEOS5v2",
+     "label": "NASA GEOS"
+    },
+    {
+     "id": "NCAR_CCSM4",
+     "label": "NCAR CCSM4"
+    },
+    {
+     "id": "NCAR_CESM1",
+     "label": "NCAR CESM1"
+    },
+    {
+     "id": "ecmwf",
+     "label": "ECMWF"
+    },
+    {
+     "id": "ukmo",
+     "label": "UK Met Office"
+    },
+    {
+     "id": "meteo_france",
+     "label": "Météo-France"
+    },
+    {
+     "id": "dwd",
+     "label": "DWD Germany"
+    },
+    {
+     "id": "cmcc",
+     "label": "CMCC Italy"
+    },
+    {
+     "id": "jma",
+     "label": "JMA Japan"
+    },
+    {
+     "id": "bom",
+     "label": "BoM Australia"
+    }
+   ],
+   "win": [
+    12,
+    3
+   ],
+   "sub": "2027",
    "source": "NMME + Copernicus C3S"
   },
   "MAM": {
@@ -207,7 +222,12 @@
      "label": "NCAR CESM1"
     }
    ],
-   "source": "NMME (C3S runs end in Feb)"
+   "win": [
+    14,
+    3
+   ],
+   "sub": "2027",
+   "source": "NMME (C3S runs end in Mar)"
   }
  },
  "strong_events": [
@@ -283,9 +303,11 @@
  "n_map_regions": 26,
  "obs_source": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands",
  "model_horizon": {
-  "all": "Feb 2027",
-  "nmme": "May 2027"
+  "all": "Mar 2027",
+  "nmme": "Jun 2027"
  },
+ "n_all": 13,
+ "n_nmme": 6,
  "baseline": "normal",
  "bars": "typical"
 }

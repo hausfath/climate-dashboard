@@ -39,11 +39,11 @@ Multi-model ENSO (El Nino-Southern Oscillation) forecast system combining 13 dis
 
 ### El Niño Impacts
 
-An interactive map of where the 2026–27 El Niño is most likely to shift rainfall. It covers 26 regions, each checked against the 8 strong El Niños since 1957 (GPCC v2025) and this year's 13 seasonal forecast systems (NMME + Copernicus C3S). Details and regeneration steps are in [elnino_map/README.md](elnino_map/README.md).
+An interactive map of where the 2026–27 El Niño is most likely to shift rainfall. It covers 26 regions, each checked against the 8 strong El Niños since 1957 (GPCC v2025) and this year's 13 seasonal forecast systems (NMME + Copernicus C3S), refreshed monthly as new initializations post. The full regeneration pipeline (fetch → process → region checks → export) lives in [elnino_map/pipeline/](elnino_map/pipeline/README.md); the page itself is described in [elnino_map/README.md](elnino_map/README.md).
 
 - **Region cards**: click a region, or zoom in until one opens. Each card shows the observed record (bars and checks), the La Niña specificity check, one tile per forecast model and literature text with links.
 - **Click anywhere**: a raw model readout for that 1° grid cell.
-- **Season timeline**: Sep–Nov through Mar–May, with the multi-model rainfall field and an agreement stipple.
+- **Season timeline**: the 3-month seasons the current initialization covers (Oct–Dec through Mar–May for the October 2026 start), with the multi-model rainfall field and an agreement stipple.
 - **Replay a past El Niño**: colour every region by whether it went the expected way in 1957–2023.
 - **Guided tour**, plus zoom chips that appear as you zoom in.
 
@@ -160,6 +160,7 @@ climate-dashboard/
 │   ├── mobile.css                  # Mobile-responsive styles
 │   └── images/                     # Pre-rendered static PNGs (dark + light per plot)
 ├── elnino_map/                     # El Niño Impacts tab: static interactive map + data (see its README)
+│   └── pipeline/                   # Regenerates data/ from NMME + C3S forecasts (fetch, process, region checks, export)
 ├── forecast_skill/                 # Forecast verification (committed, off-dashboard)
 │   ├── ec46_skill.png              # EC46 inits vs observed temperature
 │   ├── enso_skill_*.png            # Past ENSO plumes vs observed (ONI/rONI x 3 styles)

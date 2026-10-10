@@ -1,0 +1,12 @@
+# El Niño Impacts pipeline (python3.13). Separate from the dashboard's own requirements: cartopy and shapely are not
+# needed by the web app and are not installed on Render.
+numpy
+pandas
+xarray
+netCDF4
+scipy
+shapely
+cartopy
+matplotlib
+pillow
+requests

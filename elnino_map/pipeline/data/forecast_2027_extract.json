@@ -1,0 +1,9 @@
+{
+ "p2027_rank1": {
+  "ONI": 0.948,
+  "RONI": 0.962
+ },
+ "n_models": 14,
+ "n_members": 674,
+ "source": "Z. Hausfather operational global temperature forecast, Sep 2026 run (6-dataset blend, multi-model ENSO plume, 1850-1900 baseline): P(2027 ranks warmest on record), ONI and RONI conventions"
+}

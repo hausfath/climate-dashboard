@@ -4,12 +4,15 @@
   const $ = (id) => document.getElementById(id);
   const E = Engine, CAM = E.CAM;
   const NARROW = () => innerWidth <= 820;
-  const SEASONS = [
-    { id: 'SON', label: 'Sep–Nov', sub: '2026', win: [8, 3] },
-    { id: 'OND', label: 'Oct–Dec', sub: '2026', win: [9, 3] },
-    { id: 'DJF', label: 'Dec–Feb', sub: '2026–27', win: [11, 3] },
-    { id: 'MAM', label: 'Mar–May', sub: '2027', win: [14, 3] },
-  ];
+  // Season stops come from meta.json (export_dashboard.py): id, label ("Oct–Dec"), sub ("2026" / "2026–27"),
+  // win = [month index from Jan of the init year, length]. Order = forecast order.
+  let SEASONS = [];
+  function buildSeasons(meta) {
+    const short = (s) => s.replace(/\s?\d{4}/g, '').trim();          // "Dec 2026–Feb 2027" -> "Dec–Feb"
+    const sub = (s) => { const y = s.match(/\d{4}/g) || []; return y.length > 1 && y[0] !== y[1] ? `${y[0]}–${y[1].slice(2)}` : (y[0] || ''); };
+    SEASONS = Object.entries(meta.seasons).map(([id, m]) => ({ id, label: short(m.label), sub: sub(m.label), win: m.win }))
+      .sort((a, b) => a.win[0] - b.win[0]);
+  }
   // blog order (Asia & Pacific, Africa, South America, North & Central America); used for prev/next and the fallback tour
   const ORDER = ['maritime', 'philippines', 'wpacific', 'cpacific', 'schina', 'yangtze', 'mekong', 'srilanka', 'seaustralia', 'hawaii',
     'horn', 'safrica', 'amazon', 'nsam', 'nebrazil', 'peru', 'altiplano', 'cchile', 'sesa',
@@ -37,7 +40,8 @@
   async function boot() {
     E.init($('map'));
     const [geo, regs, meta, lit] = await Promise.all([j('data/geo.json'), j('data/regions.json'), j('data/meta.json'), j('data/lit.json').catch(() => ({}))]);
-    META = meta; LIT = lit; setBaseline(meta.baseline, meta.bars);
+    META = meta; LIT = lit; setBaseline(meta.baseline, meta.bars); buildSeasons(meta);
+    if (!META.seasons[S.season]) S.season = Object.keys(META.seasons)[0];
     E.setGeo(geo); E.setRegions(regs); REG = E.REG; XREG = E.XREG;
     for (const k of ['nindia', 'lit_ohio', 'c_uk_ceurope', 'c_scandinavia']) if (XREG[k]?.rings) prepExtra(XREG[k]);
     for (const k of ORDER) if (!REG[k]) console.warn('region missing from data:', k);
@@ -239,7 +243,7 @@
     if (Math.abs(lat) > 85) return;
     if (S.season === 'JJA') {
       const pop = $('pop'); pop.className = 'pop panel';
-      pop.innerHTML = '<div class="c-kicker neutral">Jun–Aug 2027</div><h3>No forecast this far ahead</h3><p class="note">Seasonal forecasts from the September start end in spring 2027. Pick an earlier season for the model readout.</p><button class="card-close btn btn-icon" type="button" data-close aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>';
+      pop.innerHTML = `<div class="c-kicker neutral">Jun–Aug 2027</div><h3>No forecast this far ahead</h3><p class="note">Seasonal forecasts from the ${META.init} start end in ${META.model_horizon?.nmme ?? 'spring 2027'}. Pick an earlier season for the model readout.</p><button class="card-close btn btn-icon" type="button" data-close aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>`;
       pop.hidden = false; S.pin = E.unproject(x, y);
       pop.querySelector('[data-close]').addEventListener('click', () => { pop.hidden = true; S.pin = null; render(); });
       placePop(x, y); render(); return;
@@ -492,7 +496,7 @@
   }
   function buildUI() {
     const n = META.n_map_regions, ne = META.strong_events.length, A = META.aggregate;
-    $('lede').innerHTML = `<b>${n} regions</b> where the literature expects a strong El Niño to shift rainfall or temperature, each checked against the <b>${ne} strong El Niños since ${META.strong_events[0]}</b> and this year's <b>${META.seasons.OND.n} seasonal forecast models</b>. Click a region, or anywhere on the map, for the evidence.`;
+    $('lede').innerHTML = `<b>${n} regions</b> where the literature expects a strong El Niño to shift rainfall or temperature, each checked against the <b>${ne} strong El Niños since ${META.strong_events[0]}</b> and this year's <b>${META.n_all ?? Math.max(...Object.values(META.seasons).map((x) => x.n))} seasonal forecast models</b>. Click a region, or anywhere on the map, for the evidence.`;
     const gp = document.createElement('button'); gp.type = 'button'; gp.className = 'btn'; gp.id = 'global-btn';
     gp.innerHTML = `The global picture`;
     gp.title = `${A.hits} of ${A.n} past region-events went the expected way`;

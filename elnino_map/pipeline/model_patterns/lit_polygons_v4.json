@@ -1,0 +1,650 @@
+{
+ "maritime": {
+  "kind": "dry",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    94,
+    6
+   ],
+   [
+    105,
+    7
+   ],
+   [
+    120,
+    7
+   ],
+   [
+    133,
+    5
+   ],
+   [
+    142,
+    1
+   ],
+   [
+    151,
+    -3
+   ],
+   [
+    151,
+    -10
+   ],
+   [
+    140,
+    -11
+   ],
+   [
+    125,
+    -11
+   ],
+   [
+    112,
+    -9
+   ],
+   [
+    103,
+    -6
+   ],
+   [
+    95,
+    -2
+   ]
+  ],
+  "season_label": "drought + fire \u00b7 Sep\u2013Feb"
+ },
+ "safrica": {
+  "kind": "dry",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    15,
+    -18
+   ],
+   [
+    25,
+    -12
+   ],
+   [
+    33,
+    -11
+   ],
+   [
+    40,
+    -14
+   ],
+   [
+    40,
+    -24
+   ],
+   [
+    34,
+    -29
+   ],
+   [
+    26,
+    -30
+   ],
+   [
+    18,
+    -26
+   ]
+  ],
+  "season_label": "drought \u00b7 Dec\u2013Feb\nmaize / food risk"
+ },
+ "amazon": {
+  "kind": "dry",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    -76,
+    2
+   ],
+   [
+    -64,
+    3
+   ],
+   [
+    -53,
+    0
+   ],
+   [
+    -49,
+    -4
+   ],
+   [
+    -52,
+    -10
+   ],
+   [
+    -60,
+    -13
+   ],
+   [
+    -70,
+    -11
+   ],
+   [
+    -77,
+    -5
+   ]
+  ],
+  "season_label": "drought + fire\nnow\u2013May"
+ },
+ "nebrazil": {
+  "kind": "dry",
+  "conf": "medhigh",
+  "flag_busted": false,
+  "pts": [
+   [
+    -46,
+    -3
+   ],
+   [
+    -38,
+    -4
+   ],
+   [
+    -35,
+    -9
+   ],
+   [
+    -39,
+    -13
+   ],
+   [
+    -45,
+    -10
+   ],
+   [
+    -47,
+    -6
+   ]
+  ],
+  "season_label": "drought\nMar\u2013May 2027"
+ },
+ "camerica": {
+  "kind": "dry",
+  "conf": "medhigh",
+  "flag_busted": false,
+  "pts": [
+   [
+    -93,
+    17
+   ],
+   [
+    -85,
+    19
+   ],
+   [
+    -75,
+    18
+   ],
+   [
+    -63,
+    17
+   ],
+   [
+    -60,
+    14
+   ],
+   [
+    -68,
+    13
+   ],
+   [
+    -78,
+    12
+   ],
+   [
+    -84,
+    12
+   ],
+   [
+    -90,
+    13
+   ],
+   [
+    -93,
+    15
+   ]
+  ],
+  "season_label": "drought \u00b7 Dec\u2013Feb & summer 2027\nPanama Canal"
+ },
+ "wpacific": {
+  "kind": "dry",
+  "conf": "medhigh",
+  "flag_busted": false,
+  "pts": [
+   [
+    140,
+    8
+   ],
+   [
+    155,
+    5
+   ],
+   [
+    168,
+    -2
+   ],
+   [
+    178,
+    -12
+   ],
+   [
+    175,
+    -20
+   ],
+   [
+    165,
+    -16
+   ],
+   [
+    152,
+    -8
+   ],
+   [
+    142,
+    0
+   ]
+  ],
+  "season_label": "drought \u00b7 sea-level fall"
+ },
+ "australia": {
+  "kind": "dry",
+  "conf": "medium",
+  "flag_busted": true,
+  "pts": [
+   [
+    140,
+    -18
+   ],
+   [
+    148,
+    -20
+   ],
+   [
+    153,
+    -26
+   ],
+   [
+    151,
+    -35
+   ],
+   [
+    146,
+    -39
+   ],
+   [
+    141,
+    -36
+   ],
+   [
+    139,
+    -28
+   ]
+  ],
+  "season_label": "drought, fire risk\nSep\u2013Feb"
+ },
+ "horn": {
+  "kind": "wet",
+  "conf": "medium",
+  "flag_busted": false,
+  "pts": [
+   [
+    34,
+    10
+   ],
+   [
+    43,
+    11
+   ],
+   [
+    50,
+    8
+   ],
+   [
+    48,
+    2
+   ],
+   [
+    42,
+    -2
+   ],
+   [
+    36,
+    0
+   ],
+   [
+    33,
+    5
+   ]
+  ],
+  "season_label": "floods, heavy short rains \u00b7 Oct\u2013Dec\n(size set by Indian Ocean Dipole)"
+ },
+ "peru": {
+  "kind": "wet",
+  "conf": "medium",
+  "flag_busted": true,
+  "pts": [
+   [
+    -81,
+    1
+   ],
+   [
+    -79,
+    -1
+   ],
+   [
+    -76,
+    -6
+   ],
+   [
+    -75,
+    -12
+   ],
+   [
+    -78,
+    -14
+   ],
+   [
+    -81,
+    -8
+   ],
+   [
+    -82,
+    -2
+   ]
+  ],
+  "season_label": "flooding \u00b7 Dec\u2013May"
+ },
+ "sesa": {
+  "kind": "wet",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    -64,
+    -22
+   ],
+   [
+    -55,
+    -21
+   ],
+   [
+    -49,
+    -24
+   ],
+   [
+    -50,
+    -31
+   ],
+   [
+    -55,
+    -37
+   ],
+   [
+    -62,
+    -36
+   ],
+   [
+    -66,
+    -29
+   ]
+  ],
+  "season_label": "heavy rain, floods\nSep\u2013Feb"
+ },
+ "gulf": {
+  "kind": "wet",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    -100,
+    29
+   ],
+   [
+    -95,
+    31
+   ],
+   [
+    -88,
+    32
+   ],
+   [
+    -81,
+    33
+   ],
+   [
+    -76,
+    34
+   ],
+   [
+    -76,
+    30
+   ],
+   [
+    -82,
+    27
+   ],
+   [
+    -90,
+    27
+   ],
+   [
+    -98,
+    26
+   ]
+  ],
+  "season_label": "wet, stormy \u00b7 Dec\u2013Feb"
+ },
+ "sindia": {
+  "kind": "wet",
+  "conf": "medium",
+  "flag_busted": false,
+  "pts": [
+   [
+    75,
+    13
+   ],
+   [
+    79,
+    14
+   ],
+   [
+    82,
+    11
+   ],
+   [
+    82,
+    6
+   ],
+   [
+    79,
+    4
+   ],
+   [
+    76,
+    7
+   ],
+   [
+    74,
+    10
+   ]
+  ],
+  "season_label": "heavy NE monsoon\nOct\u2013Dec"
+ },
+ "yangtze": {
+  "kind": "wet",
+  "conf": "medhigh",
+  "flag_busted": true,
+  "pts": [
+   [
+    104,
+    28
+   ],
+   [
+    112,
+    30
+   ],
+   [
+    120,
+    32
+   ],
+   [
+    122,
+    30
+   ],
+   [
+    118,
+    27
+   ],
+   [
+    108,
+    26
+   ]
+  ],
+  "season_label": "flood risk\nsummer 2027"
+ },
+ "pnw": {
+  "kind": "dry",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    -125,
+    48
+   ],
+   [
+    -120,
+    49
+   ],
+   [
+    -116,
+    47
+   ],
+   [
+    -117,
+    43
+   ],
+   [
+    -122,
+    42
+   ],
+   [
+    -125,
+    45
+   ]
+  ],
+  "season_label": "dry, warm \u00b7 Dec\u2013Feb"
+ },
+ "ohio": {
+  "kind": "dry",
+  "conf": "high",
+  "flag_busted": false,
+  "pts": [
+   [
+    -89,
+    41
+   ],
+   [
+    -83,
+    42
+   ],
+   [
+    -79,
+    41
+   ],
+   [
+    -80,
+    38
+   ],
+   [
+    -85,
+    37
+   ],
+   [
+    -89,
+    38
+   ]
+  ],
+  "season_label": "dry, warm \u00b7 Dec\u2013Feb"
+ },
+ "nindia": {
+  "kind": "dry",
+  "conf": "medium",
+  "flag_busted": true,
+  "pts": [
+   [
+    70,
+    28
+   ],
+   [
+    77,
+    30
+   ],
+   [
+    84,
+    27
+   ],
+   [
+    87,
+    25
+   ],
+   [
+    83,
+    22
+   ],
+   [
+    76,
+    20
+   ],
+   [
+    71,
+    23
+   ]
+  ],
+  "season_label": "weaker summer monsoon\nJun\u2013Sep 2027"
+ },
+ "cpacific": {
+  "kind": "wet",
+  "conf": "medhigh",
+  "flag_busted": false,
+  "pts": [
+   [
+    170,
+    4
+   ],
+   [
+    190,
+    5
+   ],
+   [
+    210,
+    4
+   ],
+   [
+    225,
+    0
+   ],
+   [
+    210,
+    -4
+   ],
+   [
+    190,
+    -5
+   ],
+   [
+    172,
+    -3
+   ]
+  ],
+  "season_label": "wet, inundation \u00b7 Sep\u2013May"
+ }
+}
