@@ -34,6 +34,7 @@ DATA_DIR = DASHBOARD_ROOT / "data"
 API = "https://seasonal-api.open-meteo.com/v1/seasonal"
 N_MEMBERS = 50
 FORECAST_DAYS = 46
+MAX_INIT_SHIFT = 0.25      # °C: refuse a run whose global mean sits further than this from the previous init
 MIN_TIMESTEPS_PER_DAY = 4  # require all 4 6-hourly steps; protects
                             # against the diurnal-coverage artifact when
                             # Open-Meteo's last day has only the 00:00 UTC
@@ -218,7 +219,10 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
     # only the gridpoints served from the majority run (same horizon end).
     # Mixed runs put the newer points' final day on a date the older
     # points do not have, so that day is averaged over a biased subset.
-    t_end = per_pt.groupby(["lat", "lon"])["t_end"].first()
+    # Compare horizon-end DATES: Open-Meteo rolls the day-46 steps out tile by tile, so at some hours a few
+    # gridpoints only carry 00Z of the final day. Those are the same run, and dropping them is worse than keeping
+    # them (2026-10-10: 20 cold high-latitude points were dropped this way and the global mean ran 0.4 °C warm).
+    t_end = per_pt.groupby(["lat", "lon"])["t_end"].first().dt.normalize()
     end_counts = t_end.value_counts()
     if len(end_counts) > 1:
         keep_end = end_counts.idxmax()
@@ -227,13 +231,22 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
                        "(horizon end %s) — dropping them, keeping %s",
                        n_drop, [str(t) for t in end_counts.index
                                 if t != keep_end], keep_end)
-        per_pt = per_pt[per_pt["t_end"] == keep_end]
+        keep_pts = set(t_end[t_end == keep_end].index)
+        per_pt = per_pt[[(la, lo) in keep_pts for la, lo in zip(per_pt["lat"], per_pt["lon"])]]
         n_ok -= n_drop
         if n_ok < 0.9 * len(grid_pts):
             logger.error("EC46: only %d/%d gridpoints on one run — "
                          "refusing fetch", n_ok, len(grid_pts))
             return pd.DataFrame(), pd.DataFrame()
     per_pt = per_pt.drop(columns=["t_end"])
+    band_n = per_pt.drop_duplicates(["lat", "lon"]).groupby("lat").size()
+    band_full = len(grid_pts) / len(lats_all)
+    thin = {float(k): int(v) for k, v in band_n[band_n < 0.9 * band_full].items()}
+    thin.update({float(k): 0 for k in lats_all if k not in band_n.index})
+    if thin:
+        logger.error("EC46: latitude band(s) lost >10%% of gridpoints (lat: points kept) %s — a thinned band "
+                     "biases the cos-weighted global mean; refusing fetch", thin)
+        return pd.DataFrame(), pd.DataFrame()
 
     # Per-day coverage gate: a day that only some gridpoints report (the
     # trailing day of the horizon, or a point whose last day failed the
@@ -270,6 +283,24 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
         return pd.DataFrame(), pd.DataFrame()
     init_date = member_long["date"].min()
     summary = _percentile_summary(member_long, init_date, n_members)
+
+    # Continuity guard: a new init must not sit far from the previous one on the days both cover. Successive
+    # EC46 inits differ by a few hundredths of a degree in the global mean; a shift of several tenths means a
+    # biased subset of the globe went into the average, whatever gate let it through.
+    prev_files = sorted(DATA_DIR.glob("ec46_members_*.csv"))
+    if prev_files:
+        prev = pd.read_csv(prev_files[-1])
+        mcols = [c for c in prev.columns if c.startswith("member")]
+        prev_mean = prev.set_index(pd.to_datetime(prev["date"]))[mcols].mean(axis=1)
+        new_mean = summary.set_index(pd.to_datetime(summary["date"]))["t2m_mean"]
+        common = new_mean.index.intersection(prev_mean.index)[1:6]   # skip lead 0 (its own small warm bias)
+        if len(common) >= 3:
+            shift = float((new_mean[common] - prev_mean[common]).mean())
+            if abs(shift) > MAX_INIT_SHIFT:
+                logger.error("EC46: new init is %+.2f °C from %s on the same target days (limit %.2f) — "
+                             "refusing fetch", shift, prev_files[-1].name, MAX_INIT_SHIFT)
+                return pd.DataFrame(), pd.DataFrame()
+            logger.info("EC46: continuity vs %s on shared days: %+.3f °C", prev_files[-1].name, shift)
 
     members_wide = (member_long.pivot(index="date", columns="member",
                                       values="t2m_C")
