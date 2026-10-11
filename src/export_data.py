@@ -206,10 +206,9 @@ def export_monthly_projection(df: pd.DataFrame) -> None:
             "is short.")
     else:
         method_note = (
-            f"Projection: regression of full-{month_name} means on "
-            "month-to-date means across all prior years (EC46 blend "
-            "unavailable for this file); the p05/p95 columns are +/-2 sigma "
-            "of the regression residuals.")
+            "Projection: persistence fallback (EC46 blend unavailable for this file): the remaining days are "
+            "taken at the mean of the last 7 observed days; the p05/p95 columns are +/-2 sigma of the residuals "
+            "of a regression of full-month means on month-to-date means across prior years.")
     _write(out, "monthly_projection.csv",
            f"{month_name} global mean anomaly by year, with the "
            f"{month_name} {year} projection (ERA5)",

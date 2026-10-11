@@ -668,7 +668,7 @@ def get_monthly_projection(df_adj: pd.DataFrame) -> dict:
     fallback otherwise (fetch failure, stale init, failed sanity gate).
 
     Returns a unified dict for all display surfaces:
-      method ('ec46_blend' | 'regression'), prediction, lo95/hi95,
+      method ('ec46_blend' | 'persistence'), prediction, lo95/hi95,
       lo50/hi50, mtd_avg, days_in, month, year (+ blend diagnostics).
     The regression path maps its 2-sigma to the same quantile keys
     assuming normality, so display logic is method-agnostic.
@@ -686,9 +686,20 @@ def get_monthly_projection(df_adj: pd.DataFrame) -> dict:
     except Exception as e:
         logging.getLogger(__name__).warning(
             f"Monthly blend failed, regression fallback: {e}")
-    logging.getLogger(__name__).info("Monthly projection: regression fallback")
-    pred, err, mtd, days = calculate_monthly_prediction(df_adj, month, year)
-    res = {'method': 'regression', 'prediction': pred, 'mtd_avg': mtd,
+    # Fallback: persistence. The remaining days are taken at the mean of the
+    # last 7 observed days; the error band is the cross-year regression's
+    # residual spread. The old regression-on-month-to-date fallback shrank a
+    # record-warm month toward past years and could sit below the
+    # month-to-date mean (Oct 2026: 1.61 vs 1.64 observed to date).
+    logging.getLogger(__name__).info("Monthly projection: persistence fallback")
+    pred_reg, err, mtd, days = calculate_monthly_prediction(df_adj, month, year)
+    pred = pred_reg
+    if mtd is not None and days:
+        import calendar as _cal
+        n_days = _cal.monthrange(int(year), int(month))[1]
+        recent = df_adj.sort_values('date')['anomaly'].tail(7).mean()
+        pred = (mtd * days + recent * (n_days - days)) / n_days
+    res = {'method': 'persistence', 'prediction': pred, 'mtd_avg': mtd,
            'days_in': days, 'month': month, 'year': year}
     if pred is not None and err:
         res.update({'lo95': pred - err, 'hi95': pred + err,
@@ -723,7 +734,7 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     lo95, hi95 = proj.get('lo95'), proj.get('hi95')
     lo50, hi50 = proj.get('lo50'), proj.get('hi50')
     method_tag = ('EC46 blend' if proj['method'] == 'ec46_blend'
-                  else 'statistical')
+                  else 'persistence')
 
     # Calculate historical monthly averages for this month
     month_data = df_adj[df_adj['date'].dt.month == target_month]
@@ -2136,7 +2147,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
         'month_error': (f"({_m_lo95:+.2f} to {_m_hi95:+.2f})"
                         if _m_lo95 is not None and _m_hi95 is not None
                         else ""),
-        'month_method': _mproj.get('method', 'regression'),
+        'month_method': _mproj.get('method', 'persistence'),
         'month_days': days,
         'month_rank': month_rank_str,
         'month_rank_range': month_rank_range_str,

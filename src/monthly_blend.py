@@ -58,8 +58,14 @@ VERIFICATION_FILE = ROOT / "forecast_skill" / "monthly_blend_verification.csv"
 
 MAX_INIT_LAG_DAYS = 6     # staleness guard on the chosen init
 MIN_MEMBERS = 40          # fewer members -> fall back (fetch-quality gate)
-LEAD0_GATE = 0.15         # degC; |corrected day-0 forecast - obs| above
+LEAD0_GATE = 0.15         # degC; |corrected lead-1 forecast - obs| above
                           # this means something upstream broke -> fallback
+LEAD0_GATE_DAY0 = 0.30    # looser bound when only day 0 has verified: EC46's
+                          # day-0 field carries a warm artefact that grew to
+                          # 0.2-0.27 degC in Oct 2026 while leads >= 2 stayed
+                          # unbiased; gating day 0 at 0.15 rejected good runs
+                          # (2026-10-11) and the dashboard fell back to a
+                          # projection below the month-to-date value
 ERA5T_REVISION_SIGMA = 0.01   # 1-sigma, ERA5T->final revisions of the
                               # global-mean daily anomaly (MTD portion)
 NU0 = 4                   # pseudo-months anchoring sigma_between to the
@@ -223,17 +229,27 @@ def compute_monthly_blend(df_adj: pd.DataFrame) -> dict | None:
     bias0 = float(curve["c0"])          # correction at lead 0
     n_pairs = int(curve["n_inits"])
 
-    # Lead-0 sanity gate on the chosen init (if its day 0 has verified)
+    # Sanity gate on the chosen init against verified observations. Prefer
+    # lead 1 (day 0 carries a known warm artefact); fall back to day 0 with
+    # a looser bound when lead 1 has not verified yet. The fetcher's own
+    # continuity guard (ec46.MAX_INIT_SHIFT) is the primary defence against
+    # a corrupt run; this catches anything that slips past it.
     obs_anom = obs.set_index("date")["anomaly"]
-    if init_date in members.index and init_date in obs_anom.index:
-        fc0 = _anomalize(members.loc[[init_date], mem_cols],
-                         pd.DatetimeIndex([init_date]), clim_coarse,
-                         bias0).mean(axis=1)
-        if abs(float(fc0.iloc[0]) - float(obs_anom.loc[init_date])) > LEAD0_GATE:
-            logger.warning("Monthly blend: lead-0 gate failed (%.2f vs %.2f)",
-                           float(fc0.iloc[0]),
-                           float(obs_anom.loc[init_date]))
-            return None
+    for lead, gate in ((1, LEAD0_GATE), (0, LEAD0_GATE_DAY0)):
+        day = init_date + pd.Timedelta(days=lead)
+        if day in members.index and day in obs_anom.index:
+            corr = lead_bias_for(pd.DatetimeIndex([day]), init_date, curve)
+            fc = _anomalize(members.loc[[day], mem_cols],
+                            pd.DatetimeIndex([day]), clim_coarse,
+                            float(corr.iloc[0]) if hasattr(corr, "iloc") else float(corr)).mean(axis=1)
+            err = float(fc.iloc[0]) - float(obs_anom.loc[day])
+            if abs(err) > gate:
+                logger.warning("Monthly blend: lead-%d gate failed (%.2f vs %.2f, limit %.2f)",
+                               lead, float(fc.iloc[0]), float(obs_anom.loc[day]), gate)
+                return None
+            logger.info("Monthly blend: lead-%d check %.2f vs obs %.2f (limit %.2f)",
+                        lead, float(fc.iloc[0]), float(obs_anom.loc[day]), gate)
+            break
 
     mtd = obs[(obs["date"] >= m_start) & (obs["date"] <= last_obs)]
     rem_days = pd.date_range(last_obs + pd.Timedelta(days=1), m_end)
