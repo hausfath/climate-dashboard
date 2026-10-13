@@ -1,16 +1,16 @@
 # ENSO strength probabilities by season — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-12
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-13
 # Model-weighted category probabilities (percent) per overlapping 3-month season, from the multi-model ensemble; observed months are blended into seasonal means where available.
 # Categories use ONI event thresholds (0.5/1.0/1.5/2.0 degC).
 # n_models: number of forecast systems contributing to that season.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 season,season_center,very_strong_el_nino_pct,strong_el_nino_pct,moderate_el_nino_pct,weak_el_nino_pct,neutral_pct,weak_la_nina_pct,moderate_la_nina_pct,strong_la_nina_pct,very_strong_la_nina_pct,n_models
-SON 2026,2026-10,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
-OND 2026,2026-11,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
-NDJ 2026,2026-12,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
-DJF 2027,2027-01,97.26,2.74,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
-JFM 2027,2027-02,76.84,18.99,4.17,0.00,0.00,0.00,0.00,0.00,0.00,14
-FMA 2027,2027-03,36.90,23.33,30.95,8.21,0.60,0.00,0.00,0.00,0.00,7
-MAM 2027,2027-04,24.05,14.76,29.64,22.02,9.52,0.00,0.00,0.00,0.00,7
-AMJ 2027,2027-05,16.67,15.00,20.42,16.25,24.17,3.33,4.17,0.00,0.00,6
-MJJ 2027,2027-06,0.00,0.00,13.33,12.50,34.17,13.33,10.00,6.67,10.00,3
+SON 2026,2026-10,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,12
+OND 2026,2026-11,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,12
+NDJ 2026,2026-12,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
+DJF 2027,2027-01,99.64,0.36,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
+JFM 2027,2027-02,79.86,18.36,1.79,0.00,0.00,0.00,0.00,0.00,0.00,14
+FMA 2027,2027-03,39.80,26.48,26.28,7.45,0.00,0.00,0.00,0.00,0.00,7
+MAM 2027,2027-04,24.64,17.14,30.24,19.05,8.93,0.00,0.00,0.00,0.00,7
+AMJ 2027,2027-05,14.94,14.16,22.05,19.77,22.66,2.86,3.57,0.00,0.00,7
+MJJ 2027,2027-06,0.00,2.27,12.27,17.33,36.99,11.14,7.50,5.00,7.50,4
