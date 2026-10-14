@@ -149,3 +149,5 @@ September bundle exactly (seasonal fields and metrics to 0, grid files and `regi
   `extract.py` loads the frozen shape, and the September reproduction (byte-identical `regions.json`) ran through
   that branch. The repo's `model_counts.csv` and `region_table.csv` carry an `init` column and supersede the
   September tables in the private project, which stay as the record of the published post.
+
+**14 Oct 2026, tile floor.** Model anomalies are relative to each system's own hindcast climatology, so a model's deficit over a region can exceed the GPCP 1991–2020 normal and its tile would read below 0% of normal rainfall (October 2026, Philippines Dec–Mar: NCAR CESM1 −108.6%, JMA −103.5%). `export_dashboard.py` now floors member values at −100% (no rain) and computes the "Model average" from the floored values, so the tiles and the average agree (Philippines average −69.5% → −68.6%). Agreement counts are unaffected. The map grids were already clipped at −100 in the same script.

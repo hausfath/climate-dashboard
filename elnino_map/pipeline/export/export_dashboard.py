@@ -125,8 +125,16 @@ for key, R in {**regions["regions"], **regions["extras"]}.items():
     use_box = str(r.test).startswith("box:") and not pd.isna(r[c_poly]) and int(r[c_agree]) != int(r[c_poly])
     mem = json.loads((r.typ_box_members if use_box else r.typ_members) if T else (r.box_members if use_box else r.members))
     sign = old["sign"]
+    # Model anomalies sit on each system's own hindcast climatology, so a deficit can exceed the GPCP normal and a
+    # tile would read below 0% of normal rainfall. Floor members at -100 (no rain); the model average uses the floored
+    # values so the tiles and the "Model average" line agree. Decided 14 Oct 2026 (Philippines: CESM1 -108.6, JMA -103.5).
+    floored = []
     for x in mem:
+        if x["pct"] < -100:
+            floored.append(f"{x['model']} {x['pct']}"); x["pct"] = -100.0
         x["label"] = LABEL[x["model"]]; x["agree"] = bool(np.sign(x["pct"]) == sign)
+    if floored:
+        print(f"  NOTE {key}: floored at -100% of normal: {', '.join(floored)}")
     agree = sum(x["agree"] for x in mem)
     if use_box:
         if agree != int(r[c_agree]):
@@ -135,6 +143,7 @@ for key, R in {**regions["regions"], **regions["extras"]}.items():
             print(f"  NOTE {key}: box and polygon counts differ ({int(r[c_agree])} vs {int(r[c_poly])}); showing the polygon")
             use_box = False; mem = json.loads(r.typ_members if T else r.members)
             for x in mem:
+                x["pct"] = max(x["pct"], -100.0)
                 x["label"] = LABEL[x["model"]]; x["agree"] = bool(np.sign(x["pct"]) == sign)
             agree = sum(x["agree"] for x in mem)
     else:
