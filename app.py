@@ -6,6 +6,7 @@ Usage: gunicorn app:server
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -52,6 +53,11 @@ def initialize_data():
 logger.info("Starting Climate Dashboard...")
 df = initialize_data()
 app = create_dashboard(df)
+
+# Pre-build the Global tab's default figures so the first visitors after a
+# deploy don't pay for them (WARM_FIGURES=0 skips it, e.g. for quick local runs).
+if os.environ.get('WARM_FIGURES', '1') != '0':
+    app.warm_figures()
 
 # Expose the Flask server for Gunicorn
 server = app.server

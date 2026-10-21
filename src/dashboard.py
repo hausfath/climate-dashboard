@@ -15,6 +15,50 @@ from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
 from src import layout as L
 from src.theme import install_fonts, template_name, tokens
 from src.units import convert_figure_units
+import json as _json
+import threading as _threading
+import time as _time
+from collections import OrderedDict as _OrderedDict
+import plotly.io as _pio
+
+# ── Figure cache ────────────────────────────────────────────────────────────
+# Every interactive figure is memoised as plotly JSON for the lifetime of the
+# process. That is valid only because data reaches the web service by git
+# commit + redeploy (the cron jobs run in their own containers); if an
+# in-process data refresh is ever added, it must clear _FIG_CACHE. Entries are
+# stored AFTER unit conversion (convert_figure_units edits figures in place),
+# keyed on every input that reaches the figure body. JSON strings rather than
+# Figure objects keep the footprint near the payload size: the largest figures
+# are ~2.7 MB, so the cap below bounds the cache at roughly 60 MB per worker.
+import logging as _logging
+_LOG = _logging.getLogger(__name__)
+_FIG_CACHE_MAX = 48
+_FIG_CACHE = _OrderedDict()
+_FIG_LOCK = _threading.Lock()        # guards the dict
+_FIG_BUILD_LOCK = _threading.Lock()  # one figure build at a time per worker (CPU-bound, GIL)
+
+
+def _cached_figure(name, key, build):
+    """Return the memoised figure dict for (name, key), building it on a miss."""
+    k = (name,) + tuple(key)
+    with _FIG_LOCK:
+        s = _FIG_CACHE.get(k)
+        if s is not None:
+            _FIG_CACHE.move_to_end(k)
+            return _json.loads(s)
+    with _FIG_BUILD_LOCK:
+        with _FIG_LOCK:                      # another thread may have built it meanwhile
+            s = _FIG_CACHE.get(k)
+        if s is None:
+            t0 = _time.time()
+            s = _pio.to_json(build(), validate=False)
+            with _FIG_LOCK:
+                _FIG_CACHE[k] = s
+                while len(_FIG_CACHE) > _FIG_CACHE_MAX:
+                    _FIG_CACHE.popitem(last=False)
+            _LOG.info(f"figure cache miss {name}{tuple(key)}: {_time.time() - t0:.2f}s, {len(s) / 1e6:.2f} MB")
+    return _json.loads(s)
+
 
 
 # Theme configurations for light and dark modes.
@@ -3715,16 +3759,22 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('interactive-switch', 'value'), Input('dark-mode-switch', 'value'),
          Input('unit-switch', 'value'),
          Input('timeseries-res-toggle', 'value'),
-         Input('timeseries-series-toggle', 'value')]
+         Input('timeseries-series-toggle', 'value'),
+         Input('active-tab-store', 'data')]
     )
-    def update_timeseries(interactive, dark_mode, fahrenheit, res, series):
-        if not interactive:
+    def update_timeseries(interactive, dark_mode, fahrenheit, res, series, tab):
+        # Chain heads only run for the visible tab (the store is an output of
+        # switch_tab, so a tab change re-fires the chain; cached figures make
+        # the re-fire cheap). Hidden tabs' chains used to compete for the CPU
+        # on every page load.
+        if not interactive or (tab or 'global') != 'global':
             raise PreventUpdate
-        return convert_figure_units(
+        return _cached_figure('timeseries', (dark_mode, fahrenheit, res, series),
+            lambda: convert_figure_units(
             create_time_series_plot(_df, dark_mode,
                                     resolution=res or 'daily',
                                     enso_removed=series == 'ensorm'),
-            fahrenheit)
+            fahrenheit))
 
     # Keep the timeseries caption accurate for the toggled state
     @app.callback(
@@ -3762,8 +3812,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_daily_anomalies(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
-            create_daily_anomalies_plot(_df, dark_mode), fahrenheit)
+        return _cached_figure('daily_anomalies', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
+            create_daily_anomalies_plot(_df, dark_mode), fahrenheit))
 
     # Graph 3: Daily absolutes (chained)
     @app.callback(
@@ -3775,9 +3826,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_daily_absolutes(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
+        return _cached_figure('daily_absolutes', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
             create_daily_absolutes_plot(_df, dark_mode), fahrenheit,
-            absolute=True)
+            absolute=True))
 
     # Graph 4: Monthly projection (chained)
     @app.callback(
@@ -3789,8 +3841,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_monthly(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
-            create_monthly_projection_plot(_df, dark_mode), fahrenheit)
+        return _cached_figure('monthly', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
+            create_monthly_projection_plot(_df, dark_mode), fahrenheit))
 
     # Graph 5: Annual prediction (chained)
     @app.callback(
@@ -3802,8 +3855,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_annual(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
-            create_annual_prediction_plot(_df, dark_mode=dark_mode), fahrenheit)
+        return _cached_figure('annual', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
+            create_annual_prediction_plot(_df, dark_mode=dark_mode), fahrenheit))
 
     # Graph 6: Projection history (chained)
     @app.callback(
@@ -3815,8 +3869,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_projection_history(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
-            create_projection_history_plot(_df, dark_mode), fahrenheit)
+        return _cached_figure('projection_history', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
+            create_projection_history_plot(_df, dark_mode), fahrenheit))
 
     # Graph 7: Anomaly heatmap (chained)
     @app.callback(
@@ -3828,8 +3883,9 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_heatmap_anomaly(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
-            create_daily_heatmap(_df, 'anomaly', dark_mode), fahrenheit)
+        return _cached_figure('heatmap_anomaly', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
+            create_daily_heatmap(_df, 'anomaly', dark_mode), fahrenheit))
 
     # Graph 8: Temperature heatmap (chained)
     @app.callback(
@@ -3841,9 +3897,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     def update_heatmap_temp(_, dark_mode, interactive, fahrenheit):
         if not interactive:
             raise PreventUpdate
-        return convert_figure_units(
+        return _cached_figure('heatmap_temp', (dark_mode, fahrenheit),
+            lambda: convert_figure_units(
             create_daily_heatmap(_df, 'temperature', dark_mode), fahrenheit,
-            absolute=True)
+            absolute=True))
 
     # (Spatial tab removed — source files kept locally for future use)
 
@@ -3859,11 +3916,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Input('models-smoothing', 'value'),
          Input('models-baseline', 'value'),
          Input('dark-mode-switch', 'value'),
-         Input('unit-switch', 'value')],
+         Input('unit-switch', 'value'),
+         Input('active-tab-store', 'data')],
     )
     def update_models_timeseries(interactive, cmip_gen, smoothing, baseline, dark_mode,
-                                 fahrenheit):
+                                 fahrenheit, tab):
         from dash.exceptions import PreventUpdate
+        if (tab or 'global') != 'models':
+            raise PreventUpdate
         from src.models_vs_obs import scenario_for
         if not interactive:
             raise PreventUpdate
@@ -3875,10 +3935,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
             rolling = (smoothing == 'rolling')
             bl = baseline or '1850-1900'
-            return convert_figure_units(
+            return _cached_figure('models_timeseries', (cmip_gen, smoothing, baseline, dark_mode, fahrenheit),
+                lambda: convert_figure_units(
                 _create_models_timeseries(cmip_df, _obs_models, rolling, dark_mode,
                                           gen_label, bl, scenario=scenario_for(gen)),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"Models timeseries error: {e}")
             return go.Figure()
@@ -3903,10 +3964,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return convert_figure_units(
+            return _cached_figure('models_trend_explorer', (cmip_gen, dark_mode, fahrenheit),
+                lambda: convert_figure_units(
                 _create_trend_explorer(cmip_df, _obs_models, dark_mode, gen_label,
                                        scenario=scenario_for(gen)),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"Models trend explorer error: {e}")
             return go.Figure()
@@ -3931,10 +3993,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             gen = cmip_gen or 'cmip6'
             cmip_df = _get_cmip(gen)
             gen_label = {'cmip3': 'CMIP3', 'cmip5': 'CMIP5', 'cmip6': 'CMIP6'}.get(gen, 'CMIP6')
-            return convert_figure_units(
+            return _cached_figure('models_histograms', (cmip_gen, dark_mode, fahrenheit),
+                lambda: convert_figure_units(
                 _create_hist_grid(cmip_df, _obs_models, dark_mode, gen_label,
                                   scenario=scenario_for(gen)),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"Models histograms error: {e}")
             return go.Figure()
@@ -4086,11 +4149,14 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
          Input('enso-index-toggle', 'value'),
          Input('nino-region-toggle', 'value'),
          Input('nino-display-toggle', 'value'),
-         Input('unit-switch', 'value')],
+         Input('unit-switch', 'value'),
+         Input('active-tab-store', 'data')],
     )
     def update_nino34_daily_years(interactive, dark_mode, roni_on, region,
-                                  display, fahrenheit):
+                                  display, fahrenheit, tab):
         from dash.exceptions import PreventUpdate
+        if (tab or 'global') != 'enso':
+            raise PreventUpdate
         region = 'nino34' if roni_on else (region or 'nino34')
         display = 'anomaly' if roni_on else (display or 'anomaly')
         # Only Niño 3.4 anomalies have pre-rendered PNGs; other states
@@ -4100,11 +4166,12 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             raise PreventUpdate
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('nino34_daily_years', (dark_mode, roni_on, region, display, fahrenheit),
+                lambda: convert_figure_units(
                 _create_nino34_daily_years(_nino_history_df, dark_mode,
                                            index_mode=index_mode,
                                            region=region, display=display),
-                fahrenheit, absolute=display == 'absolute')
+                fahrenheit, absolute=display == 'absolute'))
         except Exception as e:
             logger.error(f"Nino34 daily years error: {e}")
             return go.Figure()
@@ -4190,9 +4257,10 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     )
     def update_wwv_nino34(dark_mode, fahrenheit):
         try:
-            return convert_figure_units(
+            return _cached_figure('wwv_nino34', (dark_mode, fahrenheit),
+                lambda: convert_figure_units(
                 _create_wwv_nino34(_coupling_obs['wwv'], _coupling_nino, dark_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"WWV plot error: {e}")
             return go.Figure()
@@ -4214,10 +4282,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('enso_mega_plume', (dark_mode, roni_on, fahrenheit),
+                lambda: convert_figure_units(
                 _create_enso_mega_plume(_enso_forecast_df, _enso_obs_df, dark_mode,
                                         index_mode=index_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"ENSO mega plume error: {e}")
             return go.Figure()
@@ -4239,10 +4308,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('enso_box_distribution', (dark_mode, roni_on, fahrenheit),
+                lambda: convert_figure_units(
                 _create_enso_box_distribution(_enso_forecast_df, dark_mode,
                                               index_mode=index_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"ENSO box distribution error: {e}")
             return go.Figure()
@@ -4255,18 +4325,22 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
         [Input('interactive-switch', 'value'),
          Input('dark-mode-switch', 'value'),
          Input('enso-index-toggle', 'value'),
-         Input('unit-switch', 'value')],
+         Input('unit-switch', 'value'),
+         Input('active-tab-store', 'data')],
     )
     def update_enso_peak_lollipop(interactive, dark_mode, roni_on,
-                                  fahrenheit):
+                                  fahrenheit, tab):
+        if (tab or 'global') != 'enso':
+            raise PreventUpdate
         if not _ENSO_AVAILABLE:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('enso_peak_lollipop', (dark_mode, roni_on, fahrenheit),
+                lambda: convert_figure_units(
                 _create_enso_peak_lollipop(_enso_forecast_df, dark_mode,
                                            index_mode=index_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"ENSO peak lollipop error: {e}")
             return go.Figure()
@@ -4288,10 +4362,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('enso_historical', (dark_mode, roni_on, fahrenheit),
+                lambda: convert_figure_units(
                 _create_enso_historical_context(_enso_forecast_df, dark_mode,
                                                 index_mode=index_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"ENSO historical context error: {e}")
             return go.Figure()
@@ -4313,14 +4388,38 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
             return go.Figure()
         try:
             index_mode = 'roni' if roni_on else 'oni'
-            return convert_figure_units(
+            return _cached_figure('enso_strength_probs', (dark_mode, roni_on, fahrenheit),
+                lambda: convert_figure_units(
                 _create_enso_strength_probs(_enso_forecast_df, dark_mode,
                                             index_mode=index_mode),
-                fahrenheit)
+                fahrenheit))
         except Exception as e:
             logger.error(f"ENSO strength probs error: {e}")
             return go.Figure()
 
+    def warm_figures(dark_mode=True):
+        """Build the Global tab's default interactive figures into the cache.
+        app.py calls this at import time; under gunicorn --preload that runs in
+        the master, so the forked workers inherit the warm cache."""
+        t0 = _time.time()
+        steps = [
+            ('timeseries', lambda: update_timeseries(True, dark_mode, False, 'daily', 'observed', 'global')),
+            ('daily_anomalies', lambda: update_daily_anomalies(None, dark_mode, True, False)),
+            ('daily_absolutes', lambda: update_daily_absolutes(None, dark_mode, True, False)),
+            ('monthly', lambda: update_monthly(None, dark_mode, True, False)),
+            ('annual', lambda: update_annual(None, dark_mode, True, False)),
+            ('projection_history', lambda: update_projection_history(None, dark_mode, True, False)),
+            ('heatmap_anomaly', lambda: update_heatmap_anomaly(None, dark_mode, True, False)),
+            ('heatmap_temp', lambda: update_heatmap_temp(None, dark_mode, True, False)),
+        ]
+        for name, fn in steps:
+            try:
+                fn()
+            except Exception as e:  # never block startup on a warm-up failure
+                logger.warning(f"warm-up {name} failed: {e}")
+        logger.info(f"figure cache warmed ({len(steps)} figures, dark={dark_mode}) in {_time.time() - t0:.1f}s")
+
+    app.warm_figures = warm_figures
     return app
 
 
