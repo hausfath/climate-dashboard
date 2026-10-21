@@ -1,5 +1,5 @@
 # Daily global mean surface temperature anomaly (ERA5, 1940-present)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-20
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-10-21
 # Anomalies vs preindustrial 1850-1900 (ERA5 1991-2020 climatology plus monthly preindustrial offsets).
 # ENSO-removed columns subtract the lagged-ONI ENSO component (~0.1 degC per unit ONI at ~3-month lag); trend untouched.
 # rolling_365d columns are 365-day centered means.
@@ -31527,7 +31527,7 @@ date,anomaly_c,anomaly_enso_removed_c,rolling_365d_c,rolling_365d_enso_removed_c
 2026-04-17,1.3510,1.3927,1.5039,1.5184
 2026-04-18,1.3190,1.3607,1.5042,1.5187
 2026-04-19,1.2630,1.3047,1.5046,1.5190
-2026-04-20,1.2780,1.3197,,
+2026-04-20,1.2780,1.3197,1.5052,1.5196
 2026-04-21,1.3020,1.3437,,
 2026-04-22,1.3850,1.4267,,
 2026-04-23,1.3820,1.4237,,
@@ -31708,4 +31708,5 @@ date,anomaly_c,anomaly_enso_removed_c,rolling_365d_c,rolling_365d_enso_removed_c
 2026-10-15,1.7390,1.7390,,
 2026-10-16,1.7550,1.7550,,
 2026-10-17,1.7490,1.7490,,
-2026-10-18,1.7390,1.7390,,
+2026-10-18,1.7430,1.7430,,
+2026-10-19,1.7400,1.7400,,
