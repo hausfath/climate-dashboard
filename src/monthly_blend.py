@@ -60,10 +60,11 @@ MAX_INIT_LAG_DAYS = 6     # staleness guard on the chosen init
 MIN_MEMBERS = 40          # fewer members -> fall back (fetch-quality gate)
 LEAD0_GATE = 0.15         # degC; |corrected lead-1 forecast - obs| above
                           # this means something upstream broke -> fallback
-LEAD0_GATE_DAY0 = 0.30    # looser bound when only day 0 has verified: EC46's
-                          # day-0 field carries a warm artefact that grew to
-                          # 0.2-0.27 degC in Oct 2026 while leads >= 2 stayed
-                          # unbiased; gating day 0 at 0.15 rejected good runs
+LEAD0_GATE_DAY0 = 0.30    # looser bound when only lead 0 has verified: the
+                          # run's lead-0 day sits ~0.2 degC warm of ERA5 (sd
+                          # ~0.04) and is corrected by the lead curve, but a
+                          # tighter gate rejected good runs in Oct 2026 while
+                          # leads were still mislabelled by fetch date
                           # (2026-10-11) and the dashboard fell back to a
                           # projection below the month-to-date value
 ERA5T_REVISION_SIGMA = 0.01   # 1-sigma, ERA5T->final revisions of the
@@ -416,8 +417,13 @@ def update_calibration() -> pd.DataFrame | None:
         if len(month_obs) < (m_end - m_start).days + 1:
             continue    # month not fully verified
         truth = float(month_obs.mean())
-        mtd_days = pd.date_range(m_start, init_date - pd.Timedelta(days=1))
-        rem_days = pd.date_range(init_date, m_end)
+        # Pseudo-real-time split: observations up to the day before the
+        # first forecast day in the file, forecast from there. Files fetched
+        # before 2026-10-24 hold the run's lead 1 onward (their lead-0 day
+        # was never retrieved), so the split cannot assume lead 0 exists.
+        first_fc = max(fdates.min(), m_start)
+        mtd_days = pd.date_range(m_start, first_fc - pd.Timedelta(days=1))
+        rem_days = pd.date_range(first_fc, m_end)
         if len(mtd_days) and not mtd_days.isin(obs_anom.index).all():
             continue
         if len(rem_days) and not rem_days.isin(fc_anom.index).all():

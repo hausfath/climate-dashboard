@@ -138,13 +138,20 @@ remains as an automatic fallback). Method (`src/monthly_blend.py`):
   (`data/ec46_coarse_clim_doy.csv`), so the grid-sampling operator cancels,
   plus an anomaly-space **lead-dependent bias correction** estimated from
   the archive: the pooled (ERA5 − forecast) difference by lead day is fitted
-  with a saturating exponential c(L) = a + b·(1 − e^(−L/τ)). The EC46 day-0
-  field sits about 0.05 °C warm of ERA5 (analysis / first-day spin-up) and
-  that offset decays within a few days; beyond a week the pooled error is
-  close to zero. (Until 2026-09-02 a constant lead-0 correction was applied
-  at every lead, which made forecasts beyond ~5 days about 0.05 °C too cold;
-  the lead-dependent form removed that.) The published central value is the
-  member median.
+  with a saturating exponential c(L) = a + b·(1 − e^(−L/τ)), with the lead
+  counted from the model run's own init date. The run's lead-0 day sits
+  about 0.2 °C warm of ERA5 (the analysis-step 2 m temperature versus the
+  model's own first day), lead 1 about 0.06 °C and lead 2 about 0.01 °C;
+  beyond that the pooled error is close to zero. (Until 2026-10-24 the
+  fetch date stood in for the run date. Every fetch before October 2026
+  had in fact retrieved the previous day's run, so the archive's "day 0"
+  was lead 1 and the fitted lead-0 offset was only ~0.05 °C; from 1 Oct
+  the later cron sometimes caught the same-day run, whose true lead-0 day
+  was then under-corrected by ~0.15 °C. The archive was relabelled by run
+  date and the fetch moved to its own 22:00 UTC cron. Until 2026-09-02 a
+  constant lead-0 correction was applied at every lead, which made
+  forecasts beyond ~5 days about 0.05 °C too cold.) The published central
+  value is the member median.
 - **Uncertainty.** Ensemble spread alone cannot represent common-mode model
   error (all members drift together), so the published 5–95 % and 25–75 %
   ranges come from a total variance with four parts: member month-mean
@@ -166,11 +173,12 @@ remains as an automatic fallback). Method (`src/monthly_blend.py`):
   other months' inits), so the calibration is not flattered by in-sample
   bias removal; the live projection uses the full-archive curve. Interval widths tighten only as this
   archive demonstrates they should.
-- **Fallback.** If no usable init exists, members are missing, or a lead-0
-  sanity gate fails (|corrected day-0 forecast − obs| > 0.15 °C), the panel
-  reverts to the regression of full-month means on month-to-date means
-  (1940–present) with ±2σ residual intervals; the figure caption and the
-  downloadable CSV record which method produced the displayed number.
+- **Fallback.** If no usable init exists, members are missing, or the
+  sanity gate fails (|corrected lead-1 forecast − obs| > 0.15 °C, or
+  > 0.30 °C on lead 0 when lead 1 has not verified yet), the panel reverts
+  to persistence of the last seven observed days for the remaining days of
+  the month, with the regression's residual band; the figure caption and
+  the downloadable CSV record which method produced the displayed number.
 
 Backtesting on June–July 2026 (56 archived inits) showed the blend matching
 the regression's central accuracy overall (MAE 0.020 °C both) while

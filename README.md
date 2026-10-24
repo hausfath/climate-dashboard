@@ -124,6 +124,7 @@ Deployed on [Render](https://render.com) with automated daily updates:
 1. **Render web service** (starter plan) runs via Gunicorn with `render.yaml` blueprint
 2. **Render cron job** runs `python run.py update --force` daily
 3. **GitHub Actions** (`.github/workflows/update-data.yml`) runs daily at 16:30 UTC (after the day's ERA5 and OISST source refreshes), commits updated data to git
+4. **GitHub Actions** (`.github/workflows/update-ec46.yml`) fetches the ECMWF EC46 forecast daily at 22:00 UTC, after Open-Meteo's ~20:30 UTC rollout of the same-day run (`python run.py update-ec46`), and commits the forecast, its archive and the daily-anomaly images
 4. CDS API credentials stored as GitHub secrets (`CDS_URL`, `CDS_KEY`)
 
 ## Project Structure

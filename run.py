@@ -144,8 +144,48 @@ def update_enso_forecasts(force: bool = False) -> None:
             logger.error(f"Failed to fetch {name}: {e}")
 
 
-def update_data(force: bool = False) -> None:
-    """Update all data sources."""
+def update_ec46(force: bool = True) -> None:
+    """Evening EC46 refresh (own cron, 22:00 UTC): fetch the same-day run —
+    Open-Meteo rolls it out at ~20:30 UTC, after the main 16:30 UTC run has
+    started — then rebuild the skill plot and blend calibration from the
+    archive and re-render the two daily-anomaly static images that carry
+    the forecast tail. Everything else (ERA5, ENSO, CSV exports) is left to
+    the main run."""
+    logger.info("Fetching ECMWF EC46 GSAT forecast...")
+    update_ec46_forecast(force=force)
+
+    logger.info("Rebuilding EC46 forecast-skill plot...")
+    try:
+        from src.ec46_skill import make_plot as make_ec46_skill_plot
+        make_ec46_skill_plot()
+    except Exception as e:
+        logger.error(f"EC46 skill plot failed: {e}")
+
+    logger.info("Updating monthly-blend calibration...")
+    try:
+        from src.monthly_blend import update_calibration
+        update_calibration()
+    except Exception as e:
+        logger.error(f"Monthly-blend calibration failed: {e}")
+
+    logger.info("Re-rendering daily-anomaly static images...")
+    try:
+        from src.dashboard import create_daily_anomalies_plot
+        source = DATA_SOURCES["era5_global"]
+        df = load_or_fetch_data(source["url"], source["local_file"])
+        assets_dir = Path(__file__).parent / 'assets' / 'images'
+        for dark_mode in (True, False):
+            fig = create_daily_anomalies_plot(df, dark_mode)
+            name = f"daily_anomalies_{'dark' if dark_mode else 'light'}.png"
+            fig.write_image(str(assets_dir / name), width=1200, height=500, scale=2)
+            logger.info(f"Generated {name}")
+    except Exception as e:
+        logger.error(f"Daily-anomaly images failed: {e}")
+
+
+def update_data(force: bool = False, ec46: bool = True) -> None:
+    """Update all data sources. ``ec46=False`` leaves the EC46 forecast to
+    its own evening cron (see :func:`update_ec46`)."""
     logger.info("Updating data sources...")
 
     # Update ERA5 data
@@ -187,9 +227,15 @@ def update_data(force: bool = False) -> None:
         logger.error(f"ENSO coupling observations update failed: {e}")
 
     # Fetch ECMWF EC46 global-mean GSAT forecast (drives the daily-anomaly
-    # plot's 46-day forecast tail). Cheap and idempotent on cron repeats.
-    logger.info("Fetching ECMWF EC46 GSAT forecast...")
-    update_ec46_forecast(force=force)
+    # plot's 46-day forecast tail). The scheduled runs pass ec46=False and
+    # leave this to the 22:00 UTC `update-ec46` cron, which lands after
+    # Open-Meteo's ~20:30 UTC rollout of the same-day run; a fetch from
+    # the 16:30 UTC run straddles that rollout and mixes two runs.
+    if ec46:
+        logger.info("Fetching ECMWF EC46 GSAT forecast...")
+        update_ec46_forecast(force=force)
+    else:
+        logger.info("Skipping EC46 fetch (--no-ec46); evening cron owns it")
 
     # Refresh the EC46 skill-tracking plot (past forecasts vs. observed).
     # Output lives under forecast_skill/ and is committed by the daily
@@ -435,6 +481,14 @@ def main():
     # Update command
     update_parser = subparsers.add_parser('update', help='Update data from sources')
     update_parser.add_argument('--force', action='store_true', help='Force refresh even if cache is current')
+    update_parser.add_argument('--no-ec46', action='store_true',
+                               help='Skip the EC46 fetch (the 22:00 UTC update-ec46 cron owns it)')
+
+    # Evening EC46-only command (own cron; see update_ec46)
+    ec46_parser = subparsers.add_parser('update-ec46',
+                                        help='Fetch the same-day EC46 run and refresh its outputs')
+    ec46_parser.add_argument('--no-force', action='store_true',
+                             help='Skip the fetch if the newest file is <3 days old')
 
     # Run command (default - update and run dashboard)
     run_parser = subparsers.add_parser('run', help='Update data and run dashboard')
@@ -446,7 +500,9 @@ def main():
     if args.command == 'dashboard':
         run_dashboard(args.host, args.port, not args.no_debug)
     elif args.command == 'update':
-        update_data(args.force)
+        update_data(args.force, ec46=not args.no_ec46)
+    elif args.command == 'update-ec46':
+        update_ec46(force=not args.no_force)
     elif args.command == 'run' or args.command is None:
         update_data()
         host = getattr(args, 'host', DASHBOARD_HOST)

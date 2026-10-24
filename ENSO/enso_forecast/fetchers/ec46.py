@@ -3,7 +3,22 @@ forecasts for the dashboard's daily anomaly plots.
 
 Source: Open-Meteo seasonal-forecast API with `models=ecmwf_ec46`.
   - 6-hourly 2m temperature + 50 perturbed members per gridpoint.
-  - 46-day forecast horizon, weekly init cycle (Mon/Thu typical).
+  - 46-day horizon, one run per day (00 UTC). Open-Meteo rolls the
+    same-day run out at ~20:30 UTC, tile by tile, over tens of minutes.
+
+Run identity. The API's time axis always starts at the UTC request date
+(minus ``past_days``), so the first step says nothing about which run a
+gridpoint was served from. The horizon end does: the last populated step
+is init + 46 d 00 UTC, so we request 47 forecast days (one more than the
+horizon, so that end is always visible) plus one past day (so the run's
+own lead-0 day is kept when the fetch happens after 00 UTC the next day)
+and derive ``run_date`` per gridpoint. ``init_date`` in the output IS the
+run date — leads downstream are counted from it. A fetch that straddles
+the rollout sees two runs; gridpoints still on the older run are
+re-fetched until they match the newest run, and the fetch is refused if
+any remain (a partial-globe average is worse than no update). The run's
+lead-0 day carries a ~+0.2 °C warm offset against ERA5 (analysis-step
+2 m temperature); it is corrected/handled downstream by true lead.
 
 The dashboard needs only daily global-mean GSAT, not gridded fields. We
 sample on a coarse global grid, area-weight by cos(lat), and reduce to
@@ -12,7 +27,7 @@ percentile summaries (5/25/50/75/95 + mean) per day. The output CSV is
 
 Output: ``data/era5_forecast_ec46_<init-date>.csv`` with columns
   date, t2m_mean, t2m_p5, t2m_p25, t2m_p50, t2m_p75, t2m_p95,
-  init_date, n_members.
+  init_date (= run date), n_members, fetch_utc.
 """
 from __future__ import annotations
 
@@ -21,7 +36,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +49,10 @@ DATA_DIR = DASHBOARD_ROOT / "data"
 API = "https://seasonal-api.open-meteo.com/v1/seasonal"
 N_MEMBERS = 50
 FORECAST_DAYS = 46
+HORIZON_DAYS = 46          # a run's last step is init + 46 d 00 UTC
+PAST_DAYS = 1              # keep the run's lead-0 day after the UTC date rolls over
+REFETCH_ROUNDS = 3         # re-fetch gridpoints still on an older run (rollout in progress)
+REFETCH_WAIT = 600         # seconds between those rounds
 MAX_INIT_SHIFT = 0.25      # °C: refuse a run whose global mean sits further than this from the previous init
 MIN_TIMESTEPS_PER_DAY = 4  # require all 4 6-hourly steps; protects
                             # against the diurnal-coverage artifact when
@@ -58,7 +77,8 @@ def _fetch_point(lat: float, lon: float) -> dict | None:
         f"latitude={lat:.3f}&longitude={lon:.3f}"
         f"&models=ecmwf_ec46"
         f"&hourly=temperature_2m"
-        f"&forecast_days={FORECAST_DAYS}"
+        f"&forecast_days={FORECAST_DAYS + 1}"
+        f"&past_days={PAST_DAYS}"
         f"&ensemble_members={N_MEMBERS}"
     )
     url = f"{API}?{params}"
@@ -112,6 +132,17 @@ def _horizon_end(payload: dict) -> pd.Timestamp:
         if idx.size and idx[-1] > last:
             last = int(idx[-1])
     return t[last] if last >= 0 else pd.NaT
+
+
+def _run_date(payload: dict) -> pd.Timestamp | None:
+    """Model run (init) date a gridpoint was served from: the last populated
+    step is init + HORIZON_DAYS at 00 UTC. None if the horizon end is not
+    visible (not a 00 UTC step), which the request parameters should make
+    impossible; such points are treated as failed."""
+    end = _horizon_end(payload)
+    if pd.isna(end) or end.hour != 0 or end.minute != 0:
+        return None
+    return (end - pd.Timedelta(days=HORIZON_DAYS)).normalize()
 
 
 def _global_mean(per_pt: pd.DataFrame) -> pd.DataFrame:
@@ -173,14 +204,16 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
         if df.empty:
             failed += 1
             continue
+        run = _run_date(payload)
+        if run is None:
+            logger.warning("EC46 (%.1f, %.1f): horizon end not visible — "
+                           "treating as failed", lat, lon)
+            failed += 1
+            continue
         df["lat"] = lat
         df["lon"] = lon
-        # Horizon end (last non-null step over all members) identifies the
-        # model run this gridpoint was served from: the time axis always
-        # starts at the request date, so the first step cannot. Open-Meteo
-        # rolls a new EC46 run out gridpoint by gridpoint, and a fetch that
-        # straddles the update mixes two runs (see the gates below).
-        df["t_end"] = _horizon_end(payload)
+        # The model run this gridpoint was served from (see module docstring).
+        df["run"] = run
         parts.append(df)
         if (i + 1) % 50 == 0:
             elapsed = time.time() - t0
@@ -215,30 +248,49 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
 
     per_pt = pd.concat(parts, ignore_index=True)
 
-    # Single-run gate: if the fetch straddled an Open-Meteo update, keep
-    # only the gridpoints served from the majority run (same horizon end).
-    # Mixed runs put the newer points' final day on a date the older
-    # points do not have, so that day is averaged over a biased subset.
-    # Compare horizon-end DATES: Open-Meteo rolls the day-46 steps out tile by tile, so at some hours a few
-    # gridpoints only carry 00Z of the final day. Those are the same run, and dropping them is worse than keeping
-    # them (2026-10-10: 20 cold high-latitude points were dropped this way and the global mean ran 0.4 °C warm).
-    t_end = per_pt.groupby(["lat", "lon"])["t_end"].first().dt.normalize()
-    end_counts = t_end.value_counts()
-    if len(end_counts) > 1:
-        keep_end = end_counts.idxmax()
-        n_drop = int(end_counts.drop(keep_end).sum())
-        logger.warning("EC46: %d gridpoints served from a different run "
-                       "(horizon end %s) — dropping them, keeping %s",
-                       n_drop, [str(t) for t in end_counts.index
-                                if t != keep_end], keep_end)
-        keep_pts = set(t_end[t_end == keep_end].index)
-        per_pt = per_pt[[(la, lo) in keep_pts for la, lo in zip(per_pt["lat"], per_pt["lon"])]]
-        n_ok -= n_drop
-        if n_ok < 0.9 * len(grid_pts):
-            logger.error("EC46: only %d/%d gridpoints on one run — "
-                         "refusing fetch", n_ok, len(grid_pts))
-            return pd.DataFrame(), pd.DataFrame()
-    per_pt = per_pt.drop(columns=["t_end"])
+    # Single-run gate. A fetch that straddles Open-Meteo's ~20:30 UTC
+    # rollout sees two runs. Dropping the stragglers biases the cos-weighted
+    # mean (2026-10-10: 20 cold high-latitude points dropped, global mean
+    # +0.4 °C) and keeping them mixes lead-0 and lead-1 days of different
+    # runs (2026-10-20/21: 196 and 60 old-run points averaged in). So:
+    # target the newest run seen, re-fetch every gridpoint still on an
+    # older run after a pause (the rollout completes within tens of
+    # minutes), and refuse the fetch if any remain.
+    run_by_pt = per_pt.groupby(["lat", "lon"])["run"].first()
+    run_date = run_by_pt.max()
+    stale_pts = [pt for pt, r in run_by_pt.items() if r != run_date]
+    for attempt in range(REFETCH_ROUNDS):
+        if not stale_pts:
+            break
+        logger.warning("EC46: %d gridpoints still on an older run than %s "
+                       "(rollout in progress?) — re-fetching in %d s "
+                       "(round %d/%d)", len(stale_pts), run_date.date(),
+                       REFETCH_WAIT, attempt + 1, REFETCH_ROUNDS)
+        time.sleep(REFETCH_WAIT)
+        still = []
+        for lat, lon in stale_pts:
+            payload = _fetch_point(lat, lon)
+            df = _point_daily_per_member(payload) if payload else pd.DataFrame()
+            run = _run_date(payload) if payload else None
+            if df.empty or run != run_date:
+                still.append((lat, lon))
+                continue
+            df["lat"], df["lon"], df["run"] = lat, lon, run
+            per_pt = per_pt[~((per_pt["lat"] == lat) & (per_pt["lon"] == lon))]
+            per_pt = pd.concat([per_pt, df], ignore_index=True)
+            time.sleep(SLEEP_BETWEEN)
+        stale_pts = still
+    if stale_pts:
+        logger.error("EC46: %d/%d gridpoints still on an older run than %s "
+                     "after %d re-fetch rounds — refusing fetch (no "
+                     "mixed-run or partial-globe average)", len(stale_pts),
+                     n_ok, run_date.date(), REFETCH_ROUNDS)
+        return pd.DataFrame(), pd.DataFrame()
+    per_pt = per_pt.drop(columns=["run"])
+    # Keep only the run's own window: the past day belongs to the previous
+    # run, and anything beyond init + 45 is the partial last day.
+    per_pt = per_pt[(per_pt["date"] >= run_date)
+                    & (per_pt["date"] <= run_date + pd.Timedelta(days=HORIZON_DAYS - 1))]
     band_n = per_pt.drop_duplicates(["lat", "lon"]).groupby("lat").size()
     band_full = len(grid_pts) / len(lats_all)
     thin = {float(k): int(v) for k, v in band_n[band_n < 0.9 * band_full].items()}
@@ -281,8 +333,10 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
         logger.error("EC46: only %d members returned — refusing fetch",
                      n_members)
         return pd.DataFrame(), pd.DataFrame()
-    init_date = member_long["date"].min()
+    init_date = run_date            # the run's init date, not the fetch date
     summary = _percentile_summary(member_long, init_date, n_members)
+    fetch_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    summary["fetch_utc"] = fetch_utc
 
     # Continuity guard: a new init must not sit far from the previous one on the days both cover. Successive
     # EC46 inits differ by a few hundredths of a degree in the global mean; a shift of several tenths means a
@@ -307,6 +361,7 @@ def fetch_ec46(lat_step: float = LAT_STEP_DEFAULT,
                     .round(4).reset_index())
     members_wide["init_date"] = init_date.strftime("%Y-%m-%d")
     members_wide["n_gridpoints"] = n_ok
+    members_wide["fetch_utc"] = fetch_utc
 
     logger.info("EC46: %d forecast days × %d members; init %s",
                 len(summary), n_members, init_date.strftime("%Y-%m-%d"))
@@ -333,8 +388,8 @@ def save_ec46(force: bool = False) -> pd.DataFrame:
         except Exception:
             latest_init = None
         if latest_init is not None and (today - latest_init).days < 3:
-            # EC46 publishes Mon/Thu; if our latest init is within 3 days
-            # we're already current.
+            # One run per day; the scheduled fetch passes force=True, this
+            # guard only protects ad-hoc repeats.
             logger.info("EC46: %s is fresh (%s), skipping fetch",
                         latest.name, latest_init.strftime("%Y-%m-%d"))
             return pd.read_csv(latest)

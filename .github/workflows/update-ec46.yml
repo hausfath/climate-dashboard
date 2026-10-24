@@ -1,0 +1,60 @@
+name: Update EC46 Forecast
+
+# Open-Meteo rolls the same-day ECMWF EC46 run out at ~20:30 UTC, tile by
+# tile over tens of minutes. The main 16:30 UTC run fires ~20 UTC and its
+# 35-minute EC46 fetch straddled that rollout from 1 Oct 2026, mixing two
+# runs and picking up the run's lead-0 day (which sits ~0.2 °C warm of
+# ERA5). This job owns the EC46 fetch instead: 22:00 UTC (in practice
+# 22:00–01:00 after GitHub's cron delay), well clear of the rollout. The
+# fetcher identifies the run from its horizon end and keeps lead 0 even
+# when the fetch lands after 00 UTC.
+
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Fetch (up to ~40 min on Actions, plus up to 3 × 10 min re-fetch
+      # rounds if the rollout is still in progress), skill plot, blend
+      # calibration, daily-anomaly static images.
+      - name: Fetch EC46 and refresh forecast-tail outputs
+        timeout-minutes: 120
+        run: |
+          python run.py update-ec46
+
+      - name: Check for changes
+        id: git-check
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -n "$(git status --porcelain -- data/era5_forecast_ec46_*.csv data/ec46_members_*.csv forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png)" ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: ${{ !cancelled() && steps.git-check.outputs.changes == 'true' }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A -- data/era5_forecast_ec46_*.csv data/ec46_members_*.csv forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png
+          git commit -m "EC46 forecast update $(date -u +'%Y-%m-%d')"
+          git pull --rebase
+          git push

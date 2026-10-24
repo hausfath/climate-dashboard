@@ -110,12 +110,17 @@ def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame,
 # ---------------------------------------------------------------------------
 # Lead-dependent bias correction
 # ---------------------------------------------------------------------------
-# The EC46 day-0 field sits ~0.05 °C warm of ERA5 (IFS analysis / first-day
-# spin-up), and that offset decays within a few days; beyond a week the
-# pooled forecast-minus-ERA5 error is ~0 across the archive. A constant
-# lead-0 correction therefore pushed every lead > ~5 d about 0.05 °C too
-# cold (this WAS the "cold drift" in monthly_blend_lead_errors.csv before
-# 2026-09-02). The correction is now a saturating exponential
+# Leads are counted from the run's init date (the file's ``init_date``;
+# since 2026-10-24 the fetcher derives it from the run's horizon end).
+# The run's lead-0 day sits ~+0.2 °C warm of ERA5 (analysis-step 2 m
+# temperature vs the model's own first day), lead 1 ~+0.06, lead 2 ~+0.01;
+# beyond that the pooled forecast-minus-ERA5 error is ~0 across the
+# archive. Until 2026-10-24 every archived "day 0" was really lead 1 (the
+# 06 UTC cron always got the previous day's run), which is why the curve
+# fitted then had a lead-0 value of only ~0.05 °C. A constant lead-0
+# correction applied at every lead was an earlier bug (the "cold drift" in
+# monthly_blend_lead_errors.csv before 2026-09-02). The correction is a
+# saturating exponential
 #     c(L) = a + b * (1 - exp(-L / tau))          [°C, added to forecast]
 # fitted to the pooled per-lead mean of (obs - raw forecast), weighted by
 # the number of pairings at each lead. Verification uses a leave-one-
@@ -275,6 +280,13 @@ def _load_archive() -> list[tuple[pd.Timestamp, pd.DataFrame]]:
             logger.warning("EC46 skill: skipping unparseable %s", fp.name)
             continue
         df = pd.read_csv(fp)
+        # The file's init_date (= model run date) is authoritative for lead
+        # counting; the filename is the fallback for legacy files.
+        if "init_date" in df.columns and pd.notna(df["init_date"].iloc[0]):
+            try:
+                init_date = pd.Timestamp(str(df["init_date"].iloc[0]))
+            except Exception:
+                pass
         out.append((init_date, df))
     return out
 

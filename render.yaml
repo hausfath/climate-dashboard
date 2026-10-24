@@ -26,7 +26,7 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     schedule: "30 16 * * *"  # 16:30 UTC, after the Climate Pulse (~15:15 UTC) and OISST (13:31 UTC) refreshes
-    startCommand: python run.py update --force
+    startCommand: python run.py update --force --no-ec46   # EC46 is fetched by the 22:00 UTC GitHub cron (update-ec46.yml)
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.11"
