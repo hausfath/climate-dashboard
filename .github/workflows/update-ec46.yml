@@ -45,7 +45,8 @@ jobs:
         id: git-check
         if: ${{ !cancelled() }}
         run: |
-          if [ -n "$(git status --porcelain -- data/era5_forecast_ec46_*.csv data/ec46_members_*.csv forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png)" ]; then
+          # quoted globs: git expands them, so deleted files (yesterday's summary, the oldest members file) count too
+          if [ -n "$(git status --porcelain -- 'data/era5_forecast_ec46_*.csv' 'data/ec46_members_*.csv' forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png)" ]; then
             echo "changes=true" >> $GITHUB_OUTPUT
           fi
 
@@ -54,7 +55,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A -- data/era5_forecast_ec46_*.csv data/ec46_members_*.csv forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png
+          git add -A -- 'data/era5_forecast_ec46_*.csv' 'data/ec46_members_*.csv' forecast_skill assets/images/daily_anomalies_dark.png assets/images/daily_anomalies_light.png
           git commit -m "EC46 forecast update $(date -u +'%Y-%m-%d')"
           git pull --rebase
           git push
