@@ -1,5 +1,5 @@
 # Combined ENSO forecast plume — ONI (Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-02
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-03
 # p05/p25/p75/p95: model-weighted percentiles across all ensemble members (each model weighted equally regardless of ensemble size); months with fewer than 4 models are dropped.
 # mean_<model>: that model's ensemble-mean forecast; multimodel_median_c: the model-weighted median (forecast only, no observed substitution); observed_c: observed monthly index.
 # Member-level values are in enso_members_oni.csv.
@@ -15,7 +15,7 @@ target_month,p05,p25,p75,p95,multimodel_median_c,mean_BOM,mean_CFSv2,mean_CMCC,m
 2026-07,,,,,,,,,,,,,,,,,,,,2.0300
 2026-08,,,,,,,,,,,,,,,,,,,,2.5200
 2026-09,,,,,,,,,,,,,,,,,,,,2.8400
-2026-10,3.1106,3.3451,3.8515,3.9353,3.5479,3.8072,,3.4669,,,3.8979,3.5784,3.4197,3.8098,3.9139,3.1077,3.1434,,3.4397,
+2026-10,3.1106,3.3451,3.8515,3.9353,3.5479,3.8072,,3.4669,,,3.8979,3.5784,3.4197,3.8098,3.9139,3.1077,3.1434,,3.4397,3.2500
 2026-11,3.2282,3.5884,4.1241,4.3655,3.8633,4.2392,3.2731,3.9166,3.7639,3.9161,4.1785,3.9990,3.8215,4.1391,4.3613,3.2504,3.3997,3.8074,3.6644,
 2026-12,3.1583,3.7158,4.2491,4.7154,4.0164,4.2208,3.3199,4.1437,3.9678,4.2522,4.4995,4.1381,3.9212,4.1532,4.7149,3.1509,3.8585,3.8471,3.5603,
 2027-01,2.9211,3.4585,4.1276,4.9392,3.8604,3.8961,3.1290,4.2037,3.6456,4.1144,4.5351,4.0146,3.8409,3.7428,4.9937,2.9060,3.9650,3.4633,3.3057,

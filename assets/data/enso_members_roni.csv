@@ -1,5 +1,5 @@
 # ENSO forecast ensemble members — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-02
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-03
 # One row per ensemble member per target month (deduplicated multi-model plume; months with fewer than 4 models dropped).
 # Dashboard statistics weight each model equally regardless of ensemble size. CFSv2 member ens_E3_041 is the control run and is excluded from the dashboard's probability statistics.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
@@ -1786,7 +1786,7 @@ target_month,model,member_id,init_date,anomaly_c
 2026-12,NCAR-CESM1,ens_010,2026-10-01,3.4996
 2026-12,SINTEX-F,N1K1,2026-10-01,3.6452
 2026-12,SINTEX-F,N1K1V,2026-10-01,3.2613
-2026-12,SINTEX-F,N1K1hi,2026-10-01,4.4864
+2026-12,SINTEX-F,N1K1hi,2026-10-01,
 2026-12,SINTEX-F,N1K1hiV,2026-10-01,3.1999
 2026-12,SINTEX-F,N1K2,2026-10-01,3.8110
 2026-12,SINTEX-F,N1K2V,2026-10-01,3.2279
@@ -1806,7 +1806,7 @@ target_month,model,member_id,init_date,anomaly_c
 2026-12,SINTEX-F,N3K1hiV,2026-10-01,3.4319
 2026-12,SINTEX-F,N3K2,2026-10-01,3.3345
 2026-12,SINTEX-F,N3K2V,2026-10-01,3.3700
-2026-12,SINTEX-F,N3K2hi,2026-10-01,3.5067
+2026-12,SINTEX-F,N3K2hi,2026-10-01,
 2026-12,SINTEX-F,N3K2hiV,2026-10-01,3.1152
 2026-12,UKMO,ens_000,2026-10-01,3.0166
 2026-12,UKMO,ens_001,2026-10-01,2.6298
@@ -2442,7 +2442,7 @@ target_month,model,member_id,init_date,anomaly_c
 2027-01,NCAR-CESM1,ens_010,2026-10-01,3.4598
 2027-01,SINTEX-F,N1K1,2026-10-01,3.2724
 2027-01,SINTEX-F,N1K1V,2026-10-01,2.6497
-2027-01,SINTEX-F,N1K1hi,2026-10-01,4.0221
+2027-01,SINTEX-F,N1K1hi,2026-10-01,
 2027-01,SINTEX-F,N1K1hiV,2026-10-01,3.0599
 2027-01,SINTEX-F,N1K2,2026-10-01,3.5085
 2027-01,SINTEX-F,N1K2V,2026-10-01,2.7129
@@ -2462,7 +2462,7 @@ target_month,model,member_id,init_date,anomaly_c
 2027-01,SINTEX-F,N3K1hiV,2026-10-01,3.2116
 2027-01,SINTEX-F,N3K2,2026-10-01,2.9122
 2027-01,SINTEX-F,N3K2V,2026-10-01,2.8208
-2027-01,SINTEX-F,N3K2hi,2026-10-01,3.3834
+2027-01,SINTEX-F,N3K2hi,2026-10-01,
 2027-01,SINTEX-F,N3K2hiV,2026-10-01,2.7271
 2027-01,UKMO,ens_000,2026-10-01,2.7884
 2027-01,UKMO,ens_001,2026-10-01,2.3072
@@ -3098,7 +3098,7 @@ target_month,model,member_id,init_date,anomaly_c
 2027-02,NCAR-CESM1,ens_010,2026-10-01,3.4246
 2027-02,SINTEX-F,N1K1,2026-10-01,1.8007
 2027-02,SINTEX-F,N1K1V,2026-10-01,2.3716
-2027-02,SINTEX-F,N1K1hi,2026-10-01,3.0632
+2027-02,SINTEX-F,N1K1hi,2026-10-01,
 2027-02,SINTEX-F,N1K1hiV,2026-10-01,2.4105
 2027-02,SINTEX-F,N1K2,2026-10-01,2.4209
 2027-02,SINTEX-F,N1K2V,2026-10-01,1.7599
@@ -3118,7 +3118,7 @@ target_month,model,member_id,init_date,anomaly_c
 2027-02,SINTEX-F,N3K1hiV,2026-10-01,2.1083
 2027-02,SINTEX-F,N3K2,2026-10-01,2.1684
 2027-02,SINTEX-F,N3K2V,2026-10-01,1.6281
-2027-02,SINTEX-F,N3K2hi,2026-10-01,2.9353
+2027-02,SINTEX-F,N3K2hi,2026-10-01,
 2027-02,SINTEX-F,N3K2hiV,2026-10-01,1.8560
 2027-02,UKMO,ens_000,2026-10-01,2.2204
 2027-02,UKMO,ens_001,2026-10-01,1.9069
