@@ -1,0 +1,3 @@
+# The repo root .gitignore excludes *.png (keeping only whitelisted
+# dashboard assets); re-include this proposal's rendered figures.
+!*.png

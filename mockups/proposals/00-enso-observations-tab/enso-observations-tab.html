@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Dashboard &mdash; ENSO Observations (proposal mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../mock.css">
+<!-- Tab placement is a SUGGESTION. The three panels are independent; they
+     could equally land as sections on the existing ENSO Forecast tab, or be
+     adopted individually. This page only shows how they read as one tab. -->
+</head>
+<body class="accent-teal">
+
+<header class="topbar">
+  <a class="brand" href="#">
+    CLIMATE<span class="dot">&middot;</span>DASHBOARD
+    <span class="sub">ENSO &middot; observed</span>
+  </a>
+  <nav class="tabs">
+    <a class="t-temp" href="../../design-direction.html">Temperature</a>
+    <a class="t-enso" href="../../enso-tab.html">ENSO Forecast</a>
+    <a class="t-enso active" href="#">ENSO Observations</a>
+    <a class="t-map" href="#">Warming Map</a>
+    <a class="t-models" href="../../models-tab.html">Models vs Obs</a>
+  </nav>
+  <div class="right">
+    <div class="live"><span class="pulse"></span>All panels refresh with the existing crons</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div>
+      <div class="kicker">Proposal &middot; ENSO Observations</div>
+      <h1>What ENSO is doing &mdash;
+        <span class="num">surface, atmosphere, subsurface.</span></h1>
+      <p class="lede">One tab, three layers of the same coupled system: the ocean surface
+        sets the stage, the atmosphere confirms the coupling, and the subsurface loads
+        what comes next.</p>
+    </div>
+  </div>
+
+  <!-- ============ SECTION 01 · SURFACE ============ -->
+  <section class="block" id="surface">
+    <div class="sechead">
+      <span class="no">01</span>
+      <h2>The surface</h2>
+      <span class="hint">OISSTv2.1 daily &middot; 20&deg;S&ndash;20&deg;N</span>
+    </div>
+    <p class="secdesc">The tropical belt as year-lines &mdash; the background ocean state
+      against which every Ni&ntilde;o box is judged.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Tropical-belt SST anomaly vs every year on record</h3>
+        <span class="tag">Daily</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../01-tropical-sst/figure_dark.png"
+           alt="Tropical-mean daily SST anomaly year-lines">
+      <div class="pcap">Mean sea-surface-temperature anomaly across the tropical band
+        (20&deg;S&ndash;20&deg;N, all longitudes) versus a centred 30-year climatology, updated daily
+        from the OISST v2.1 satellite-plus-in-situ analysis. It shows whether the wider
+        tropical ocean, beyond the Ni&ntilde;o boxes, is running unusually warm for its era.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 02 · ATMOSPHERE ============ -->
+  <section class="block" id="atmosphere">
+    <div class="sechead">
+      <span class="no">02</span>
+      <h2>The atmosphere</h2>
+      <span class="hint">Station SLP &middot; reanalysis winds</span>
+    </div>
+    <p class="secdesc">ENSO is only real when the atmosphere plays along: the pressure
+      see-saw and the trades, with Ni&ntilde;o 3.4 overlaid.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Southern Oscillation Index &amp; equatorial 850 hPa trade winds</h3>
+        <span class="tag">Monthly</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../02-soi-trade-winds/figure_dark.png"
+           alt="SOI bars and equatorial 850 hPa trade-wind anomalies">
+      <div class="pcap"><b>SOI:</b> The Southern Oscillation Index is the standardised
+        sea-level-pressure difference between Tahiti and Darwin &mdash; a station-based
+        observation, plotted here from the NOAA CPC series that begins in 1951. Strongly
+        negative values mean the pressure see-saw has tipped and weakened trade winds are
+        reinforcing El Ni&ntilde;o.<br>
+        <b>Winds:</b> Trade-wind anomalies &mdash; the zonal wind at 850 hPa over the
+        equatorial Pacific from the NCEP/NCAR (CDAS) atmospheric reanalysis, with positive
+        values meaning stronger easterlies. Sustained westerly anomalies (negative here)
+        push warm water eastward and show the atmosphere coupling to a developing event.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 03 · SUBSURFACE ============ -->
+  <section class="block" id="subsurface">
+    <div class="sechead">
+      <span class="no">03</span>
+      <h2>The subsurface</h2>
+      <span class="hint">PMEL warm water volume</span>
+    </div>
+    <p class="secdesc">The recharge&ndash;discharge cycle: heat banked below the surface
+      today constrains what ENSO can do in the coming seasons.</p>
+
+    <div class="panel">
+      <div class="phead">
+        <h3>Warm water volume vs Ni&ntilde;o 3.4</h3>
+        <span class="tag">Monthly</span>
+        <div class="tools"><button title="Download">&#8681;</button><button title="Expand">&#8599;</button></div>
+      </div>
+      <img src="../03-wwv-heat-content/figure_dark.png"
+           alt="Warm water volume anomaly against Nino 3.4">
+      <div class="pcap">The Warm Water Volume index &mdash; the volume of equatorial-Pacific
+        water warmer than 20&thinsp;&deg;C (5&deg;N&ndash;5&deg;S, 120&deg;E&ndash;80&deg;W), derived from PMEL's ocean
+        analyses. Subsurface heat leads the surface by two to three seasons, making this
+        the classic indicator of where ENSO goes next.</div>
+    </div>
+  </section>
+
+  <!-- ============ CLOSING · POINTER TO 04 ============ -->
+  <section class="block" id="also-proposed">
+    <div class="sechead">
+      <span class="no">&nbsp;&middot;&nbsp;</span>
+      <h2>Proposed separately, for the ENSO Forecast tab</h2>
+      <span class="hint">forecast_skill/</span>
+    </div>
+    <p class="secdesc">A fourth, independent proposal surfaces the forecast-verification
+      figures the pipeline already renders &mdash; the EC46 global-temperature skill plot and
+      the archived ENSO plume verifications. It belongs beside the forecasts it grades,
+      not on this observations tab: see
+      <a href="../04-forecast-skill-panel/skill-panel.html">04-forecast-skill-panel</a>
+      (mock-up and README in that folder).</p>
+  </section>
+
+</main>
+
+<footer>
+  <span>PROPOSAL &middot; mock-up only &mdash; panels embed the proposal figures by relative
+    path; every panel stands alone and any subset works.</span>
+  <span class="right">CLIMATE&middot;DASHBOARD &mdash; ENSO Observations tab proposal</span>
+</footer>
+
+</body>
+</html>
