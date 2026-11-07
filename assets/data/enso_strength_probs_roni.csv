@@ -1,16 +1,16 @@
 # ENSO strength probabilities by season — RONI (relative Nino 3.4)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-06
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-07
 # Model-weighted category probabilities (percent) per overlapping 3-month season, from the multi-model ensemble; observed months are blended into seasonal means where available.
 # Categories use ONI event thresholds (0.5/1.0/1.5/2.0 degC).
 # n_models: number of forecast systems contributing to that season.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 season,season_center,very_strong_el_nino_pct,strong_el_nino_pct,moderate_el_nino_pct,weak_el_nino_pct,neutral_pct,weak_la_nina_pct,moderate_la_nina_pct,strong_la_nina_pct,very_strong_la_nina_pct,n_models
-OND 2026,2026-11,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
-NDJ 2026,2026-12,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
-DJF 2027,2027-01,99.82,0.18,0.00,0.00,0.00,0.00,0.00,0.00,0.00,14
-JFM 2027,2027-02,85.95,13.16,0.89,0.00,0.00,0.00,0.00,0.00,0.00,14
-FMA 2027,2027-03,50.52,28.23,18.33,2.92,0.00,0.00,0.00,0.00,0.00,8
-MAM 2027,2027-04,24.64,20.00,32.38,20.48,2.50,0.00,0.00,0.00,0.00,7
-AMJ 2027,2027-05,14.88,12.62,24.05,20.71,26.67,1.07,0.00,0.00,0.00,7
-MJJ 2027,2027-06,0.00,2.08,7.08,17.29,41.25,14.17,9.38,8.75,0.00,4
+OND 2026,2026-11,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,12
+NDJ 2026,2026-12,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,12
+DJF 2027,2027-01,100.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,13
+JFM 2027,2027-02,86.60,13.21,0.19,0.00,0.00,0.00,0.00,0.00,0.00,13
+FMA 2027,2027-03,42.02,38.33,17.74,1.90,0.00,0.00,0.00,0.00,0.00,7
+MAM 2027,2027-04,7.08,28.33,39.44,22.22,2.92,0.00,0.00,0.00,0.00,6
+AMJ 2027,2027-05,0.69,8.06,36.39,21.25,32.36,1.25,0.00,0.00,0.00,6
+MJJ 2027,2027-06,0.00,1.39,16.39,21.53,37.50,11.11,6.25,5.83,0.00,6
 JJA 2027,2027-07,0.00,0.00,1.39,15.83,41.11,7.22,4.72,14.72,15.00,3
