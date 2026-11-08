@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily Nino 4 absolute SST
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-07
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-08
 # Raw daily box-mean SST (degC), seasonal cycle retained.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
 # Source: NOAA OISST v2.1 daily box means.
@@ -16372,7 +16372,7 @@ date,year,day_of_year,sst_c
 2026-10-21,2026,294,29.757
 2026-10-22,2026,295,29.821
 2026-10-23,2026,296,29.834
-2026-10-24,2026,297,29.777
+2026-10-24,2026,297,29.901
 2026-10-25,2026,298,29.855
 2026-10-26,2026,299,29.972
 2026-10-27,2026,300,30.046
@@ -16386,3 +16386,4 @@ date,year,day_of_year,sst_c
 2026-11-04,2026,308,30.222
 2026-11-05,2026,309,30.095
 2026-11-06,2026,310,30.119
+2026-11-07,2026,311,30.019
