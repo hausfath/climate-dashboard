@@ -1,0 +1,8 @@
+{
+  "wwv.dat": {
+    "url": "https://www.pmel.noaa.gov/tao/wwv/data/wwv.dat",
+    "sha256": "66b6de30237054decf18c846a88f265156015dd7fa8bde8f6cbb1e2468b490c6",
+    "bytes": 19738,
+    "retrieved_utc": "2026-09-07T10:19:12+00:00"
+  }
+}
