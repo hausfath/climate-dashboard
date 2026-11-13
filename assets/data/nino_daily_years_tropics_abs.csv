@@ -1,5 +1,5 @@
 # This year vs every year since 1982 — daily tropical-belt (20S-20N) mean absolute SST
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-12
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-13
 # Raw daily box-mean SST (degC), seasonal cycle retained.
 # Feb 29 values are mapped to day-of-year 59 (Feb 28) so years align.
 # Source: NOAA OISST v2.1 daily box means.
@@ -16377,7 +16377,7 @@ date,year,day_of_year,sst_c
 2026-10-26,2026,299,28.130
 2026-10-27,2026,300,28.145
 2026-10-28,2026,301,28.161
-2026-10-29,2026,302,28.166
+2026-10-29,2026,302,28.181
 2026-10-30,2026,303,28.234
 2026-10-31,2026,304,28.211
 2026-11-01,2026,305,28.239
@@ -16391,3 +16391,4 @@ date,year,day_of_year,sst_c
 2026-11-09,2026,313,28.306
 2026-11-10,2026,314,28.312
 2026-11-11,2026,315,28.312
+2026-11-12,2026,316,28.346
