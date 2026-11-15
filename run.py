@@ -115,16 +115,26 @@ def update_enso_forecasts(force: bool = False) -> None:
                         latest = None
                     if latest is not None and not latest.empty and "init_date" in latest.columns:
                         inits = latest["init_date"].astype(str)
-                        if not (inits < floor_init).any():
+                        # NMME: a model absent from the file entirely (rather
+                        # than carried on last month's run) must also refetch.
+                        absent = []
+                        if name == "NMME" and "model" in latest.columns:
+                            from enso_forecast.fetchers.nmme import NMME_MODEL_DISPLAY
+                            absent = sorted(set(NMME_MODEL_DISPLAY.values())
+                                            - set(latest["model"]))
+                            if absent:
+                                logger.info(f"NMME missing {', '.join(absent)} — fetching")
+                        if not absent and not (inits < floor_init).any():
                             logger.info(
                                 f"{name} already on current init "
                                 f"({inits.max()}), skipping"
                             )
                             continue
-                        logger.info(
-                            f"{name} latest init {inits.min()} predates "
-                            f"{floor_init} — fetching for new run"
-                        )
+                        if (inits < floor_init).any():
+                            logger.info(
+                                f"{name} latest init {inits.min()} predates "
+                                f"{floor_init} — fetching for new run"
+                            )
                     # No init_date / empty / unreadable file: fall through and fetch.
 
             logger.info(f"Fetching {name} ENSO data...")
