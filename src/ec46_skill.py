@@ -28,13 +28,14 @@ from matplotlib.colors import Normalize
 
 from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
 from src.scraper import parse_era5_data
+from config import DATA_SOURCES
 
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 ARCHIVE_DIR = ROOT / "forecast_skill" / "archive"
 OUTPUT_PNG = ROOT / "forecast_skill" / "ec46_skill.png"
-ERA5_CSV = ROOT / "data" / "era5_daily_series_2t_global.csv"
+ERA5_CSV = DATA_SOURCES["era5_global"]["local_file"]
 # ERA5 climatology sampled on the SAME coarse grid the EC46 fetcher uses
 # (10x15 deg, cos-lat weights). Anomalizing the coarse-grid forecast
 # against the full-resolution climatology carried the grid's seasonally

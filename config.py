@@ -15,8 +15,10 @@ ERA5_GRIDDED_DIR.mkdir(exist_ok=True)
 # Data sources
 DATA_SOURCES = {
     "era5_global": {
-        "url": "https://sites.ecmwf.int/data/climatepulse/data/series/era5_daily_series_2t_global.csv",
-        "local_file": DATA_DIR / "era5_daily_series_2t_global.csv",
+        # Climate Pulse 2.0 path (Nov 2026); the old data/series/ files are
+        # only kept for a few weeks after the release.
+        "url": "https://sites.ecmwf.int/data/climatepulse/timeseries/csv/daily/timeseries_era5_t2m_daily_global.csv",
+        "local_file": DATA_DIR / "timeseries_era5_t2m_daily_global.csv",
         "description": "ERA5 Daily Global Mean 2m Temperature",
     }
 }

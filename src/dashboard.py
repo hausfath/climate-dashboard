@@ -219,12 +219,12 @@ def _ec46_anomalize(
     # sampling bias cancels — same transform as the skill plot and the
     # monthly blend. Fall back to the full-resolution per-DOY 1991–2020
     # mean when the coarse file is absent. The production data flow
-    # renames `clim_91-20` → `climatology` (src/scraper.py); accept
+    # renames `clim_1991_2020` → `climatology` (src/scraper.py); accept
     # either for the fallback path.
     from src.ec46_skill import _load_coarse_clim
     doy_clim = _load_coarse_clim()
     if doy_clim is None:
-        clim_col = next((c for c in ("climatology", "clim_91-20")
+        clim_col = next((c for c in ("climatology", "clim_1991_2020", "clim_91-20")
                          if c in obs.columns), None)
         if clim_col is None:
             return None

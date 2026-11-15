@@ -10,6 +10,15 @@ import requests
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Climate Pulse column names -> ours. Climate Pulse 2.0 (Nov 2026) renamed
+# them (and added offset_1850_1900 / anom_1850_1900, passed through as-is);
+# the pre-2.0 spellings are kept so an older cached file still parses.
+ERA5_COLUMNS = {
+    't2m': 'temperature', '2t': 'temperature',
+    'clim_1991_2020': 'climatology', 'clim_91-20': 'climatology',
+    'anom_1991_2020': 'anomaly', 'ano_91-20': 'anomaly',
+}
+
 
 def fetch_era5_data(url: str, local_path: Path) -> pd.DataFrame:
     """
@@ -59,14 +68,7 @@ def parse_era5_data(file_path: Path) -> pd.DataFrame:
     # Read CSV, skipping comment lines
     df = pd.read_csv(file_path, comment='#')
 
-    # Rename columns for clarity
-    df = df.rename(columns={
-        'date': 'date',
-        '2t': 'temperature',
-        'clim_91-20': 'climatology',
-        'ano_91-20': 'anomaly',
-        'status': 'status'
-    })
+    df = df.rename(columns=ERA5_COLUMNS)
 
     # Parse dates
     df['date'] = pd.to_datetime(df['date'])

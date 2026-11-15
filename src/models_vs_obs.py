@@ -260,15 +260,17 @@ def _import_copernicus() -> pd.DataFrame:
     used for the other obs records — ERA5 has no data before 1940 to compute
     its own 1850-1900 mean from.
     """
-    era5_csv = DATA_DIR.parent / 'era5_daily_series_2t_global.csv'
+    from config import DATA_SOURCES
+    from src.scraper import ERA5_COLUMNS
+    era5_csv = DATA_SOURCES["era5_global"]["local_file"]
     try:
-        df = pd.read_csv(era5_csv, comment='#')
+        df = pd.read_csv(era5_csv, comment='#').rename(columns=ERA5_COLUMNS)
         df['date'] = pd.to_datetime(df['date'])
         df['year']  = df['date'].dt.year
         df['month'] = df['date'].dt.month
-        df['ano_91-20'] = pd.to_numeric(df['ano_91-20'], errors='coerce')
+        df['anomaly'] = pd.to_numeric(df['anomaly'], errors='coerce')
         agg = df.groupby(['year', 'month']).agg(
-            copernicus=('ano_91-20', 'mean'),
+            copernicus=('anomaly', 'mean'),
             days=('date', 'nunique'),
         ).reset_index()
         # Only keep months where every calendar day is present (no partial months).
@@ -355,7 +357,8 @@ def load_obs_data(csv_path: Path = OBS_CACHE) -> pd.DataFrame:
     # if the daily ERA5 file's last date is before the end of its month, that
     # month's copernicus mean is incomplete and must be dropped.
     if 'copernicus' in df.columns:
-        era5_csv = DATA_DIR.parent / 'era5_daily_series_2t_global.csv'
+        from config import DATA_SOURCES
+        era5_csv = DATA_SOURCES["era5_global"]["local_file"]
         try:
             daily = pd.read_csv(era5_csv, comment='#', usecols=['date'])
             last_day = pd.to_datetime(daily['date']).max()
