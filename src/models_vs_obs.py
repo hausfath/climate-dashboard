@@ -41,8 +41,8 @@ BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/glo
 # ── Rebaseline offsets: shift from 1981-2010 baseline to 1850-1900 ────────────
 # Computed from existing combined_obs_1981_2010.csv (mean of 1850-1900 period).
 # Copernicus/ERA5 is intentionally absent: it has no pre-1940 data, so we apply
-# MONTHLY_PREINDUSTRIAL_OFFSETS directly when aggregating the daily series in
-# _import_copernicus (matching the Global Temperature tab's calculation).
+# the C3S daily offset (preindustrial_offset) to each day before aggregating
+# in _import_copernicus (matching the Global Temperature tab's calculation).
 PREINDUSTRIAL_OFFSETS = {
     'hadcrut5': -0.7126,   # HadCRUT.5.2.0.0 (was -0.7021 for 5.1.0.0)
     'gistemp':  -0.6398,
@@ -50,14 +50,35 @@ PREINDUSTRIAL_OFFSETS = {
     'berkeley': -0.6903,
 }
 
-# Per-month offsets to convert ERA5 anomalies from a 1991-2020 baseline to the
-# 1850-1900 preindustrial baseline. Shared by the Global Temperature tab
-# (applied at the daily level) and the Models vs Obs tab (applied to monthly
-# means in _import_copernicus) so monthly ERA5 values agree across tabs.
-MONTHLY_PREINDUSTRIAL_OFFSETS = {
-    1: 0.96, 2: 0.96, 3: 0.95, 4: 0.91, 5: 0.87, 6: 0.83,
-    7: 0.80, 8: 0.80, 9: 0.81, 10: 0.85, 11: 0.89, 12: 0.93,
-}
+# C3S day-by-day offset from the 1991-2020 to the 1850-1900 baseline: a single
+# annual harmonic in day number n = 1..365, with Feb 29 the mean of Feb 28 and
+# Mar 1 (https://climate.copernicus.eu/climate-bulletin-about-data-and-analysis).
+# Coefficients fit to the offset_1850_1900 column of the Climate Pulse 2.0
+# daily file; they reproduce all 365 published values to 0.0001 degC and are
+# identical for every year 1940-2026. The annual mean is C3S's 0.88. Used
+# everywhere ERA5 is put on 1850-1900 (Global Temperature tab, Models vs Obs
+# monthly means, EC46 forecasts), so the tabs agree. It replaced the stepped
+# per-month table (0.80-0.96) on 2026-11-15; monthly means moved <= 0.009,
+# annual means < 0.001, single days <= 0.024.
+DAILY_PI_OFFSET_COEFS = (0.88, 0.06957, 0.05060)
+
+
+def preindustrial_offset(dates) -> np.ndarray:
+    """1991-2020 -> 1850-1900 offset (degC) for each date (any year)."""
+    dates = pd.DatetimeIndex(pd.to_datetime(dates))
+    a0, a1, b1 = DAILY_PI_OFFSET_COEFS
+
+    def f(n):
+        w = 2 * np.pi * n / 365
+        return a0 + a1 * np.cos(w) + b1 * np.sin(w)
+
+    doy = dates.dayofyear.to_numpy().astype(float)
+    leap = dates.is_leap_year
+    n = np.where(leap & (doy > 59), doy - 1, doy)   # skip Feb 29 in leap years
+    out = f(n)
+    feb29 = leap & (dates.month == 2) & (dates.day == 29)
+    out[feb29] = (f(59) + f(60)) / 2                 # mean of Feb 28 and Mar 1
+    return out
 
 # Forcing scenarios used to splice the historical period to a future
 # extension for each CMIP generation. These come from the source ensemble
@@ -252,11 +273,11 @@ def _import_berkeley() -> pd.DataFrame:
 def _import_copernicus() -> pd.DataFrame:
     """Derive monthly Copernicus/ERA5 anomalies on the 1850-1900 baseline.
 
-    Aggregates the local daily ERA5 CSV (1991-2020 baseline, back to 1940) to
-    monthly means and applies MONTHLY_PREINDUSTRIAL_OFFSETS so the result is on
-    the same 1850-1900 baseline used elsewhere. This matches the Global
-    Temperature tab's calculation (which adds the same per-month offset to each
-    daily value before averaging) and skips the 1981-2010 intermediate baseline
+    Adds the C3S daily offset (preindustrial_offset) to each day of the local
+    daily ERA5 CSV (1991-2020 baseline, back to 1940), then takes monthly
+    means, so the result is on the same 1850-1900 baseline used elsewhere.
+    This matches the Global Temperature tab's calculation and skips the
+    1981-2010 intermediate baseline
     used for the other obs records — ERA5 has no data before 1940 to compute
     its own 1850-1900 mean from.
     """
@@ -268,7 +289,8 @@ def _import_copernicus() -> pd.DataFrame:
         df['date'] = pd.to_datetime(df['date'])
         df['year']  = df['date'].dt.year
         df['month'] = df['date'].dt.month
-        df['anomaly'] = pd.to_numeric(df['anomaly'], errors='coerce')
+        df['anomaly'] = (pd.to_numeric(df['anomaly'], errors='coerce')
+                         + preindustrial_offset(df['date']))
         agg = df.groupby(['year', 'month']).agg(
             copernicus=('anomaly', 'mean'),
             days=('date', 'nunique'),
@@ -278,9 +300,6 @@ def _import_copernicus() -> pd.DataFrame:
             lambda r: calendar.monthrange(int(r['year']), int(r['month']))[1], axis=1
         )
         complete = agg[agg['days'] >= expected].copy()
-        complete['copernicus'] = complete['copernicus'] + complete['month'].map(
-            MONTHLY_PREINDUSTRIAL_OFFSETS
-        )
         return complete[['year', 'month', 'copernicus']].dropna().reset_index(drop=True)
     except Exception as e:
         logger.warning(f"Copernicus/ERA5 daily import failed: {e}")

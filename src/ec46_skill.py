@@ -26,7 +26,7 @@ import pandas as pd
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
-from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
+from src.models_vs_obs import preindustrial_offset
 from src.scraper import parse_era5_data
 from config import DATA_SOURCES
 
@@ -54,10 +54,7 @@ def _load_obs() -> pd.DataFrame:
     """Load ERA5 daily series with anomaly already on the preindustrial
     baseline."""
     obs = parse_era5_data(ERA5_CSV)
-    obs["anomaly"] = obs.apply(
-        lambda r: r["anomaly"] + MONTHLY_PREINDUSTRIAL_OFFSETS[r["date"].month],
-        axis=1,
-    )
+    obs["anomaly"] = obs["anomaly"] + preindustrial_offset(obs["date"])
     return obs
 
 
@@ -102,7 +99,7 @@ def _anomalize_forecast(fcst: pd.DataFrame, obs: pd.DataFrame,
     else:   # legacy path: full-resolution climatology (grid bias remains)
         doy_clim = obs.groupby("day_of_year")["climatology"].mean()
         f["clim_C"] = f["day_of_year"].map(doy_clim)
-    f["pi_offset"] = f["date"].apply(lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
+    f["pi_offset"] = preindustrial_offset(f["date"])
     f["forecast_anom"] = (f["t2m_mean"] + bias_correction
                           - f["clim_C"] + f["pi_offset"])
     return f[["date", "forecast_anom"]]

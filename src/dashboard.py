@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.linear_model import LinearRegression
 
-from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
+from src.models_vs_obs import preindustrial_offset
 from src import layout as L
 from src.theme import install_fonts, template_name, tokens
 from src.units import convert_figure_units
@@ -152,13 +152,12 @@ def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
     Returns:
     - DataFrame: DataFrame with adjusted temperature anomalies.
     """
-    # Adjusting the anomalies (1991-2020 baseline → 1850-1900 preindustrial).
-    # Source of truth lives in src/models_vs_obs.MONTHLY_PREINDUSTRIAL_OFFSETS so
-    # the Models vs Obs tab applies the same per-month shift to ERA5.
+    # Adjusting the anomalies (1991-2020 baseline → 1850-1900 preindustrial)
+    # with the C3S day-by-day offset; source of truth is
+    # src/models_vs_obs.preindustrial_offset, shared with the Models vs Obs tab.
     df_adjusted = df.copy()
-    df_adjusted[anomaly_col] = df.apply(
-        lambda row: row[anomaly_col] + MONTHLY_PREINDUSTRIAL_OFFSETS[row[date_col].month], axis=1
-    )
+    df_adjusted[anomaly_col] = (df[anomaly_col]
+                                + preindustrial_offset(df[date_col]))
 
     return df_adjusted
 
@@ -192,7 +191,7 @@ def _ec46_anomalize(
     This uses exactly the same transform as the EC46 forecast-skill plot
     (src.ec46_skill._anomalize_forecast): subtract the per-day-of-year
     1991–2020 climatology sampled on the fetcher's coarse grid, add the
-    monthly preindustrial offset, and add a **lead-dependent** bias
+    C3S day-by-day preindustrial offset, and add a **lead-dependent** bias
     correction c(lead) fitted to the archive (obs − forecast pooled by
     lead day). The day-0 field sits ~0.05 °C warm of ERA5 and that offset
     decays within a few days, so the correction is ≈ −0.05 °C at lead 0
@@ -249,8 +248,7 @@ def _ec46_anomalize(
         bias = 0.0
         bias_meta = {"method": "none", "error": f"{type(e).__name__}: {e}"}
     out["clim_C"] = out["day_of_year"].map(doy_clim)
-    out["pi_offset"] = out["date"].apply(
-        lambda d: MONTHLY_PREINDUSTRIAL_OFFSETS[d.month])
+    out["pi_offset"] = preindustrial_offset(out["date"])
     cols = ["t2m_mean", "t2m_p5", "t2m_p25", "t2m_p50", "t2m_p75", "t2m_p95"]
     for c in cols:
         out[c] = out[c] + bias - out["clim_C"] + out["pi_offset"]

@@ -113,10 +113,9 @@ def _anomalize(values, dates: pd.DatetimeIndex, clim_coarse: pd.Series,
     bias_anom: a constant (°C) or a per-day correction aligned with
     ``dates`` (Series / array) — see :func:`lead_bias_for`.
     """
-    from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
+    from src.models_vs_obs import preindustrial_offset
     clim = pd.Series(dates.dayofyear, index=dates).map(clim_coarse)
-    pi = pd.Series([MONTHLY_PREINDUSTRIAL_OFFSETS[d.month] for d in dates],
-                   index=dates)
+    pi = pd.Series(preindustrial_offset(dates), index=dates)
     if not np.isscalar(bias_anom):
         bias_anom = pd.Series(np.asarray(bias_anom, dtype=float), index=dates)
         if isinstance(values, pd.DataFrame):

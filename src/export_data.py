@@ -82,7 +82,7 @@ def export_timeseries(df: pd.DataFrame) -> None:
     _write(daily, "timeseries_daily.csv",
            "Daily global mean surface temperature anomaly (ERA5, 1940-present)",
            ["Anomalies vs preindustrial 1850-1900 (ERA5 1991-2020 climatology "
-            "plus monthly preindustrial offsets).",
+            "plus the C3S day-by-day preindustrial offset).",
             "ENSO-removed columns subtract the lagged-ONI ENSO component "
             "(~0.1 degC per unit ONI at ~3-month lag); trend untouched.",
             "rolling_365d columns are 365-day centered means.",
