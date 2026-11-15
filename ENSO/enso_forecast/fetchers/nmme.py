@@ -269,6 +269,8 @@ def _process_member_file(
 def fetch_nmme(
     yyyymm: str | None = None,
     include_members: bool = True,
+    only_models: list[str] | None = None,
+    include_mean: bool = True,
 ) -> pd.DataFrame:
     """Download and process NMME data for a given month.
 
@@ -276,6 +278,8 @@ def fetch_nmme(
         yyyymm: Target month as YYYYMM string. If None, uses latest available.
         include_members: If True, download individual ensemble member files
             (~75MB each). If False, only download ENSMEAN files (~2MB each).
+        only_models: Restrict to these NMME_FILE_MODELS names (default: all).
+        include_mean: Also fetch the NMME overall mean.
     """
     if yyyymm is None:
         yyyymm = _find_latest_nmme_date()
@@ -287,6 +291,8 @@ def fetch_nmme(
     all_records = []
 
     for file_model in NMME_FILE_MODELS:
+        if only_models is not None and file_model not in only_models:
+            continue
         display_name = NMME_MODEL_DISPLAY.get(file_model, file_model)
 
         if include_members:
@@ -316,9 +322,9 @@ def fetch_nmme(
     nmme_mean_filename = f"NMME.tmpsfc.{yyyymm}.ENSMEAN.anom.nc"
     nmme_mean_url = f"{NMME_BASE_URL}ENSMEAN/{yyyymm}0800/{nmme_mean_filename}"
     nmme_mean_path = nmme_raw / nmme_mean_filename
-    logger.info("Fetching NMME overall mean")
 
-    if _download_file(nmme_mean_url, nmme_mean_path):
+    if include_mean and _download_file(nmme_mean_url, nmme_mean_path):
+        logger.info("Fetched NMME overall mean")
         try:
             records = _process_member_file(
                 nmme_mean_path, "NMME", "NMME", init_date,
@@ -355,7 +361,16 @@ def fetch_nmme(
 
 
 def save_nmme(force: bool = False) -> pd.DataFrame:
-    """Fetch and save NMME data."""
+    """Fetch and save NMME data.
+
+    Models already on the latest run in the previous file are kept rather
+    than re-downloaded. A model missing from the latest run (e.g. NASA GEOS,
+    which posted nothing for Nov 2026 alongside the others) falls back to the
+    previous month's run, as C3S does. Those older-init rows keep run.py's
+    init_date gate re-fetching daily, so the model is picked up when it
+    posts; without them the gate saw a fully current file and skipped NMME
+    for the rest of the month.
+    """
     today_str = date.today().isoformat()
     out_dir = FORECASTS_DIR / "NMME"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -365,7 +380,45 @@ def save_nmme(force: bool = False) -> pd.DataFrame:
         logger.info("NMME data for %s already exists, skipping", today_str)
         return pd.read_csv(out_path)
 
-    df = fetch_nmme(include_members=True)
+    yyyymm = _find_latest_nmme_date()
+    init_date = f"{yyyymm[:4]}-{yyyymm[4:6]}-01"
+
+    prev_init = (pd.Timestamp(init_date) - pd.DateOffset(months=1)).strftime("%Y-%m-%d")
+    kept = prev = pd.DataFrame()
+    existing = sorted(out_dir.glob("*.csv"))
+    if existing:
+        try:
+            prev = pd.read_csv(existing[-1])
+            kept = prev[(prev["init_date"].astype(str) == init_date)
+                        & (prev["model"] != "NMME")]
+        except Exception as e:
+            logger.warning("Could not read previous NMME file: %s", e)
+    have = set(kept["model"]) if not kept.empty else set()
+    todo = [m for m in NMME_FILE_MODELS if NMME_MODEL_DISPLAY[m] not in have]
+    if have:
+        logger.info("NMME: reusing %s already on %s", ", ".join(sorted(have)), init_date)
+
+    new = fetch_nmme(yyyymm, include_members=True, only_models=todo)
+    got = set(new["model"]) if not new.empty else set()
+    missing = [m for m in todo if NMME_MODEL_DISPLAY[m] not in got]
+    fallback = pd.DataFrame()
+    if missing:
+        logger.info("NMME: %s missing for %s, falling back to %s",
+                    ", ".join(missing), yyyymm, prev_init[:7])
+        # Reuse fallback rows saved by an earlier fetch this month
+        if not prev.empty:
+            fallback = prev[(prev["init_date"].astype(str) == prev_init)
+                            & prev["model"].isin([NMME_MODEL_DISPLAY[m] for m in missing])]
+        have_fb = set(fallback["model"]) if not fallback.empty else set()
+        need = [m for m in missing if NMME_MODEL_DISPLAY[m] not in have_fb]
+        if need:
+            more = fetch_nmme(prev_init[:7].replace("-", ""), include_members=True,
+                              only_models=need, include_mean=False)
+            parts = [d for d in (fallback, more) if not d.empty]
+            fallback = pd.concat(parts, ignore_index=True) if parts else fallback
+
+    parts = [d for d in (kept, new, fallback) if not d.empty]
+    df = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
     if df.empty:
         logger.warning("NMME fetch returned no data, keeping existing file")
         return df
