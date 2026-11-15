@@ -546,24 +546,26 @@ def export_enso_members(forecast_df, index_mode="oni") -> None:
 
 
 def export_enso_peaks(forecast_df, index_mode="oni") -> None:
-    """Forecast peak intensity panel: each member's Jul-Dec peak."""
-    from src.enso_plots import compute_member_peaks
+    """Forecast peak intensity panel: each member's Jul-Feb peak."""
+    from src.enso_plots import compute_member_peaks, peak_window_label
 
     peaks = compute_member_peaks(forecast_df, index_mode)
     if peaks.empty:
         logger.warning(f"No member peaks for {index_mode}; skipping")
         return
     year = int(peaks["year"].iloc[0])
+    window = peak_window_label(year).replace("–", "-")
     out = (peaks[["model", "member_id", "peak", "peak_month"]]
            .rename(columns={"peak": "peak_c"})
            .sort_values(["model", "member_id"]))
     label = _idx_label(index_mode)
     _write(out, f"enso_peak_members_{index_mode}.csv",
            f"Forecast peak intensity — {label}: each ensemble member's "
-           f"Jul-Dec {year} peak",
-           [f"peak_c: the member's maximum monthly forecast over Jul-Dec "
-            f"{year}; peak_month: when it occurs. Members must cover both "
-            "Nov and Dec to be included.",
+           f"{window} peak",
+           [f"peak_c: the member's maximum monthly forecast over {window}; "
+            "peak_month: when it occurs. Members must run through at least "
+            f"Dec {year} to be included; a member whose forecast ends in Dec "
+            "can miss a Jan-Feb peak.",
             "Dashboard statistics weight every model equally regardless "
             "of ensemble size."])
 

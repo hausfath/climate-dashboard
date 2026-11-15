@@ -1538,25 +1538,45 @@ def create_nino34_daily_years(hist_df, dark_mode=False, index_mode="oni",
 # Peak-intensity histogram + per-model lollipop
 # ---------------------------------------------------------------------------
 
+# Peak window: Jul of the forecast year through Feb of the next, so boreal-
+# winter peaks that land in Jan/Feb are not truncated (Nov 2026 inits put
+# ~30-60% of CMCC/DWD/JMA/CESM1 member peaks in Jan-Feb 2027; none in Mar).
+PEAK_START_MONTH, PEAK_END_MONTH = 7, 2
+
+
+def peak_window_label(year: int) -> str:
+    return (f"{pd.Timestamp(year, PEAK_START_MONTH, 1):%b} {year}–"
+            f"{pd.Timestamp(year + 1, PEAK_END_MONTH, 1):%b} {year + 1}")
+
+
 def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
     """One row per (model, member): the member's peak forecast value and
-    peak month over Jul–Dec of the forecast year. Members must cover both
-    Nov and Dec (the climatological peak window) to avoid truncated peaks."""
+    peak month over Jul of the forecast year through Feb of the next.
+
+    Members must run through at least Dec (the climatological peak) so a
+    horizon ending early can't truncate the peak. The test is "reaches Dec",
+    not "contains Nov/Dec": runs that start after Nov (CFSv2 E3 and SINTEX-F
+    from Nov inits begin in Dec; CFSv2 from Dec inits begins in Jan) still
+    count. A member whose horizon ends in Dec (summer-init C3S) can still
+    miss a Jan-Feb peak that longer-range models see."""
     meta = _index_meta(index_mode)
     fdf = _swap_to_nino34(forecast_df, meta["col"])
     mega = _build_mega_df(_get_forecast_only(fdf))
     if mega.empty:
         return pd.DataFrame()
-    year = pd.to_datetime(mega["init_date"]).max().year
-    peak_months = [f"{year}-{m:02d}" for m in range(7, 13)]
-    required = {f"{year}-11", f"{year}-12"}
+    # Event year: runs made Jan-Mar stay on the event that peaked the
+    # previous winter rather than jumping to a window they barely reach.
+    latest = pd.to_datetime(mega["init_date"]).max()
+    year = latest.year - 1 if latest.month <= 3 else latest.year
+    start = f"{year}-{PEAK_START_MONTH:02d}"
+    end = f"{year + 1}-{PEAK_END_MONTH:02d}"
     m = mega[(mega["member_id"] != "mean")
-             & (mega["target_month"].isin(peak_months))
+             & (mega["target_month"].between(start, end))
              & (mega["nino34_anom"].notna())].copy()
     if m.empty:
         return pd.DataFrame()
-    cover = m.groupby(["model", "member_id"])["target_month"].apply(set)
-    ok = cover[cover.apply(lambda s: required <= s)].index
+    reach = m.groupby(["model", "member_id"])["target_month"].max()
+    ok = reach[reach >= f"{year}-12"].index
     if not len(ok):
         return pd.DataFrame()
     m = m.set_index(["model", "member_id"]).loc[ok].reset_index()
@@ -1622,7 +1642,7 @@ def _record_peak(index_mode: str) -> tuple[float, str] | tuple[None, None]:
 def create_enso_peak_lollipop(forecast_df, dark_mode=False,
                               index_mode="oni") -> go.Figure:
     """Forecast peak intensity: model-weighted histogram of each ensemble
-    member's Jul–Dec peak (top) + per-model median/10–90% lollipops
+    member's Jul–Feb peak (top) + per-model median/10–90% lollipops
     (bottom). Single shared x-axis; y domains split the two panels."""
     theme = get_theme(dark_mode)
     meta = _index_meta(index_mode)
@@ -1748,7 +1768,7 @@ def create_enso_peak_lollipop(forecast_df, dark_mode=False,
         height=620,
         showlegend=False,
         xaxis=dict(
-            title=(f"Peak {meta['short']} anomaly, Jul–Dec {year} (°C)"),
+            title=(f"Peak {meta['short']} anomaly, {peak_window_label(year)} (°C)"),
             range=[x_min, x_max], dtick=0.5, hoverformat='.2f',
         ),
         # Per-point hover: the template's 'x unified' mode would add a header
