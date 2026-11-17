@@ -113,9 +113,10 @@ def _anomalize(values, dates: pd.DatetimeIndex, clim_coarse: pd.Series,
     bias_anom: a constant (°C) or a per-day correction aligned with
     ``dates`` (Series / array) — see :func:`lead_bias_for`.
     """
-    from src.models_vs_obs import preindustrial_offset
+    from src.models_vs_obs import monthly_preindustrial_offset
     clim = pd.Series(dates.dayofyear, index=dates).map(clim_coarse)
-    pi = pd.Series(preindustrial_offset(dates), index=dates)
+    # monthly means use the C3S monthly offsets (as Copernicus reports them)
+    pi = pd.Series(monthly_preindustrial_offset(dates), index=dates)
     if not np.isscalar(bias_anom):
         bias_anom = pd.Series(np.asarray(bias_anom, dtype=float), index=dates)
         if isinstance(values, pd.DataFrame):
@@ -188,7 +189,9 @@ def compute_monthly_blend(df_adj: pd.DataFrame) -> dict | None:
     """Blended monthly projection for the current (latest-data) month.
 
     df_adj: dashboard daily ERA5 frame, 'anomaly' already preindustrial-
-    adjusted, 'climatology' present. Returns None whenever any input or
+    adjusted with the C3S monthly offsets
+    (adjust_anomalies_to_preindustrial(..., offset='monthly')),
+    'climatology' present. Returns None whenever any input or
     sanity gate fails — the caller falls back to the regression.
     """
     from scipy import stats as sstats
@@ -381,8 +384,12 @@ def update_calibration() -> pd.DataFrame | None:
     archive = _load_archive()
     if not archive:
         return None
-    obs = _load_obs()
-    obs_anom = obs.set_index("date")["anomaly"]
+    from src.models_vs_obs import monthly_preindustrial_offset, preindustrial_offset
+    obs = _load_obs()                      # daily offsets (ec46_skill convention)
+    # verify on the monthly-offset basis _anomalize uses
+    obs_anom = (obs["anomaly"] - preindustrial_offset(obs["date"])
+                + monthly_preindustrial_offset(obs["date"]))
+    obs_anom.index = pd.DatetimeIndex(obs["date"])
     # Leave-one-month-out bias curves: an init is verified with a
     # correction fitted to the OTHER months' inits, so the calibration
     # (s_hat) is not flattered by in-sample bias removal.
@@ -505,7 +512,7 @@ if __name__ == "__main__":
         from src.dashboard import adjust_anomalies_to_preindustrial
         src_cfg = DATA_SOURCES["era5_global"]
         df = load_or_fetch_data(src_cfg["url"], src_cfg["local_file"])
-        out = compute_monthly_blend(adjust_anomalies_to_preindustrial(df))
+        out = compute_monthly_blend(adjust_anomalies_to_preindustrial(df, offset="monthly"))
         if out:
             q = out["quantiles"]
             print(f"\n{out['year']}-{out['month']:02d} projection "

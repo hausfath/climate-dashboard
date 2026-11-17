@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.linear_model import LinearRegression
 
-from src.models_vs_obs import preindustrial_offset
+from src.models_vs_obs import monthly_preindustrial_offset, preindustrial_offset
 from src import layout as L
 from src.theme import install_fonts, template_name, tokens
 from src.units import convert_figure_units
@@ -140,7 +140,8 @@ def get_theme(dark_mode: bool = False) -> dict:
 
 
 def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
-                                       anomaly_col: str = 'anomaly') -> pd.DataFrame:
+                                       anomaly_col: str = 'anomaly',
+                                       offset: str = 'daily') -> pd.DataFrame:
     """
     Adjusts temperature anomalies to show change relative to preindustrial levels.
 
@@ -148,16 +149,21 @@ def adjust_anomalies_to_preindustrial(df: pd.DataFrame, date_col: str = 'date',
     - df (DataFrame): DataFrame containing the data.
     - date_col (str): Name of the column containing the date.
     - anomaly_col (str): Name of the column containing the temperature anomaly.
+    - offset (str): 'daily' (C3S day-by-day offset) for single days and for
+      annual / year-to-date means (C3S annual values are day-weighted with a
+      flat 0.88, which the daily offset reproduces); 'monthly' (C3S per-month
+      basis) for anything averaged to calendar months, so monthly means match
+      Copernicus's published monthly values.
 
     Returns:
     - DataFrame: DataFrame with adjusted temperature anomalies.
     """
-    # Adjusting the anomalies (1991-2020 baseline → 1850-1900 preindustrial)
-    # with the C3S day-by-day offset; source of truth is
-    # src/models_vs_obs.preindustrial_offset, shared with the Models vs Obs tab.
+    # 1991-2020 baseline → 1850-1900 preindustrial with the C3S offsets;
+    # source of truth is src/models_vs_obs (shared with the Models vs Obs tab).
+    fn = {'daily': preindustrial_offset,
+          'monthly': monthly_preindustrial_offset}[offset]
     df_adjusted = df.copy()
-    df_adjusted[anomaly_col] = (df[anomaly_col]
-                                + preindustrial_offset(df[date_col]))
+    df_adjusted[anomaly_col] = df[anomaly_col] + fn(df[date_col])
 
     return df_adjusted
 
@@ -285,7 +291,8 @@ def create_time_series_plot(df: pd.DataFrame, dark_mode: bool = False,
     """
     theme = get_theme(dark_mode)
 
-    # Adjust anomalies to preindustrial baseline
+    # Adjust anomalies to preindustrial baseline (C3S daily offset; its
+    # day-weighted annual means match C3S's annual values, which use a flat 0.88)
     df_adj = adjust_anomalies_to_preindustrial(df)
     if enso_removed:
         from src.enso_removal import remove_enso
@@ -756,8 +763,8 @@ def create_monthly_projection_plot(df: pd.DataFrame, dark_mode: bool = False) ->
     """
     theme = get_theme(dark_mode)
 
-    # Adjust anomalies to preindustrial baseline
-    df_adj = adjust_anomalies_to_preindustrial(df)
+    # Adjust anomalies to preindustrial baseline (monthly means: C3S monthly offsets)
+    df_adj = adjust_anomalies_to_preindustrial(df, offset='monthly')
 
     # Determine the current month and year from the data
     latest_date = df_adj['date'].max()
@@ -1896,8 +1903,10 @@ def ordinal(n: int) -> str:
 
 def create_statistics_cards(df: pd.DataFrame) -> dict:
     """Calculate key statistics for display with preindustrial baseline."""
-    # Adjust anomalies to preindustrial baseline
+    # Adjust anomalies to preindustrial baseline: days and annual/YTD means on
+    # the C3S daily offset, the month card on the C3S monthly basis
     df_adj = adjust_anomalies_to_preindustrial(df)
+    df_mon = adjust_anomalies_to_preindustrial(df, offset='monthly')
 
     current_year = df_adj['year'].max()
     latest_date = df_adj['date'].max()
@@ -1919,7 +1928,7 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
 
     # EC46 ensemble blend with regression fallback; the unified quantile
     # keys drive both the card text and the rank range below.
-    _mproj = get_monthly_projection(df_adj)
+    _mproj = get_monthly_projection(df_mon)
     pred = _mproj.get('prediction')
     mtd = _mproj.get('mtd_avg')
     days = _mproj.get('days_in', 0)
@@ -2077,9 +2086,9 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
     month_rank_range_str = None
     if pred is not None and err is not None:
         try:
-            hist_monthly = df_adj[
-                (df_adj['date'].dt.month == target_month) &
-                (df_adj['year'] < current_year)
+            hist_monthly = df_mon[
+                (df_mon['date'].dt.month == target_month) &
+                (df_mon['year'] < current_year)
             ]
             hist_month_means = hist_monthly.groupby('year')['anomaly'].mean()
             month_rank = int((hist_month_means > pred).sum()) + 1

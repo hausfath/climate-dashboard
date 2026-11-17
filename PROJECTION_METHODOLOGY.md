@@ -30,17 +30,31 @@ audited after the fact.
 ### Preindustrial baseline
 
 ERA5 anomalies are published on a 1991–2020 baseline. They are converted to
-the 1850–1900 preindustrial baseline using the Copernicus (C3S) day-by-day
-offset: a single annual harmonic in day of year, ranging from +0.79 °C in early
-August to +0.97 °C in early February, with an annual mean of +0.88 °C
-([C3S method](https://climate.copernicus.eu/climate-bulletin-about-data-and-analysis)).
-`preindustrial_offset` in `src/models_vs_obs.py` reproduces the
-`offset_1850_1900` column of the Climate Pulse daily file to 0.0001 °C and also
-covers forecast dates. The same offset is used across the dashboard so daily,
-monthly, and annual values agree between tabs. Until 15 Nov 2026 the dashboard
-used C3S's stepped per-month offsets (+0.80 to +0.96 °C). Monthly means differ
-from those by at most 0.009 °C and annual means by under 0.001 °C; individual
-days differ by up to 0.024 °C.
+the 1850–1900 preindustrial baseline the way Copernicus (C3S) converts its own
+published values ([C3S method](https://climate.copernicus.eu/climate-bulletin-about-data-and-analysis)),
+which differs by averaging period:
+
+- **Days, annual and year-to-date means** use the C3S day-by-day offset, a
+  single annual harmonic in day of year ranging from +0.79 °C in early August
+  to +0.97 °C in early February, with an annual mean of +0.88 °C.
+  `preindustrial_offset` in `src/models_vs_obs.py` reproduces the
+  `offset_1850_1900` column of the Climate Pulse daily file to 0.0001 °C and
+  also covers forecast dates. C3S's annual values are day-weighted means with a
+  flat +0.88 °C offset; the dashboard's annual means match its annual file to
+  0.0003 °C (2023 1.483, 2024 1.599, 2025 1.471 °C).
+- **Calendar-month means** (the monthly projection and month card, the monthly
+  blend, Models vs Obs ERA5) use C3S's stepped monthly offsets (+0.80 °C in
+  Jul–Aug to +0.96 °C in Jan–Feb) plus a fixed per-month climatology term,
+  `monthly_preindustrial_offset`. C3S computes monthly anomalies against a
+  monthly 1991–2020 climatology, which differs from the month's mean of the
+  daily climatology by −0.005 to +0.005 °C depending on the month. With that
+  term, every complete month 1940–Oct 2026 matches the Climate Pulse monthly
+  file's `anom_1850_1900` to a mean of 0.00003 °C (maximum 0.0012 °C, Jul
+  2024, where the two files' absolute temperatures differ).
+
+From 15 to 17 Nov 2026 monthly means used the daily offset, which put them up
+to 0.009 °C from the C3S monthly values; before 15 Nov they used the stepped
+offsets without the climatology term (up to 0.005 °C off).
 
 ## The Regression Model
 

@@ -40,9 +40,9 @@ BERKELEY_URL = 'https://storage.googleapis.com/berkeley-earth-temperature-hr/glo
 
 # ── Rebaseline offsets: shift from 1981-2010 baseline to 1850-1900 ────────────
 # Computed from existing combined_obs_1981_2010.csv (mean of 1850-1900 period).
-# Copernicus/ERA5 is intentionally absent: it has no pre-1940 data, so we apply
-# the C3S daily offset (preindustrial_offset) to each day before aggregating
-# in _import_copernicus (matching the Global Temperature tab's calculation).
+# Copernicus/ERA5 is intentionally absent: it has no pre-1940 data, so its
+# monthly means take the C3S monthly offset (monthly_preindustrial_offset) in
+# _import_copernicus, matching the values Copernicus publishes.
 PREINDUSTRIAL_OFFSETS = {
     'hadcrut5': -0.7126,   # HadCRUT.5.2.0.0 (was -0.7021 for 5.1.0.0)
     'gistemp':  -0.6398,
@@ -55,12 +55,34 @@ PREINDUSTRIAL_OFFSETS = {
 # Mar 1 (https://climate.copernicus.eu/climate-bulletin-about-data-and-analysis).
 # Coefficients fit to the offset_1850_1900 column of the Climate Pulse 2.0
 # daily file; they reproduce all 365 published values to 0.0001 degC and are
-# identical for every year 1940-2026. The annual mean is C3S's 0.88. Used
-# everywhere ERA5 is put on 1850-1900 (Global Temperature tab, Models vs Obs
-# monthly means, EC46 forecasts), so the tabs agree. It replaced the stepped
-# per-month table (0.80-0.96) on 2026-11-15; monthly means moved <= 0.009,
-# annual means < 0.001, single days <= 0.024.
+# identical for every year 1940-2026. The annual mean is C3S's 0.88.
+#
+# C3S uses this offset for daily values, the stepped per-month table below for
+# monthly values and a flat 0.88 for day-weighted annual values; the dashboard
+# follows the same split so its numbers match what Copernicus reports.
+# preindustrial_offset: days, annual and year-to-date means (its day-weighted
+# annual mean is 0.88; complete years match the C3S annual file to 0.0003).
+# monthly_preindustrial_offset: anything averaged to calendar months (monthly
+# projection and card, Models vs Obs). Monthly means on the two bases differed
+# by up to 0.009 before 2026-11-17, when the monthly basis was restored.
 DAILY_PI_OFFSET_COEFS = (0.88, 0.06957, 0.05060)
+
+# C3S monthly offsets (Jan..Dec), identical to the offset_1850_1900 column of
+# the Climate Pulse 2.0 monthly file.
+MONTHLY_PI_OFFSETS = (0.96, 0.96, 0.95, 0.91, 0.87, 0.83,
+                      0.80, 0.80, 0.81, 0.85, 0.89, 0.93)
+
+# C3S monthly anomalies are monthly-mean t2m minus a monthly 1991-2020
+# climatology, which is not the month's mean of the (smoothed) daily
+# climatology the daily anomalies use. The difference is fixed per calendar
+# month (Feb also depends on leap years): mean daily clim - monthly clim (degC),
+# from the Climate Pulse 2.0 daily and monthly files (2026-11-17). Adding it
+# makes a complete month reproduce the published monthly anomaly (to the
+# files' 4-decimal rounding) while a month in progress keeps the day-by-day
+# seasonal cycle removal. Without it monthly means were off by up to 0.005.
+MONTHLY_CLIM_ADJ = (0.00118, -0.00536, -0.00364, -0.00012, 0.00469, -0.00067,
+                    -0.00085, -0.00058, 0.00478, 0.00018, -0.00246, 0.00126)
+FEB_LEAP_CLIM_ADJ = 0.00385
 
 
 def preindustrial_offset(dates) -> np.ndarray:
@@ -79,6 +101,19 @@ def preindustrial_offset(dates) -> np.ndarray:
     feb29 = leap & (dates.month == 2) & (dates.day == 29)
     out[feb29] = (f(59) + f(60)) / 2                 # mean of Feb 28 and Mar 1
     return out
+
+
+def monthly_preindustrial_offset(dates) -> np.ndarray:
+    """C3S monthly 1991-2020 -> 1850-1900 offset (degC) for each date's month.
+
+    Includes MONTHLY_CLIM_ADJ, so a complete month's mean of
+    (daily anomaly + this) equals the C3S monthly anomaly vs 1850-1900.
+    Per-day values on this basis are only meant to be averaged."""
+    dates = pd.DatetimeIndex(pd.to_datetime(dates))
+    months = dates.month.to_numpy()
+    adj = np.asarray(MONTHLY_CLIM_ADJ)[months - 1]
+    adj = np.where(dates.is_leap_year & (months == 2), FEB_LEAP_CLIM_ADJ, adj)
+    return np.asarray(MONTHLY_PI_OFFSETS)[months - 1] + adj
 
 # Forcing scenarios used to splice the historical period to a future
 # extension for each CMIP generation. These come from the source ensemble
@@ -273,10 +308,9 @@ def _import_berkeley() -> pd.DataFrame:
 def _import_copernicus() -> pd.DataFrame:
     """Derive monthly Copernicus/ERA5 anomalies on the 1850-1900 baseline.
 
-    Adds the C3S daily offset (preindustrial_offset) to each day of the local
-    daily ERA5 CSV (1991-2020 baseline, back to 1940), then takes monthly
-    means, so the result is on the same 1850-1900 baseline used elsewhere.
-    This matches the Global Temperature tab's calculation and skips the
+    Takes monthly means of the local daily ERA5 CSV (1991-2020 baseline,
+    back to 1940) and adds the C3S monthly offset, so each value matches the
+    monthly anomaly Copernicus publishes on 1850-1900. This skips the
     1981-2010 intermediate baseline
     used for the other obs records — ERA5 has no data before 1940 to compute
     its own 1850-1900 mean from.
@@ -290,7 +324,7 @@ def _import_copernicus() -> pd.DataFrame:
         df['year']  = df['date'].dt.year
         df['month'] = df['date'].dt.month
         df['anomaly'] = (pd.to_numeric(df['anomaly'], errors='coerce')
-                         + preindustrial_offset(df['date']))
+                         + monthly_preindustrial_offset(df['date']))
         agg = df.groupby(['year', 'month']).agg(
             copernicus=('anomaly', 'mean'),
             days=('date', 'nunique'),

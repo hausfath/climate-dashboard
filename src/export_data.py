@@ -103,7 +103,9 @@ def export_timeseries(df: pd.DataFrame) -> None:
     _write(annual, "timeseries_annual.csv",
            "Annual global mean surface temperature anomaly (ERA5)",
            ["Calendar-year means of the daily anomalies vs preindustrial "
-            "1850-1900; the current year is a year-to-date mean.",
+            "1850-1900; the current year is a year-to-date mean. Complete "
+            "years match the C3S annual values (day-weighted, offset 0.88) "
+            "to 0.0003 degC.",
             "ENSO-removed column as in timeseries_daily.csv.",
             "Source: ECMWF ERA5 via Copernicus Climate Pulse."])
 
@@ -172,7 +174,7 @@ def export_monthly_projection(df: pd.DataFrame) -> None:
     from src.dashboard import (adjust_anomalies_to_preindustrial,
                                get_monthly_projection)
 
-    adj = adjust_anomalies_to_preindustrial(df)
+    adj = adjust_anomalies_to_preindustrial(df, offset="monthly")
     latest = adj["date"].max()
     month, year = latest.month, latest.year
     month_name = latest.strftime("%B")
@@ -212,7 +214,9 @@ def export_monthly_projection(df: pd.DataFrame) -> None:
     _write(out, "monthly_projection.csv",
            f"{month_name} global mean anomaly by year, with the "
            f"{month_name} {year} projection (ERA5)",
-           ["Anomalies vs preindustrial 1850-1900.", method_note,
+           ["Anomalies vs preindustrial 1850-1900 on the C3S monthly basis "
+            "(monthly offsets and monthly 1991-2020 climatology), matching "
+            "Copernicus's published monthly values.", method_note,
             "The current year's monthly_mean_c is left blank (incomplete "
             "month); its month-to-date and projection ride in their own "
             "columns."])
