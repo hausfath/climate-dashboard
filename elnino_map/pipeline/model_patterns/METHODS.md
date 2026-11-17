@@ -151,3 +151,32 @@ September bundle exactly (seasonal fields and metrics to 0, grid files and `regi
   September tables in the private project, which stay as the record of the published post.
 
 **14 Oct 2026, tile floor.** Model anomalies are relative to each system's own hindcast climatology, so a model's deficit over a region can exceed the GPCP 1991–2020 normal and its tile would read below 0% of normal rainfall (October 2026, Philippines Dec–Mar: NCAR CESM1 −108.6%, JMA −103.5%). `export_dashboard.py` now floors member values at −100% (no rain) and computes the "Model average" from the floored values, so the tiles and the average agree (Philippines average −69.5% → −68.6%). Agreement counts are unaffected. The map grids were already clipped at −100 in the same script.
+
+**17 Nov 2026, November refresh (`ELNINO_INIT=202611`).**
+- **Inputs.** NMME issue folder `2026110800` (posted 7 Nov) with **5 models**: NASA GEOS posted no November run,
+  and it is left out rather than lagged (decision 17 Nov 2026). `initcfg.NMME` is now the configured models that
+  have files for the init, and the fixed "6"/"13" counts in code and logs follow it. CPC's own November NMME mean
+  is also the 5-model mean (check [1] r = 1.0000). C3S: 7 independent centres + NCEP/ECCC for the consistency
+  check, all November systems (the CDS seasonal queue stalled for ~3 h on 17 Nov; `fetch_cds.py` now runs
+  sequentially, adopts identical queued jobs and resubmits a full queue slowly).
+- **Seasons.** A November start drops OND; the C3S horizon moves to April 2027 and NMME to July 2027. Map
+  seasons: DJF and JFM (12 systems), MAM (NMME only, 5). `grid_OND.bin` deleted.
+- **Validation.** [1] 5-model NMME mean = CPC file (r = 1.0000, max |diff| 4e-6). [2] DJF NCEP vs CFSv2 precip
+  r = 0.976, ECCC vs CanSIPS 0.977. [3] tercile target 802 correlates best with lead months 0–2 (0.72), 803 with
+  1–3, 804 with 2–4: first code = start month, as assumed.
+- **Bug fixed: SST layer month.** `export_data.py` took the DJF SST targets as 800 + offset, but NMME target codes
+  are months since Jan 1960 (800 = Sep 2026). That was right for the September start only; the **October** layer
+  (`img/sst_DJF.png`, and the GIS layers built from that bundle in `elnino_map/layers/`) was Nov–Jan, Niño 3.4
+  3.66 °C vs 3.56 °C for true Dec–Feb. Now indexed from the file's first target. November layer: CFSv2 + CCSM4
+  only (GEOS absent), Niño 3.4 2.90 °C; like-for-like (same two models) October was 2.84 °C, so the drop from 3.56
+  is GEOS leaving the mean (its October DJF Niño 3.4 was 5.0 °C).
+- **Region checks (full windows, 12 systems).** Regions whose window is now Nov–Dec moved most, all toward dry:
+  Horn of Africa 12/13 wet (+34%) → **2/12** (−11%); Sri Lanka 13/13 (+21%) → **6/12** (−1%); central Chile
+  (window now November only) 13/13 (+116%) → **5/12** (−6%); UK/central Europe (unmapped) 10/13 → 4/12. These are
+  forecast changes, not alignment: for the same target months (Nov–Dec 2026) read directly from the raw files,
+  9 of 12 systems flipped from wet to dry over the Horn box (11 wet in the October run, 2 in November) and 9 of
+  12 over Sri Lanka (12 wet → 3) between the October and November runs. The NMME models still forecast a positive IOD for Nov–Dec (DMI +0.55 to +1.02 °C, similar to
+  October), so IOD decay does not explain it; the cause is not identified. SE Australia: window Oct–Nov is now
+  mostly past → no model check. Mekong and NE Brazil gain C3S coverage (Mar–Apr, 12/12). Elsewhere every
+  region keeps all or all-but-one model on the literature side.
+- **P(2027 warmest)** extract refreshed from the 17 Nov operational forecast: ONI 93.5 %, RONI 94.1 %.

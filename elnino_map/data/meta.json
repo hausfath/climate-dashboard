@@ -1,73 +1,9 @@
 {
- "init": "Oct 2026",
+ "init": "Nov 2026",
  "seasons": {
-  "OND": {
-   "label": "Oct–Dec 2026",
-   "n": 13,
-   "models": [
-    {
-     "id": "CFSv2",
-     "label": "NOAA CFSv2"
-    },
-    {
-     "id": "CanESM5",
-     "label": "Canada CanESM5"
-    },
-    {
-     "id": "GEM5.2_NEMO",
-     "label": "Canada GEM5.2"
-    },
-    {
-     "id": "NASA_GEOS5v2",
-     "label": "NASA GEOS"
-    },
-    {
-     "id": "NCAR_CCSM4",
-     "label": "NCAR CCSM4"
-    },
-    {
-     "id": "NCAR_CESM1",
-     "label": "NCAR CESM1"
-    },
-    {
-     "id": "ecmwf",
-     "label": "ECMWF"
-    },
-    {
-     "id": "ukmo",
-     "label": "UK Met Office"
-    },
-    {
-     "id": "meteo_france",
-     "label": "Météo-France"
-    },
-    {
-     "id": "dwd",
-     "label": "DWD Germany"
-    },
-    {
-     "id": "cmcc",
-     "label": "CMCC Italy"
-    },
-    {
-     "id": "jma",
-     "label": "JMA Japan"
-    },
-    {
-     "id": "bom",
-     "label": "BoM Australia"
-    }
-   ],
-   "win": [
-    9,
-    3
-   ],
-   "sub": "2026",
-   "source": "NMME + Copernicus C3S"
-  },
   "DJF": {
    "label": "Dec 2026–Feb 2027",
-   "n": 13,
+   "n": 12,
    "models": [
     {
      "id": "CFSv2",
@@ -80,10 +16,6 @@
     {
      "id": "GEM5.2_NEMO",
      "label": "Canada GEM5.2"
-    },
-    {
-     "id": "NASA_GEOS5v2",
-     "label": "NASA GEOS"
     },
     {
      "id": "NCAR_CCSM4",
@@ -131,7 +63,7 @@
   },
   "JFM": {
    "label": "Jan–Mar 2027",
-   "n": 13,
+   "n": 12,
    "models": [
     {
      "id": "CFSv2",
@@ -144,10 +76,6 @@
     {
      "id": "GEM5.2_NEMO",
      "label": "Canada GEM5.2"
-    },
-    {
-     "id": "NASA_GEOS5v2",
-     "label": "NASA GEOS"
     },
     {
      "id": "NCAR_CCSM4",
@@ -195,7 +123,7 @@
   },
   "MAM": {
    "label": "Mar–May 2027",
-   "n": 6,
+   "n": 5,
    "models": [
     {
      "id": "CFSv2",
@@ -208,10 +136,6 @@
     {
      "id": "GEM5.2_NEMO",
      "label": "Canada GEM5.2"
-    },
-    {
-     "id": "NASA_GEOS5v2",
-     "label": "NASA GEOS"
     },
     {
      "id": "NCAR_CCSM4",
@@ -227,7 +151,7 @@
     3
    ],
    "sub": "2027",
-   "source": "NMME (C3S runs end in Mar)"
+   "source": "NMME (C3S runs end in Apr)"
   }
  },
  "strong_events": [
@@ -297,17 +221,17 @@
   155
  ],
  "p2027_warmest": {
-  "ONI": 0.948,
-  "RONI": 0.962
+  "ONI": 0.935,
+  "RONI": 0.941
  },
  "n_map_regions": 26,
  "obs_source": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands",
  "model_horizon": {
-  "all": "Mar 2027",
-  "nmme": "Jun 2027"
+  "all": "Apr 2027",
+  "nmme": "Jul 2027"
  },
- "n_all": 13,
- "n_nmme": 6,
+ "n_all": 12,
+ "n_nmme": 5,
  "baseline": "normal",
  "bars": "typical"
 }

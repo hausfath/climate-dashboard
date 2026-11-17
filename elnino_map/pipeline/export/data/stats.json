@@ -1,11 +1,11 @@
 {
- "init": "Oct 2026",
+ "init": "Nov 2026",
  "p2027_warmest": {
-  "ONI": 0.948,
-  "RONI": 0.962
+  "ONI": 0.935,
+  "RONI": 0.941
  },
  "forecast_models": 14,
- "forecast_members": 674,
+ "forecast_members": 652,
  "oni_ndj_strong": {
   "1957": 1.62,
   "1965": 1.6,
@@ -61,7 +61,7 @@
    26
   ]
  },
- "sst_nino34_djf_3model": 3.66,
+ "sst_nino34_djf_3model": 2.9,
  "strong_events": [
   1957,
   1965,
