@@ -197,7 +197,7 @@ def window_typical(months):
 
 
 if __name__ == "__main__":
-    print(f"start {MNAME[INIT_MONTH - 1]} {INIT_YEAR}; all 13 systems to {label([ALL_END])}; NMME to {label([NMME_END])}")
+    print(f"start {MNAME[INIT_MONTH - 1]} {INIT_YEAR}; all {len(NMME) + len(C3S)} systems to {label([ALL_END])}; NMME to {label([NMME_END])}")
     for c in ["SOND", "DJFMA", "ONDJFMAM", "SONDJF", "NDJFM", "ON0", "MAM1", "JJA1", "SONDJFMAM", "OND", "DJF"]:
         w, k = model_window(c)
         print(f"  {c:10s} -> {label(w) or 'beyond range':18s} {k}")

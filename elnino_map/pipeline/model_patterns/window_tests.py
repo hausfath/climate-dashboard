@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(ROOT / "hit_rates"))
 import windows as WN                                   # noqa: E402
-from initcfg import INIT_LABEL, SEASONS as _SEASONS, SEASON_DEF, season_abs_months, ens_for   # noqa: E402
+from initcfg import INIT_LABEL, SEASONS as _SEASONS, SEASON_DEF, season_abs_months, ens_for, NMME   # noqa: E402
 from extract import SHAPES, OCEAN_OK as OCEAN_POLY     # noqa: E402
 
 _src = (HERE / "regions.py").read_text()
@@ -111,7 +111,7 @@ else:
         if var != "pr":
             continue
         s = s if s in _SEASONS else mc[mc.region == r].season.iloc[0]
-        kind = "all" if len(ens_for(s)) > 6 else "nmme"
+        kind = "all" if len(ens_for(s)) > len(NMME) else "nmme"
         t = test(poly_mask(r), season_abs(s), kind, sign, "raw", False)
         ref = mc[mc.region == r].iloc[0]
         if (t["agree"], t["n"], t["cells"]) != (ref.agree, ref.n, ref.ncells):
@@ -120,7 +120,7 @@ else:
     for reg, var, s, sign, _src_ in R["TESTS"]:
         if var != "pr":
             continue
-        kind = "all" if len(ens_for(s)) > 6 else "nmme"
+        kind = "all" if len(ens_for(s)) > len(NMME) else "nmme"
         months = season_abs(s)
         clim, sd = WN.window_obs(months)
         assert np.allclose(clim, o[f"pr_clim_{s}"].values, equal_nan=True, atol=1e-4), f"clim {s}"

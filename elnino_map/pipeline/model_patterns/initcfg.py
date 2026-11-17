@@ -12,7 +12,7 @@ import xarray as xr
 HERE = Path(__file__).resolve().parent
 RAW = HERE / "raw"
 MNAME = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-NMME = ["CFSv2", "CanESM5", "GEM5.2_NEMO", "NASA_GEOS5v2", "NCAR_CCSM4", "NCAR_CESM1"]
+NMME_ALL = ["CFSv2", "CanESM5", "GEM5.2_NEMO", "NASA_GEOS5v2", "NCAR_CCSM4", "NCAR_CESM1"]
 C3S_IND = ["ecmwf", "ukmo", "meteo_france", "dwd", "cmcc", "jma", "bom"]   # centres not already in NMME
 C3S_DUP = ["ncep", "eccc"]                                                   # = CFSv2 / CanSIPS: consistency check only
 
@@ -37,6 +37,9 @@ INIT_YM = f"{INIT_YEAR}{INIT_MONTH:02d}"
 INIT_LABEL = f"{MNAME[INIT_MONTH - 1]} {INIT_YEAR}"           # "Oct 2026": export_dashboard parses this form
 NMME_DIR, C3S_DIR, SST_DIR = RAW / f"nmme_{INIT_YM}", RAW / f"c3s_{INIT_YM}", RAW / f"nmme_{INIT_YM}_sst"
 PROB_FILE = RAW / "nmme_prob" / f"prate.{INIT_YM}.prob.adj.seas.nc"
+# NMME models that ran this month (NASA GEOS posted no Nov 2026 run; it is left out rather than lagged, 17 Nov 2026)
+NMME = [m for m in NMME_ALL if (NMME_DIR / f"{m}.prate.{INIT_YM}.ENSMEAN.anom.nc").exists()]
+NMME_MISSING = [m for m in NMME_ALL if m not in NMME]
 
 
 def _leads():
@@ -83,7 +86,7 @@ PROB_LEAD = {s: SEASONS[s][0][0] for s in SEASONS}   # NMME tercile file: its fi
 
 
 def ens_for(s):
-    """Models with a forecast for season s: 13 where C3S covers it, else the 6 NMME."""
+    """Models with a forecast for season s: NMME + C3S where C3S covers it, else NMME only."""
     return NMME + C3S_IND if SEASONS[s][1] is not None else NMME
 
 
@@ -105,6 +108,7 @@ def season_label(s):
 
 
 if __name__ == "__main__":
-    print(f"init {INIT_LABEL} ({INIT_YM}); NMME leads {NMME_LEADS}, C3S leads {C3S_LEADS}")
+    print(f"init {INIT_LABEL} ({INIT_YM}); NMME leads {NMME_LEADS}, C3S leads {C3S_LEADS}; NMME {len(NMME)} models"
+          + (f" (missing {', '.join(NMME_MISSING)})" if NMME_MISSING else ""))
     for s, (n, c, t) in SEASONS.items():
-        print(f"  {s:4s} {season_label(s):18s} nmme {n} c3s {c} target {t:.3f} prob {PROB_TARGET[s]} models {len(ens_for(s))}")
+        print(f"  {s:4s} {season_label(s):18s} nmme {n} c3s {c} target {t:.3f} prob lead {PROB_LEAD[s]} models {len(ens_for(s))}")

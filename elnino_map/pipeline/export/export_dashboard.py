@@ -43,7 +43,7 @@ DATA = OUT / "data"
 DATA.mkdir(parents=True, exist_ok=True)
 (OUT / "img").mkdir(exist_ok=True)
 
-NMME = ["CFSv2", "CanESM5", "GEM5.2_NEMO", "NASA_GEOS5v2", "NCAR_CCSM4", "NCAR_CESM1"]
+NMME = CFG_NMME
 C3S = ["ecmwf", "ukmo", "meteo_france", "dwd", "cmcc", "jma", "bom"]
 LABEL = {"CFSv2": "NOAA CFSv2", "CanESM5": "Canada CanESM5", "GEM5.2_NEMO": "Canada GEM5.2", "NASA_GEOS5v2": "NASA GEOS",
          "NCAR_CCSM4": "NCAR CCSM4", "NCAR_CESM1": "NCAR CESM1", "ecmwf": "ECMWF", "ukmo": "UK Met Office",

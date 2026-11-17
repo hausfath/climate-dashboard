@@ -12,10 +12,12 @@ mkdir -p "$HERE/raw/nmme_$YM" "$HERE/raw/nmme_${YM}_sst" "$HERE/raw/nmme_prob"
 for m in CanESM5 CFSv2 GEM5.2_NEMO NASA_GEOS5v2 NCAR_CCSM4 NCAR_CESM1 NMME; do
   for v in prate tmp2m; do
     f="$m.$v.$YM.ENSMEAN.anom.nc"
-    [ -s "$HERE/raw/nmme_$YM/$f" ] || curl -sf --max-time 300 -o "$HERE/raw/nmme_$YM/$f" "$BASE/$f"
+    [ -s "$HERE/raw/nmme_$YM/$f" ] || curl -sf --retry 3 --max-time 300 -o "$HERE/raw/nmme_$YM/$f" "$BASE/$f" || \
+      echo "MISSING $f (model not posted this month; initcfg leaves it out)"
   done
   [ "$m" = NMME ] || [ -s "$HERE/raw/nmme_${YM}_sst/$m.tmpsfc.anom.nc" ] || \
-    curl -sf --max-time 300 -o "$HERE/raw/nmme_${YM}_sst/$m.tmpsfc.anom.nc" "$BASE/$m.tmpsfc.$YM.ENSMEAN.anom.nc"
+    curl -sf --retry 3 --max-time 300 -o "$HERE/raw/nmme_${YM}_sst/$m.tmpsfc.anom.nc" "$BASE/$m.tmpsfc.$YM.ENSMEAN.anom.nc" || \
+    echo "MISSING $m.tmpsfc"
 done
 f="prate.$YM.prob.adj.seas.nc"
 [ -s "$HERE/raw/nmme_prob/$f" ] || curl -sf --max-time 300 -o "$HERE/raw/nmme_prob/$f" "ftp://ftp.cpc.ncep.noaa.gov/NMME/prob/netcdf/$f"

@@ -215,7 +215,7 @@ for s, t in tgt.items():
 metrics = metrics.assign_coords(lat=LAT, lon=LON)
 metrics.attrs.update(agree_threshold=AGREE, z_threshold=ZMIN,
                      note="z = anomaly / obs detrended 1991-2020 interannual SD (GPCP precip, ERA5 T2m). "
-                          f"Ensemble = 6 NMME + 7 C3S independent centres ({', '.join(ALL_MODEL_SEASONS)}); NMME only ({', '.join(s for s in SEASONS if s not in ALL_MODEL_SEASONS)}).")
+                          f"Ensemble = {len(NMME)} NMME + {len(C3S_IND)} C3S independent centres ({', '.join(ALL_MODEL_SEASONS)}); NMME only ({', '.join(s for s in SEASONS if s not in ALL_MODEL_SEASONS)}).")
 metrics.to_netcdf(OUT / "metrics.nc", encoding={v: {"zlib": True, "complevel": 4} for v in metrics.data_vars if metrics[v].ndim})
 
 # ---------------- validation ----------------
@@ -238,7 +238,7 @@ for var in ["prate", "tmp2m"]:
         cpc = cpc * 86400
     r = [pcorr(mine[i], cpc[i]) for i in range(9)]
     d = np.nanmax(np.abs(mine - cpc))
-    lines.append(f"[1] NMME {var}: equal-weight mean of 6 model ENSMEANs vs CPC NMME.ENSMEAN file: "
+    lines.append(f"[1] NMME {var}: equal-weight mean of {len(NMME)} model ENSMEANs vs CPC NMME.ENSMEAN file: "
                  f"pattern r min {min(r):.4f} over 9 leads; max |diff| {d:.3g}")
 for s in [ALL_MODEL_SEASONS[0], "DJF"]:
     for dup, ref in [("ncep", ["CFSv2"]), ("eccc", ["CanESM5", "GEM5.2_NEMO"])]:

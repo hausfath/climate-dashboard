@@ -31,7 +31,7 @@ VID = Path(__file__).resolve().parent          # export/
 ROOT = VID.parent                              # pipeline root
 sys.path.insert(0, str(ROOT / "hit_rates")); sys.path.insert(0, str(ROOT / "model_patterns"))
 from extract import SHAPES, OCEAN_OK  # noqa: E402  (same shapes the hit rates were computed on)
-from initcfg import INIT_LABEL, SST_DIR, SEASONS, ens_for, season_or_fallback  # noqa: E402
+from initcfg import INIT_LABEL, SST_DIR, SEASONS, ens_for, season_or_fallback, NMME  # noqa: E402
 
 DATA = VID / "data"
 IMG = VID / "img"
@@ -66,7 +66,6 @@ lat, lon = a.lat.values, a.lon.values
 LON2, LAT2 = np.meshgrid(lon, lat)
 Wt = np.cos(np.deg2rad(LAT2))
 land = o.land.values.astype(bool)
-NMME = ["CFSv2", "CanESM5", "GEM5.2_NEMO", "NASA_GEOS5v2", "NCAR_CCSM4", "NCAR_CESM1"]
 C3S = ["ecmwf", "ukmo", "meteo_france", "dwd", "cmcc", "jma", "bom"]
 LABEL = {"CFSv2": "NOAA CFSv2", "CanESM5": "Canada CanESM5", "GEM5.2_NEMO": "Canada GEM5.2", "NASA_GEOS5v2": "NASA GEOS",
          "NCAR_CCSM4": "NCAR CCSM4", "NCAR_CESM1": "NCAR CESM1", "ecmwf": "ECMWF", "ukmo": "UK Met Office",
@@ -213,9 +212,13 @@ def cmap(stops):
 
 # SST DJF (3 NMME models sharing the 1992–2019 baseline); target 803 = DJF start month Dec
 sst = []
-for m in ["CFSv2", "NASA_GEOS5v2", "NCAR_CCSM4"]:
+SST_MODELS = [m for m in ["CFSv2", "NASA_GEOS5v2", "NCAR_CCSM4"] if m in NMME]   # GEOS absent for Nov 2026
+for m in SST_MODELS:
     d = xr.open_dataset(SST_DIR / f"{m}.tmpsfc.anom.nc", decode_times=False)
-    djf = [800.0 + o for o in SEASONS["DJF"][0]]            # target 800 = start month
+    # target is months since Jan 1960 (800 = Sep 2026), so the start month is the file's first target.
+    # Until 17 Nov 2026 this was 800 + offset, right only for a Sep start: the Oct 2026 layer was
+    # Nov-Jan (Nino 3.4 3.66 vs 3.56 for true Dec-Feb).
+    djf = [float(d.target.values[0]) + o for o in SEASONS["DJF"][0]]
     f = d.fcst.sel(target=djf).mean("target").values  # Dec, Jan, Feb
     sst.append(f)
 sst = np.mean(sst, 0)
@@ -229,7 +232,7 @@ SST_STOPS = cmap([(-3, "#3B6FD9"), (-1, "#6F95E0"), (0, "#1a1a1a"), (0.8, "#7A2E
 rgb = SST_STOPS(np.clip(S, -3, 5))
 alpha = np.where(S > 0, np.clip((S - 0.7) / 1.6, 0, 1), np.clip((-S - 0.4) / 1.2, 0, 1)) ** 0.9 * 240 * np.clip(V, 0, 1)
 Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8), "RGBA").save(IMG / "sst_DJF.png", optimize=True)
-print(f"sst_DJF.png  Niño 3.4 box mean of the 3-model DJF SST anomaly: {nino34:.2f} °C (vs 1992–2019)")
+print(f"sst_DJF.png  Niño 3.4 box mean of the {len(SST_MODELS)}-model DJF SST anomaly: {nino34:.2f} °C (vs 1992–2019)")
 
 # 2027 record odds from Zeke's operational GMST forecast (a separate workflow; 6-dataset blend, 14-model ENSO plume,
 # 1850-1900 baseline): P(2027 ranks warmest on record), ONI and RONI conventions

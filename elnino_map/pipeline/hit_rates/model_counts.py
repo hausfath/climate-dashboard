@@ -12,10 +12,9 @@ from extract import SHAPES, OCEAN_OK
 
 ROOT = Path(__file__).resolve().parent.parent
 import sys; sys.path.insert(0, str(ROOT / "model_patterns"))
-from initcfg import INIT_LABEL, SEASONS, ens_for, season_or_fallback   # noqa: E402
+from initcfg import INIT_LABEL, SEASONS, ens_for, season_or_fallback, NMME   # noqa: E402
 a = xr.open_dataset(ROOT / "model_patterns" / "derived" / "seasonal_anoms.nc")
 o = xr.open_dataset(ROOT / "model_patterns" / "derived" / "obs_ref.nc")
-NMME = ["CFSv2", "CanESM5", "GEM5.2_NEMO", "NASA_GEOS5v2", "NCAR_CCSM4", "NCAR_CESM1"]
 C3S = ["ecmwf", "ukmo", "meteo_france", "dwd", "cmcc", "jma", "bom"]
 LON2, LAT2 = np.meshgrid(a.lon.values, a.lat.values)
 W = np.cos(np.deg2rad(LAT2))
