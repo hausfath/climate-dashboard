@@ -1,0 +1,97 @@
+{
+ "sst_layer": {
+  "models": [
+   "CFSv2",
+   "NCAR_CCSM4"
+  ],
+  "window": "Dec 2026–Feb 2027",
+  "baseline": "1992–2019",
+  "nino34_box_mean_degC": 2.9
+ },
+ "map": "El Niño 2026–27 impacts map, Climate Dashboard (dashboard.theclimatebrink.com, El Niño Impacts tab)",
+ "forecast_init": "Nov 2026",
+ "seasons": {
+  "DJF": {
+   "label": "Dec 2026–Feb 2027",
+   "window_months": [
+    11,
+    3
+   ],
+   "n_models": 12,
+   "models": [
+    "NOAA CFSv2",
+    "Canada CanESM5",
+    "Canada GEM5.2",
+    "NCAR CCSM4",
+    "NCAR CESM1",
+    "ECMWF",
+    "UK Met Office",
+    "Météo-France",
+    "DWD Germany",
+    "CMCC Italy",
+    "JMA Japan",
+    "BoM Australia"
+   ],
+   "source": "NMME + Copernicus C3S",
+   "stipple_cells": 26721,
+   "valid_cells": 55707
+  },
+  "JFM": {
+   "label": "Jan–Mar 2027",
+   "window_months": [
+    12,
+    3
+   ],
+   "n_models": 12,
+   "models": [
+    "NOAA CFSv2",
+    "Canada CanESM5",
+    "Canada GEM5.2",
+    "NCAR CCSM4",
+    "NCAR CESM1",
+    "ECMWF",
+    "UK Met Office",
+    "Météo-France",
+    "DWD Germany",
+    "CMCC Italy",
+    "JMA Japan",
+    "BoM Australia"
+   ],
+   "source": "NMME + Copernicus C3S",
+   "stipple_cells": 26928,
+   "valid_cells": 56032
+  },
+  "MAM": {
+   "label": "Mar–May 2027",
+   "window_months": [
+    14,
+    3
+   ],
+   "n_models": 5,
+   "models": [
+    "NOAA CFSv2",
+    "Canada CanESM5",
+    "Canada GEM5.2",
+    "NCAR CCSM4",
+    "NCAR CESM1"
+   ],
+   "source": "NMME (C3S runs end in Apr)",
+   "stipple_cells": 27320,
+   "valid_cells": 57985
+  }
+ },
+ "raster_grid": "1° × 1°, 181 rows (90N..90S) × 360 cols (180W..179E), cell centres on integer degrees, EPSG:4326",
+ "raster_baseline": "forecast precipitation as % departure from the GPCP v2.3 1991–2020 seasonal normal; cells with normal < 0.5 mm/day are masked (nodata -32768)",
+ "polygon_source": "author's assessment of the teleconnection literature and the observed record of 8 strong El Niños (1957, 1965, 1972, 1982, 1997, 2009, 2015, 2023); polygons and tiers do not change with the forecasts",
+ "observed_record": "GPCC Full Data Monthly v2025 (1° land), GPCP / station composites for islands",
+ "model_horizon": {
+  "all": "Apr 2027",
+  "nmme": "Jul 2027"
+ },
+ "attribution": {
+  "forecasts": "NOAA NMME (public); Copernicus C3S: 'Generated using Copernicus Climate Change Service information 2026'",
+  "observations": "GPCC Full Data Monthly v2025 (DWD); GPCP v2.3 (NOAA PSL); GHCN-Daily (NOAA); Berkeley Earth (central Canada temperature)",
+  "basemap": "Natural Earth (public domain)",
+  "analysis": "Zeke Hausfather, The Climate Brink"
+ }
+}
