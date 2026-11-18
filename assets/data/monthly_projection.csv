@@ -1,7 +1,7 @@
 # November global mean anomaly by year, with the November 2026 projection (ERA5)
-# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-17
+# Climate Dashboard (https://github.com/hausfath/climate-dashboard) — regenerated daily; this file: 2026-11-18
 # Anomalies vs preindustrial 1850-1900 on the C3S monthly basis (monthly offsets and monthly 1991-2020 climatology), matching Copernicus's published monthly values.
-# Projection: median and calibrated quantiles of the ECMWF EC46 46-day ensemble (50 members, init 2026-11-16) blended with 15 days of month-to-date observations; interval widths include verified model-error terms and are capped against overconfidence while the verification archive is short.
+# Projection: median and calibrated quantiles of the ECMWF EC46 46-day ensemble (50 members, init 2026-11-17) blended with 16 days of month-to-date observations; interval widths include verified model-error terms and are capped against overconfidence while the verification archive is short.
 # The current year's monthly_mean_c is left blank (incomplete month); its month-to-date and projection ride in their own columns.
 # All values in degrees Celsius unless a column says otherwise. Load with pandas.read_csv(..., comment='#').
 year,monthly_mean_c,month_to_date_c,projected_c,projection_p05_c,projection_p25_c,projection_p75_c,projection_p95_c,method
@@ -91,4 +91,4 @@ year,monthly_mean_c,month_to_date_c,projected_c,projection_p05_c,projection_p25_
 2023,1.7441,,,,,,,
 2024,1.6186,,,,,,,
 2025,1.5392,,,,,,,
-2026,,1.9547,1.9855,1.8825,1.9460,2.0250,2.0885,ec46_blend
+2026,,1.9555,2.0107,1.9210,1.9763,2.0451,2.1005,ec46_blend
