@@ -506,6 +506,10 @@ def create_daily_anomalies_plot(df: pd.DataFrame, dark_mode: bool = False) -> go
             fig.update_layout(meta={"ec46_bias": ec46_anom.attrs.get("ec46_bias"),
                                     "ec46_init": str(ec46_anom['date'].iloc[0].date())})
             current_year = int(ec46_anom['date'].iloc[0].year)
+            # The x axis is day-of-year for one calendar year: forecast days
+            # in the next year would wrap to Jan and span the whole plot.
+            ec46_anom = ec46_anom[ec46_anom['date'].dt.year == current_year]
+        if ec46_anom is not None and not ec46_anom.empty:
             color = theme['highlight_colors'].get(
                 current_year, theme['rolling_color'])
             band_outer = _hex_to_rgba(color, 0.10)
