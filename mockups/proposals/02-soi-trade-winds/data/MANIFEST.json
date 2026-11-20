@@ -1,0 +1,26 @@
+{
+  "soi": {
+    "url": "https://www.cpc.ncep.noaa.gov/data/indices/soi",
+    "sha256": "2c63ea03b7b708513bdc217d451d6757cd08a75bcbfd32f89a1fa6b739a704e9",
+    "bytes": 12968,
+    "retrieved_utc": "2026-09-07T10:18:41+00:00"
+  },
+  "wpac850": {
+    "url": "https://www.cpc.ncep.noaa.gov/data/indices/wpac850",
+    "sha256": "ae70b7448a7271eb05a67c1bde09b227984edb841023cde82255395fe8f80414",
+    "bytes": 12522,
+    "retrieved_utc": "2026-09-07T10:18:41+00:00"
+  },
+  "cpac850": {
+    "url": "https://www.cpc.ncep.noaa.gov/data/indices/cpac850",
+    "sha256": "de9cdbd8985b61a6fd694e6aaecbd6e975278d2ac53995dbe1f8d4e8d538e23f",
+    "bytes": 12522,
+    "retrieved_utc": "2026-09-07T10:18:41+00:00"
+  },
+  "epac850": {
+    "url": "https://www.cpc.ncep.noaa.gov/data/indices/epac850",
+    "sha256": "60fe86f33fdc864598d3e3c6261bf880409379caa7cde98db790233b1429d2c3",
+    "bytes": 12522,
+    "retrieved_utc": "2026-09-07T10:18:42+00:00"
+  }
+}
