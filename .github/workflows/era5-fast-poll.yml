@@ -1,0 +1,68 @@
+name: ERA5 Fast Poll (temporary)
+
+# TEMPORARY, added 2026-11-23 for the record-anomaly watch. Self-disables
+# after EXPIRES below; delete this file once it has expired.
+#
+# Climate Pulse 2.0 was observed refreshing the ERA5 daily CSV at 04:17 UTC
+# (single observation, 2026-11-23), about 16 h before the main 16:30 UTC cron
+# actually fires. This job polls the file's Last-Modified header and dispatches
+# "Update Climate Data" as soon as the file is newer than the last update run.
+# workflow_dispatch starts within seconds, unlike scheduled runs.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: era5-fast-poll
+  cancel-in-progress: false
+
+env:
+  EXPIRES: '2026-12-02'
+  CSV_URL: https://sites.ecmwf.int/data/climatepulse/timeseries/csv/daily/timeseries_era5_t2m_daily_global.csv
+  TARGET: update-data.yml
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the data update if Climate Pulse has new data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$(date -u +%F)" > "$EXPIRES" || "$(date -u +%F)" == "$EXPIRES" ]]; then
+            echo "Expired on $EXPIRES; delete .github/workflows/era5-fast-poll.yml"
+            exit 0
+          fi
+
+          lm=$(curl -fsSI --max-time 30 --retry 2 "$CSV_URL" \
+                 | tr -d '\r' | awk -F': ' 'tolower($1)=="last-modified"{print $2}')
+          if [[ -z "$lm" ]]; then echo "No Last-Modified header; skipping"; exit 0; fi
+          src=$(date -u -d "$lm" +%s)
+
+          # Any update run queued or in progress already covers this refresh.
+          active=$(gh run list --workflow "$TARGET" --limit 10 --json status \
+                     --jq '[.[] | select(.status != "completed")] | length')
+          # Start time of the newest run that finished (success or not: a failed
+          # run is not retried here; the main cron is the backstop).
+          last=$(gh run list --workflow "$TARGET" --limit 10 --json status,createdAt \
+                   --jq '[.[] | select(.status == "completed")][0].createdAt // "1970-01-01T00:00:00Z"')
+          ran=$(date -u -d "$last" +%s)
+
+          echo "Climate Pulse Last-Modified: $lm"
+          echo "Last completed update run started: $last; active runs: $active"
+          if (( active > 0 )); then echo "Update already running; nothing to do"; exit 0; fi
+          if (( src > ran )); then
+            echo "Source is newer than the last update; dispatching $TARGET"
+            gh workflow run "$TARGET"
+          else
+            echo "Dashboard already has this refresh"
+          fi
