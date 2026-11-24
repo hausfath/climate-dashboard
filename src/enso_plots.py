@@ -1549,9 +1549,17 @@ def peak_window_label(year: int) -> str:
             f"{pd.Timestamp(year + 1, PEAK_END_MONTH, 1):%b} {year + 1}")
 
 
-def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
-    """One row per (model, member): the member's peak forecast value and
-    peak month over Jul of the forecast year through Feb of the next.
+def compute_member_peaks(forecast_df, index_mode="oni", obs_df=None) -> pd.DataFrame:
+    """One row per (model, member): the member's peak value and peak month
+    over Jul of the event year through Feb of the next.
+
+    The trajectory is the observed monthly index for completed months,
+    followed by the member's forecast for the months after the last
+    observed one. Without the observed part no member could peak before its
+    first forecast month: CFSv2 runs from November start in December, so a
+    member that only declines was recorded as "peaking in December"
+    (2026-11-24: 32% of CFSv2 and 80% of CCSM4 members never exceed the
+    observed October value). ``peak_observed`` marks those members.
 
     Members must run through at least Dec (the climatological peak) so a
     horizon ending early can't truncate the peak. The test is "reaches Dec",
@@ -1570,6 +1578,22 @@ def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
     year = latest.year - 1 if latest.month <= 3 else latest.year
     start = f"{year}-{PEAK_START_MONTH:02d}"
     end = f"{year + 1}-{PEAK_END_MONTH:02d}"
+
+    # Observed months in the window (same series the plume panel plots).
+    obs_val, obs_month, obs_last = None, None, None
+    try:
+        if obs_df is None:
+            obs_df = get_recent_observed(n_months=24)
+        o = obs_df.dropna(subset=[meta["col"]]).copy()
+        o["tm"] = pd.to_datetime(o["date"]).dt.strftime("%Y-%m")
+        o = o[o["tm"].between(start, end)]
+        if not o.empty:
+            i = o[meta["col"]].idxmax()
+            obs_val, obs_month = float(o.loc[i, meta["col"]]), o.loc[i, "tm"]
+            obs_last = o["tm"].max()
+    except Exception as e:
+        logger.warning(f"Observed months unavailable for peak panel: {e}")
+
     m = mega[(mega["member_id"] != "mean")
              & (mega["target_month"].between(start, end))
              & (mega["nino34_anom"].notna())].copy()
@@ -1580,10 +1604,20 @@ def compute_member_peaks(forecast_df, index_mode="oni") -> pd.DataFrame:
     if not len(ok):
         return pd.DataFrame()
     m = m.set_index(["model", "member_id"]).loc[ok].reset_index()
+    if obs_last is not None:        # observations supersede forecasts
+        m = m[m["target_month"] > obs_last]
+        if m.empty:
+            return pd.DataFrame()
     i = m.groupby(["model", "member_id"])["nino34_anom"].idxmax()
     peaks = m.loc[i, ["model", "member_id", "target_month",
                       "nino34_anom"]].rename(
         columns={"nino34_anom": "peak", "target_month": "peak_month"})
+    peaks["peak_observed"] = False
+    if obs_val is not None:
+        past = peaks["peak"] < obs_val
+        peaks.loc[past, "peak"] = obs_val
+        peaks.loc[past, "peak_month"] = obs_month
+        peaks.loc[past, "peak_observed"] = True
     peaks["year"] = year
     return peaks.reset_index(drop=True)
 
@@ -1642,7 +1676,7 @@ def _record_peak(index_mode: str) -> tuple[float, str] | tuple[None, None]:
 def create_enso_peak_lollipop(forecast_df, dark_mode=False,
                               index_mode="oni") -> go.Figure:
     """Forecast peak intensity: model-weighted histogram of each ensemble
-    member's Jul–Feb peak (top) + per-model median/10–90% lollipops
+    member's Jul–Feb peak, observed months included (top) + per-model median/10–90% lollipops
     (bottom). Single shared x-axis; y domains split the two panels."""
     theme = get_theme(dark_mode)
     meta = _index_meta(index_mode)
@@ -1715,11 +1749,18 @@ def create_enso_peak_lollipop(forecast_df, dark_mode=False,
                   p10=("peak", lambda s: float(np.percentile(s, 10))),
                   p90=("peak", lambda s: float(np.percentile(s, 90))),
                   n=("peak", "size"),
-                  month=("peak_month", _modal_month))
+                  month=("peak_month", _modal_month),
+                  ym=("peak_month", lambda s: s.mode().iloc[0]),
+                  n_obs=("peak_observed", "sum"))
              .sort_values("median"))
 
+    obs_months = set(members.loc[members["peak_observed"], "peak_month"])
     for model, row in stats.iterrows():
         c = MEGA_COLORS.get(model, "#888888")
+        # modal peak month already observed: past tense, not a forecast
+        verb = "peaked" if row["ym"] in obs_months else "peaks"
+        seen = (f"<br>{int(row['n_obs'])} of {int(row['n'])} members stay "
+                f"below the observed peak" if row["n_obs"] else "")
         fig.add_trace(go.Scatter(
             x=[row["p10"], row["p90"]], y=[model, model], mode="lines",
             line=dict(color=c, width=6), opacity=0.45,
@@ -1732,13 +1773,13 @@ def create_enso_peak_lollipop(forecast_df, dark_mode=False,
             hovertemplate=(f"{model} ({int(row['n'])} members)<br>"
                            f"median peak {row['median']:.2f}°C "
                            f"(10–90%: {row['p10']:.2f}–{row['p90']:.2f})<br>"
-                           f"most often peaks in {row['month']}"
+                           f"most often {verb} in {row['month']}{seen}"
                            "<extra></extra>"),
             showlegend=False,
         ))
         fig.add_annotation(
             x=row["p90"], y=model, xshift=10, xanchor='left',
-            text=f"{row['median']:.1f} · peaks {row['month']}",
+            text=f"{row['median']:.1f} · {verb} {row['month']}",
             showarrow=False, font=dict(size=10, color=fg_soft))
 
     # -- reference lines (span both panels) --------------------------------

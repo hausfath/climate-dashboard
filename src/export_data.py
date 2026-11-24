@@ -559,15 +559,18 @@ def export_enso_peaks(forecast_df, index_mode="oni") -> None:
         return
     year = int(peaks["year"].iloc[0])
     window = peak_window_label(year).replace("–", "-")
-    out = (peaks[["model", "member_id", "peak", "peak_month"]]
+    out = (peaks[["model", "member_id", "peak", "peak_month",
+                  "peak_observed"]]
            .rename(columns={"peak": "peak_c"})
            .sort_values(["model", "member_id"]))
     label = _idx_label(index_mode)
     _write(out, f"enso_peak_members_{index_mode}.csv",
            f"Forecast peak intensity — {label}: each ensemble member's "
            f"{window} peak",
-           [f"peak_c: the member's maximum monthly forecast over {window}; "
-            "peak_month: when it occurs. Members must run through at least "
+           [f"peak_c: the member's maximum monthly value over {window}, "
+            "using observed values for completed months and the forecast "
+            "after them; peak_month: when it occurs; peak_observed: True "
+            "when the forecast never exceeds the observed peak. Members must run through at least "
             f"Dec {year} to be included; a member whose forecast ends in Dec "
             "can miss a Jan-Feb peak.",
             "Dashboard statistics weight every model equally regardless "

@@ -3030,8 +3030,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
                     img_id='enso-peak-img',
                     img_src='/assets/images/enso_peak_lollipop_dark.png',
                     graph_id='enso-peak-lollipop-plot', graph_height=620,
-                    caption=["Each member's forecast peak (its maximum from "
-                             "July through the following February). Top: histogram with every model "
+                    caption=["Each member's peak (its maximum from July "
+                             "through the following February, using "
+                             "observed values for months already complete, "
+                             "so a member that never exceeds them peaks in "
+                             "an observed month). Top: histogram with every model "
                              "weighted equally. Bottom: ",
                              html.B("model medians (dots) and 10–90% member "
                                     "ranges (bars)"),
