@@ -1,0 +1,10 @@
+{
+  "cache": "tropics_daily_sst.csv",
+  "source": "data/nino34_daily_history.csv (committed; maintained by the daily cron from NOAA OISSTv2.1 via CoastWatch ERDDAP with NCEI fallback -- see src/nino_daily.py)",
+  "series": "tropics: 20S-20N all-longitude cos-weighted SST box mean",
+  "source_sha256": "82cab8ec0afc3b2edf0206dc150d5b0dd6b76d82dde56387fbffece908b47699",
+  "rows": 16441,
+  "first": "1981-09-01",
+  "last": "2026-09-05",
+  "extracted_utc": "2026-09-07T09:52:11+00:00"
+}
